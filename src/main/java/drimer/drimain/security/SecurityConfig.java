@@ -64,13 +64,6 @@ public class SecurityConfig {
                         // API endpoints (require authentication)
                         .requestMatchers("/api/**").authenticated()
                         
-                        // Legacy web endpoints (deprecated but kept for transition)
-                        .requestMatchers("/login").permitAll()
-                        .requestMatchers("/dashboard").authenticated()
-                        .requestMatchers("/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/zgloszenia/**").authenticated()
-                        .requestMatchers("/raporty/**").authenticated()
-                        
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(e -> e.authenticationEntryPoint(authenticationEntryPoint()));
