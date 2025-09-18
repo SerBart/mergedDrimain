@@ -28,6 +28,10 @@ public class SecurityConfig {
     private final JwtAuthFilter jwtAuthFilter;
     private final UserDetailsService userDetailsService;
 
+    // TODO: Implement refresh token mechanism for improved security
+    // TODO: Add proper UserDetailsService integration for role-based access
+    // TODO: Consider implementing OAuth2 for external authentication providers
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -60,6 +64,9 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/swagger-ui.html"
                         ).permitAll()
+                        
+                        // Actuator endpoints
+                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         
                         // API endpoints (require authentication)
                         .requestMatchers("/api/**").authenticated()
