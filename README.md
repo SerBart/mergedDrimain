@@ -97,6 +97,61 @@ curl -H "Authorization: Bearer <token>" \
   http://localhost:8080/api/zgloszenia
 ```
 
+### 🔄 Refresh Token Flow
+
+DriMain now supports secure refresh token authentication:
+
+- **Access tokens**: Short-lived (1 hour) for API access
+- **Refresh tokens**: Long-lived (7 days) for token renewal
+- **Automatic token management**: Refresh before expiration
+
+```bash
+# Login returns both tokens
+{
+  "token": "eyJ0eXAiOiJKV1QiLCJhbGc...",      # Access token
+  "refreshToken": "550e8400-e29b-41d4-a716..." # Refresh token
+}
+
+# Refresh access token
+curl -X POST http://localhost:8080/api/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refreshToken":"550e8400-e29b-41d4-a716..."}'
+
+# Get current user info
+curl -H "Authorization: Bearer <token>" \
+  http://localhost:8080/api/users/me
+```
+
+### 👥 Roles and Permissions
+
+DriMain implements role-based access control:
+
+- **ROLE_USER**: Can read reports and access basic endpoints
+- **ROLE_ADMIN**: Can create, update, and delete reports
+- **ROLE_MAGAZYN**: Warehouse-specific operations
+- **ROLE_BIURO**: Office-specific operations
+
+**Report Management Access:**
+- `GET /api/raporty` - All authenticated users
+- `POST /api/raporty` - ADMIN only
+- `PUT /api/raporty/{id}` - ADMIN only  
+- `DELETE /api/raporty/{id}` - ADMIN only
+
+### 📊 Audit Logging
+
+All report operations are automatically audited:
+
+- **Report Creation**: Tracks who created each report (`createdBy` field)
+- **Operation Logging**: Logs all CRUD operations with user information
+- **Security Events**: Logs authentication and authorization events
+
+Example audit log entries:
+```
+INFO - Report created by user: admin
+INFO - Report 123 updated by user: admin
+INFO - Report 456 deleted by user: admin
+```
+
 ## 📱 Mobile & Web Support
 
 The Flutter frontend supports:
@@ -127,6 +182,26 @@ All platforms share the same codebase and connect to the unified REST API.
 
 ## 🗄️ Database Configuration
 
+### Flyway Database Migrations
+
+DriMain now uses Flyway for database schema management:
+
+- **Automatic migrations**: Database schema is version-controlled
+- **Production safety**: Schema changes tracked and validated
+- **Migration files**: Located in `src/main/resources/db/migration/`
+
+```properties
+# Flyway configuration (application.properties)
+spring.flyway.enabled=true
+spring.flyway.locations=classpath:db/migration
+spring.flyway.baseline-on-migrate=true
+spring.jpa.hibernate.ddl-auto=validate  # Changed from 'update' to 'validate'
+```
+
+**Migration History:**
+- `V1__initial_schema.sql` - Base tables (users, roles, reports, etc.)
+- `V2__add_refresh_tokens_and_audit.sql` - Refresh tokens and audit fields
+
 ### Development (H2)
 ```properties
 # src/main/resources/application.properties
@@ -145,27 +220,115 @@ spring:
     password: drimain
 ```
 
+### Environment Variables
+
+Use `.env.example` as a template for environment configuration:
+```bash
+cp .env.example .env
+# Edit .env with your production values
+```
+
 ## 🔧 JWT Configuration
 
-JWT settings in `application.yml`:
+Enhanced JWT settings with refresh token support:
+
 ```yaml
+# src/main/resources/application.yml
 app:
   jwt:
     secret: "REPLACE_WITH_STRONG_SECRET_AT_LEAST_32_CHARS_LONG_1234567890"
-    ttl-seconds: 3600
+    ttl-seconds: 3600                # Legacy setting (1 hour)
+    access-expiration: 3600000       # Access token: 1 hour (in milliseconds)
+    refresh-expiration: 604800000    # Refresh token: 7 days (in milliseconds)
 ```
+
+```properties
+# Alternative configuration in application.properties
+app.jwt.secret=REPLACE_WITH_STRONG_SECRET_AT_LEAST_32_CHARS_LONG_1234567890
+app.jwt.access-expiration=3600000
+app.jwt.refresh-expiration=604800000
+```
+
+### Token Lifecycle
+
+- **Access Token**: Used for API authentication (1 hour lifespan)
+- **Refresh Token**: Used to obtain new access tokens (7 days lifespan)
+- **Automatic Cleanup**: Expired refresh tokens are automatically cleaned up
+- **Security**: Refresh tokens are revoked on logout (planned feature)
 
 **⚠️ Important**: Change the JWT secret for production deployment!
 
 ## 🔄 CI/CD Pipeline
 
-GitHub Actions workflow (`.github/workflows/ci.yml`):
+Enhanced GitHub Actions workflow (`.github/workflows/ci.yml`):
 
-- ✅ **Backend Testing**: Maven test execution
-- ✅ **Frontend Testing**: Flutter analyze and test
+### Backend Testing & Building
+- ✅ **Comprehensive Testing**: Maven `verify` with integration tests
+- ✅ **Security Testing**: Role-based access control validation
+- ✅ **Refresh Token Testing**: Complete authentication flow testing
+- ✅ **Test Artifacts**: Automatic upload of test results on failure
+- ✅ **Maven Caching**: Optimized dependency caching
+
+### Frontend Testing & Integration  
+- ✅ **Flutter Analysis**: Code quality and linting
+- ✅ **Flutter Testing**: Unit and widget tests
 - ✅ **Integration Build**: Flutter web → Spring Boot static resources
 - ✅ **Artifact Upload**: JAR file and build assets
-- ✅ **Caching**: Maven and Flutter dependencies
+- ✅ **Flutter Caching**: Pub cache optimization
+
+### Pipeline Features
+- 🔄 **Multi-job workflow**: Backend, frontend, and integration builds
+- 📦 **Artifact management**: Automatic build artifact collection
+- ⚡ **Smart caching**: Maven and Flutter dependency caching
+- 🚨 **Failure handling**: Test result collection and reporting
+
+## 🧪 Testing
+
+### Running Tests
+
+```bash
+# Run all tests (unit + integration)
+./mvnw test
+
+# Run tests with coverage
+./mvnw verify
+
+# Run specific test class
+./mvnw test -Dtest=RefreshTokenIntegrationTest
+
+# Run specific test method  
+./mvnw test -Dtest=AdminSecurityIntegrationTest#shouldAllowAdminToCreateReport
+```
+
+### Test Categories
+
+**Unit Tests:**
+- JwtService functionality
+- Service layer logic
+- Repository operations
+
+**Integration Tests:**
+- Complete authentication flows
+- Role-based access control
+- Refresh token mechanisms
+- Admin security restrictions
+- API endpoint validation
+
+### Test Configuration
+
+Tests use H2 in-memory database with dedicated test profile:
+- Profile: `test` 
+- Database: H2 (in-memory)
+- JWT: Test configuration with shorter expiration
+- Flyway: Disabled (uses JPA DDL)
+
+### Comprehensive Test Examples
+
+See `docs/curl-examples.sh` for complete API testing examples including:
+- Login and token management
+- Refresh token flow
+- Role-based endpoint access
+- User information retrieval
 
 ## 🌐 CORS Configuration
 
@@ -176,16 +339,47 @@ Development origins are pre-configured in `CorsConfig.java`:
 
 **📝 TODO**: Restrict CORS origins for production deployment.
 
-## 🚧 Migration Status
+## 🚧 Migration Status & Features
 
-This is an active migration from legacy Thymeleaf templates to a modern Flutter-based architecture:
+### ✅ Completed Features
 
-- ✅ **REST API Infrastructure** - Complete
-- ✅ **JWT Authentication** - Complete  
-- ✅ **Flutter Foundation** - Complete
-- ✅ **CI/CD Pipeline** - Complete
-- 🔄 **Feature Migration** - In Progress
-- ⏳ **Legacy UI Removal** - Planned
+**Core Infrastructure:**
+- ✅ **REST API Infrastructure** - Complete with comprehensive endpoints
+- ✅ **JWT Authentication** - Enhanced with refresh token support  
+- ✅ **Flutter Foundation** - Complete frontend architecture
+- ✅ **CI/CD Pipeline** - Enhanced with comprehensive testing
+
+**Security & Authentication:**
+- ✅ **Refresh Token Flow** - Secure token management with rotation
+- ✅ **Role-Based Access Control** - Admin restrictions for report management
+- ✅ **Method-Level Security** - @PreAuthorize annotations implemented
+- ✅ **User Info Endpoint** - `/api/users/me` with role information
+
+**Database & Migrations:**
+- ✅ **Flyway Integration** - Database schema version control
+- ✅ **Audit Logging** - Report creation tracking with user information
+- ✅ **Migration Scripts** - V1 (baseline) + V2 (refresh tokens & audit)
+
+**Testing & Quality:**
+- ✅ **Integration Tests** - Complete authentication and security flow testing
+- ✅ **Test Environment** - Dedicated test profile with H2 database
+- ✅ **CI Testing** - Automated test execution with artifact collection
+- ✅ **API Examples** - Comprehensive curl examples in `docs/curl-examples.sh`
+
+**Configuration & Documentation:**
+- ✅ **Environment Templates** - `.env.example` with all required variables
+- ✅ **Enhanced Exception Handling** - Validation error responses
+- ✅ **Swagger Integration** - API documentation with redirect controller
+- ✅ **CORS Configuration** - Development-ready with production TODOs
+
+### 🔄 In Progress
+- 🔄 **Feature Migration** - Continued frontend component development
+- 🔄 **Advanced Security** - Logout endpoint and token rotation (TODO comments added)
+
+### ⏳ Planned
+- ⏳ **Legacy UI Removal** - Phase out Thymeleaf templates
+- ⏳ **Rate Limiting** - API endpoint protection
+- ⏳ **Advanced Monitoring** - Application metrics and health checks
 
 ## 📚 Additional Resources
 
