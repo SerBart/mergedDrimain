@@ -36,6 +36,10 @@ public class Raport {
     @OneToMany(mappedBy = "raport", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<PartUsage> partUsages = new LinkedHashSet<>();
 
+    // NOTE: Audit field for tracking who created the report
+    @Column(name = "created_by", length = 120)
+    private String createdBy;
+
     // Gettery / settery (jak poprzednio) + dla statusu
     public Long getId() { return id; }
     public Maszyna getMaszyna() { return maszyna; }
@@ -61,4 +65,7 @@ public class Raport {
     }
     public void addPartUsage(PartUsage pu) { pu.setRaport(this); this.partUsages.add(pu); }
     public void removePartUsage(PartUsage pu) { pu.setRaport(null); this.partUsages.remove(pu); }
+
+    public String getCreatedBy() { return createdBy; }
+    public void setCreatedBy(String createdBy) { this.createdBy = createdBy; }
 }

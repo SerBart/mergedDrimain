@@ -26,3 +26,6 @@ app:
   jwt:
     secret: "REPLACE_WITH_STRONG_SECRET_AT_LEAST_32_CHARS_LONG_1234567890"
     ttl-seconds: 3600
+    # New configuration for access and refresh tokens
+    access-expiration: 3600000    # 1 hour in milliseconds
+    refresh-expiration: 604800000 # 7 days in milliseconds

@@ -24,16 +24,23 @@ public class JwtService {
 
     private final SecretKey secretKey;
     private final long ttlMinutes;
+    // NOTE: New configuration for access and refresh token expiration times
+    private final long accessExpirationMs;
+    private final long refreshExpirationMs;
 
     public JwtService(
             @Value("${jwt.expiration.minutes:60}") long ttlMinutes,
             @Value("${jwt.secret.base64:}") String base64Secret,
-            @Value("${jwt.secret.plain:}") String plainSecret
+            @Value("${jwt.secret.plain:}") String plainSecret,
+            @Value("${app.jwt.access-expiration:3600000}") long accessExpirationMs,
+            @Value("${app.jwt.refresh-expiration:604800000}") long refreshExpirationMs
     ) {
         this.ttlMinutes = ttlMinutes;
+        this.accessExpirationMs = accessExpirationMs;
+        this.refreshExpirationMs = refreshExpirationMs;
         this.secretKey = buildKey(base64Secret, plainSecret);
-        log.info("JwtService initialized. TTL={} minutes, keyAlgorithm={}, keyLengthBytes={}",
-                ttlMinutes, secretKey.getAlgorithm(), secretKey.getEncoded().length);
+        log.info("JwtService initialized. TTL={} minutes, Access={}ms, Refresh={}ms, keyAlgorithm={}, keyLengthBytes={}",
+                ttlMinutes, accessExpirationMs, refreshExpirationMs, secretKey.getAlgorithm(), secretKey.getEncoded().length);
     }
 
     private SecretKey buildKey(String base64Secret, String plainSecret) {
@@ -74,6 +81,29 @@ public class JwtService {
                 .claims(extras)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(ttlMinutes, ChronoUnit.MINUTES)))
+                .signWith(secretKey)
+                .compact();
+    }
+
+    // NOTE: Generate access token with configurable expiration
+    public String generateAccessToken(String subject, Map<String, Object> extras) {
+        Instant now = Instant.now();
+        return Jwts.builder()
+                .subject(subject)
+                .claims(extras)
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusMillis(accessExpirationMs)))
+                .signWith(secretKey)
+                .compact();
+    }
+
+    // NOTE: Generate refresh token with longer expiration
+    public String generateRefreshToken(String subject) {
+        Instant now = Instant.now();
+        return Jwts.builder()
+                .subject(subject)
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusMillis(refreshExpirationMs)))
                 .signWith(secretKey)
                 .compact();
     }

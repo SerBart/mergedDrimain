@@ -12,10 +12,14 @@ import drimer.drimain.repository.OsobaRepository;
 import drimer.drimain.repository.RaportRepository;
 import drimer.drimain.repository.spec.RaportSpecifications;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -25,6 +29,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/raporty")
 @RequiredArgsConstructor
+@Slf4j
 public class RaportRestController {
 
     private final RaportRepository raportRepository;
@@ -77,13 +82,22 @@ public class RaportRestController {
         return raportMapper.toDto(r);
     }
 
-    
+    // NOTE: Restrict report creation to ADMIN role only
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public RaportDTO create(@RequestBody RaportCreateRequest req) {
+    @PreAuthorize("hasRole('ADMIN')")
+    public RaportDTO create(@RequestBody RaportCreateRequest req, 
+                           @AuthenticationPrincipal UserDetails userDetails) {
         Raport r = new Raport();
         r.setTypNaprawy(req.getTypNaprawy());
         r.setOpis(req.getOpis());
+        
+        // NOTE: Set audit field - who created the report
+        if (userDetails != null) {
+            r.setCreatedBy(userDetails.getUsername());
+            log.info("Report created by user: {}", userDetails.getUsername());
+        }
+        
         raportMapper.applyCreateDefaults(r, req);
         r.setDataNaprawy(req.getDataNaprawy());
         if (req.getCzasOd() != null) r.setCzasOd(LocalTime.parse(req.getCzasOd()));
@@ -101,8 +115,11 @@ public class RaportRestController {
         return raportMapper.toDto(r);
     }
 
+    // NOTE: Restrict report updates to ADMIN role only
     @PutMapping("/{id}")
-    public RaportDTO update(@PathVariable Long id, @RequestBody RaportUpdateRequest req) {
+    @PreAuthorize("hasRole('ADMIN')")
+    public RaportDTO update(@PathVariable Long id, @RequestBody RaportUpdateRequest req,
+                           @AuthenticationPrincipal UserDetails userDetails) {
         Raport r = raportRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Raport not found"));
         if (req.getStatus() != null) {
             try { r.setStatus(RaportStatus.valueOf(req.getStatus())); } catch (Exception ignored) {}
@@ -111,12 +128,20 @@ public class RaportRestController {
         raportRepository.save(r);
         publisher.publishEvent(new RaportChangedEvent(this, raportMapper.toDto(r), "UPDATED"));
 
+        if (userDetails != null) {
+            log.info("Report {} updated by user: {}", id, userDetails.getUsername());
+        }
         return raportMapper.toDto(r);
     }
 
+    // NOTE: Restrict report deletion to ADMIN role only
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) {
+    @PreAuthorize("hasRole('ADMIN')")
+    public void delete(@PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
         raportRepository.deleteById(id);
+        if (userDetails != null) {
+            log.info("Report {} deleted by user: {}", id, userDetails.getUsername());
+        }
     }
 }
