@@ -1,0 +1,71 @@
+<html>
+<head>
+<title>SecurityConfig.java</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #7a7e85;}
+.s4 { color: #6aab73;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+SecurityConfig.java</font>
+</center></td></tr></table>
+<pre><span class="s0">package </span><span class="s1">drimer</span><span class="s2">.</span><span class="s1">drimain</span><span class="s2">.</span><span class="s1">security</span><span class="s2">;</span>
+
+<span class="s0">import </span><span class="s1">org</span><span class="s2">.</span><span class="s1">springframework</span><span class="s2">.</span><span class="s1">context</span><span class="s2">.</span><span class="s1">annotation</span><span class="s2">.</span><span class="s1">Bean</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">org</span><span class="s2">.</span><span class="s1">springframework</span><span class="s2">.</span><span class="s1">context</span><span class="s2">.</span><span class="s1">annotation</span><span class="s2">.</span><span class="s1">Configuration</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">org</span><span class="s2">.</span><span class="s1">springframework</span><span class="s2">.</span><span class="s1">security</span><span class="s2">.</span><span class="s1">config</span><span class="s2">.</span><span class="s1">annotation</span><span class="s2">.</span><span class="s1">web</span><span class="s2">.</span><span class="s1">builders</span><span class="s2">.</span><span class="s1">HttpSecurity</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">org</span><span class="s2">.</span><span class="s1">springframework</span><span class="s2">.</span><span class="s1">security</span><span class="s2">.</span><span class="s1">config</span><span class="s2">.</span><span class="s1">annotation</span><span class="s2">.</span><span class="s1">web</span><span class="s2">.</span><span class="s1">configuration</span><span class="s2">.</span><span class="s1">EnableWebSecurity</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">org</span><span class="s2">.</span><span class="s1">springframework</span><span class="s2">.</span><span class="s1">security</span><span class="s2">.</span><span class="s1">core</span><span class="s2">.</span><span class="s1">userdetails</span><span class="s2">.</span><span class="s1">User</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">org</span><span class="s2">.</span><span class="s1">springframework</span><span class="s2">.</span><span class="s1">security</span><span class="s2">.</span><span class="s1">core</span><span class="s2">.</span><span class="s1">userdetails</span><span class="s2">.</span><span class="s1">UserDetails</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">org</span><span class="s2">.</span><span class="s1">springframework</span><span class="s2">.</span><span class="s1">security</span><span class="s2">.</span><span class="s1">core</span><span class="s2">.</span><span class="s1">userdetails</span><span class="s2">.</span><span class="s1">UserDetailsService</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">org</span><span class="s2">.</span><span class="s1">springframework</span><span class="s2">.</span><span class="s1">security</span><span class="s2">.</span><span class="s1">crypto</span><span class="s2">.</span><span class="s1">bcrypt</span><span class="s2">.</span><span class="s1">BCryptPasswordEncoder</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">org</span><span class="s2">.</span><span class="s1">springframework</span><span class="s2">.</span><span class="s1">security</span><span class="s2">.</span><span class="s1">provisioning</span><span class="s2">.</span><span class="s1">InMemoryUserDetailsManager</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">org</span><span class="s2">.</span><span class="s1">springframework</span><span class="s2">.</span><span class="s1">security</span><span class="s2">.</span><span class="s1">web</span><span class="s2">.</span><span class="s1">SecurityFilterChain</span><span class="s2">;</span>
+
+<span class="s1">@Configuration</span>
+<span class="s1">@EnableWebSecurity  </span><span class="s3">// Włącz Security</span>
+<span class="s0">public class </span><span class="s1">SecurityConfig </span><span class="s2">{</span>
+
+    <span class="s1">@Bean</span>
+    <span class="s0">public </span><span class="s1">SecurityFilterChain securityFilterChain</span><span class="s2">(</span><span class="s1">HttpSecurity http</span><span class="s2">) </span><span class="s0">throws </span><span class="s1">Exception </span><span class="s2">{</span>
+        <span class="s1">http</span>
+                <span class="s2">.</span><span class="s1">authorizeHttpRequests</span><span class="s2">(</span><span class="s1">auth -&gt; auth</span>
+                        <span class="s2">.</span><span class="s1">requestMatchers</span><span class="s2">(</span><span class="s4">&quot;/raporty/**&quot;</span><span class="s2">, </span><span class="s4">&quot;/raport/**&quot;</span><span class="s2">).</span><span class="s1">authenticated</span><span class="s2">()  </span><span class="s3">// Wymagaj logowania do tych endpointów</span>
+                        <span class="s2">.</span><span class="s1">anyRequest</span><span class="s2">().</span><span class="s1">permitAll</span><span class="s2">()  </span><span class="s3">// Reszta otwarta</span>
+                <span class="s2">)</span>
+                <span class="s2">.</span><span class="s1">formLogin</span><span class="s2">(</span><span class="s1">form -&gt; form</span>
+                        <span class="s2">.</span><span class="s1">loginPage</span><span class="s2">(</span><span class="s4">&quot;/login&quot;</span><span class="s2">)  </span><span class="s3">// Custom strona logowania (dodaj login.html w /templates/)</span>
+                        <span class="s2">.</span><span class="s1">permitAll</span><span class="s2">()</span>
+                <span class="s2">)</span>
+                <span class="s2">.</span><span class="s1">logout</span><span class="s2">(</span><span class="s1">logout -&gt; logout</span><span class="s2">.</span><span class="s1">permitAll</span><span class="s2">())</span>
+                <span class="s2">.</span><span class="s1">csrf</span><span class="s2">(</span><span class="s1">csrf -&gt; csrf</span><span class="s2">.</span><span class="s1">disable</span><span class="s2">());  </span><span class="s3">// Wyłącz CSRF na dev (ostrożnie w produkcji)</span>
+
+        <span class="s0">return </span><span class="s1">http</span><span class="s2">.</span><span class="s1">build</span><span class="s2">();</span>
+    <span class="s2">}</span>
+
+    <span class="s3">// Prosty użytkownik w pamięci (dla testu – zmień na bazę danych później)</span>
+    <span class="s1">@Bean</span>
+    <span class="s0">public </span><span class="s1">UserDetailsService userDetailsService</span><span class="s2">() {</span>
+        <span class="s1">UserDetails user </span><span class="s2">= </span><span class="s1">User</span><span class="s2">.</span><span class="s1">withDefaultPasswordEncoder</span><span class="s2">()</span>
+                <span class="s2">.</span><span class="s1">username</span><span class="s2">(</span><span class="s4">&quot;admin&quot;</span><span class="s2">)  </span><span class="s3">// Login: admin</span>
+                <span class="s2">.</span><span class="s1">password</span><span class="s2">(</span><span class="s4">&quot;haslo123&quot;</span><span class="s2">)  </span><span class="s3">// Hasło: haslo123 (zmień!)</span>
+                <span class="s2">.</span><span class="s1">roles</span><span class="s2">(</span><span class="s4">&quot;ADMIN&quot;</span><span class="s2">)</span>
+                <span class="s2">.</span><span class="s1">build</span><span class="s2">();</span>
+        <span class="s0">return new </span><span class="s1">InMemoryUserDetailsManager</span><span class="s2">(</span><span class="s1">user</span><span class="s2">);</span>
+    <span class="s2">}</span>
+    <span class="s1">@Bean</span>
+    <span class="s0">public </span><span class="s1">BCryptPasswordEncoder passwordEncoder</span><span class="s2">() {</span>
+        <span class="s0">return new </span><span class="s1">BCryptPasswordEncoder</span><span class="s2">();</span>
+    <span class="s2">}</span>
+
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

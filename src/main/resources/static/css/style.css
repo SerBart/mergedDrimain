@@ -1,0 +1,73 @@
+/* Ogólne tło i styl body */
+body {
+    background: linear-gradient(to bottom, #1c1c1c, #333); /* ciemny gradient, pasuje do Twojego stylu */
+    color: #ddd; /* jasny tekst */
+    font-family: Arial, sans-serif;
+}
+
+/* Kontenery */
+.container {
+    background-color: #222; /* ciemne tło kontenera */
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+}
+
+/* Nagłówki */
+h1, h2 {
+    color: #fff; /* biały nagłówek */
+}
+
+/* Tabela */
+.table-dark {
+    --bs-table-bg: #333; /* ciemna tabela */
+    --bs-table-striped-bg: #444; /* pasek w ciemnym odcieniu */
+    --bs-table-striped-stripe-color: #555; /* pasek w jaśniejszym odcieniu */
+}
+
+/* Animacja fade-in */
+.fade-in {
+    animation: fadeIn 0.5s;
+}
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Przyciski */
+.btn-primary {
+    background-color: #007bff; /* klasyczny niebieski */
+    border-color: #007bff;
+}
+.btn-secondary {
+    background-color: #6c757d; /* szary */
+    border-color: #6c757d;
+}
+.btn-warning {
+    background-color: #ffc107; /* żółty */
+    border-color: #ffc107;
+}
+.btn-danger {
+    background-color: #dc3545; /* czerwony */
+    border-color: #dc3545;
+}
+
+/* Ikony (FA) */
+.logo {
+    font-size: 24px;
+    color: #fff;
+}
+.logo i {
+    margin-right: 10px;
+}
+
+/* Modal w stylu ciemnym */
+.modal-content {
+    background-color: #343a40;
+    color: #f8f9fa;
+}
+
+/* Dla tabel, aby paski były w odcieniach ciemnych */
+.table-striped tbody tr:nth-child(odd) {
+    background-color: #444;
+}

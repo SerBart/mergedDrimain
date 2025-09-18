@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<!-- Fragment dla dodawania (addForm) -->
+<div th:fragment="addForm">
+    <form th:action="@{/zgloszenie/zapisz}" method="post" style="background: linear-gradient(135deg, #0f0c29, #302b63); border-radius: 15px; padding: 30px; box-shadow: 0 8px 20px rgba(0,0,0,0.3);">
+        <div class="mb-3">
+            <label for="maszynaId" class="form-label text-light">Maszyna</label>
+            <select class="form-select bg-white text-dark" id="maszynaId" name="maszynaId" required>
+                <option th:each="maszyna : ${maszyny}" th:value="${maszyna.id}" th:text="${maszyna.nazwa}"></option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label for="typZgloszenia" class="form-label text-light">Typ zgłoszenia</label>
+            <input type="text" class="form-control bg-white text-dark" id="typZgloszenia" name="typZgloszenia" required />
+        </div>
+        <div class="mb-3">
+            <label for="opis" class="form-label text-light">Opis</label>
+            <textarea class="form-control bg-white text-dark" id="opis" name="opis" rows="4" required></textarea>
+        </div>
+        <div class="mb-3">
+            <label for="osobaId" class="form-label text-light">Osoba</label>
+            <select class="form-select bg-white text-dark" id="osobaId" name="osobaId" required>
+                <option th:each="osoba : ${osoby}" th:value="${osoba.id}" th:text="${osoba.imieNazwisko}"></option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label for="status" class="form-label text-light">Status</label>
+            <select class="form-select bg-white text-dark" id="status" name="status" required>
+                <option value="otwarty">Otwarty</option>
+                <option value="w trakcie">W trakcie</option>
+                <option value="zamknięty">Zamknięty</option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label for="dataZgloszenia" class="form-label text-light">Data zgłoszenia</label>
+            <input type="date" class="form-control bg-white text-dark" id="dataZgloszenia" name="dataZgloszenia" required />
+        </div>
+        <div class="mb-3">
+            <label for="czasOd" class="form-label text-light">Czas od</label>
+            <input type="time" class="form-control bg-white text-dark" id="czasOd" name="czasOd" required />
+        </div>
+        <div class="mb-3">
+            <label for="czasDo" class="form-label text-light">Czas do</label>
+            <input type="time" class="form-control bg-white text-dark" id="czasDo" name="czasDo" required />
+        </div>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Zapisz</button>
+    </form>
+</div>
+
+<!-- Fragment dla edycji (editForm) -->
+<div th:fragment="editForm">
+    <form th:action="@{/zgloszenie/zapisz}" method="post" style="background: linear-gradient(135deg, #0f0c29, #302b63); border-radius: 15px; padding: 30px; box-shadow: 0 8px 20px rgba(0,0,0,0.3);">
+        <input type="hidden" name="id" th:value="${zgloszenie.id}" />
+        <div class="mb-3">
+            <label for="maszynaId" class="form-label text-light">Maszyna</label>
+            <select class="form-select bg-white text-dark" id="maszynaId" name="maszynaId" required>
+                <option th:each="maszyna : ${maszyny}" th:value="${maszyna.id}" th:text="${maszyna.nazwa}" th:selected="${maszyna.id == zgloszenie.maszyna.id}"></option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label for="typZgloszenia" class="form-label text-light">Typ zgłoszenia</label>
+            <input type="text" class="form-control bg-white text-dark" id="typZgloszenia" name="typZgloszenia" th:value="${zgloszenie.typ}" required />
+        </div>
+        <div class="mb-3">
+            <label for="opis" class="form-label text-light">Opis</label>
+            <textarea class="form-control bg-white text-dark" id="opis" name="opis" rows="4" th:text="${zgloszenie.opis}" required></textarea>
+        </div>
+        <div class="mb-3">
+            <label for="osobaId" class="form-label text-light">Osoba</label>
+            <select class="form-select bg-white text-dark" id="osobaId" name="osobaId" required>
+                <option th:each="osoba : ${osoby}" th:value="${osoba.id}" th:text="${osoba.imieNazwisko}" th:selected="${osoba.id == zgloszenie.osoba.id}"></option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label for="status" class="form-label text-light">Status</label>
+            <select class="form-select bg-white text-dark" id="status" name="status" required>
+                <option value="otwarty" th:selected="${zgloszenie.status == 'otwarty'}">Otwarty</option>
+                <option value="w trakcie" th:selected="${zgloszenie.status == 'w trakcie'}">W trakcie</option>
+                <option value="zamknięty" th:selected="${zgloszenie.status == 'zamknięty'}">Zamknięty</option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label for="dataZgloszenia" class="form-label text-light">Data zgłoszenia</label>
+            <input type="date" class="form-control bg-white text-dark" id="dataZgloszenia" name="dataZgloszenia" th:value="${#temporals.format(zgloszenie.dataGodzina, 'yyyy-MM-dd')}" required />
+        </div>
+        <div class="mb-3">
+            <label for="czasOd" class="form-label text-light">Czas od</label>
+            <input type="time" class="form-control bg-white text-dark" id="czasOd" name="czasOd" required />
+        </div>
+        <div class="mb-3">
+            <label for="czasDo" class="form-label text-light">Czas do</label>
+            <input type="time" class="form-control bg-white text-dark" id="czasDo" name="czasDo" required />
+        </div>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Zapisz zmiany</button>
+    </form>
+</div>
+</body>
+</html>

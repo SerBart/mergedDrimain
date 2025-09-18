@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- Fragment dodawania -->
+<div th:fragment="addForm">
+    <form th:action="@{/harmonogramy/dodaj}" method="post" style="background: linear-gradient(135deg, #0f0c29, #302b63); border-radius: 15px; padding: 30px; box-shadow: 0 8px 20px rgba(0,0,0,0.3);">
+        <div class="mb-3">
+            <label class="form-label text-light">Data</label>
+            <input type="date" name="data" class="form-control bg-white text-dark" required>
+        </div>
+        <div class="mb-3">
+            <label class="form-label text-light">Opis pracy</label>
+            <input type="text" name="opis" class="form-control bg-white text-dark" required>
+        </div>
+        <div class="mb-3">
+            <label class="form-label text-light">Maszyna</label>
+            <select name="maszyna" class="form-select bg-white text-dark" required>
+                <option th:each="m : ${maszyny}" th:value="${m.id}" th:text="${m.nazwa}"></option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label text-light">Osoba</label>
+            <select name="osoba" class="form-select bg-white text-dark" required>
+                <option th:each="o : ${osoby}" th:value="${o.id}" th:text="${o.imieNazwisko}"></option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label text-light">Status</label>
+            <select name="status" class="form-select bg-white text-dark" required>
+                <option value="planowane">Planowane</option>
+                <option value="w trakcie">W trakcie</option>
+                <option value="zakończone">Zakończone</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Zapisz</button>
+    </form>
+</div>
+
+<!-- Fragment edycji -->
+<div th:fragment="editForm">
+    <form th:action="@{/harmonogramy/edit}" method="post" style="background: linear-gradient(135deg, #0f0c29, #302b63); border-radius: 15px; padding: 30px; box-shadow: 0 8px 20px rgba(0,0,0,0.3);">
+        <input type="hidden" name="id" th:value="${harmonogram.id}" />
+        <div class="mb-3">
+            <label class="form-label text-light">Data</label>
+            <input type="date" name="data" class="form-control bg-white text-dark" th:value="${harmonogram.data}" required>
+        </div>
+        <div class="mb-3">
+            <label class="form-label text-light">Opis pracy</label>
+            <input type="text" name="opis" class="form-control bg-white text-dark" th:value="${harmonogram.opis}" required>
+        </div>
+        <div class="mb-3">
+            <label class="form-label text-light">Maszyna</label>
+            <select name="maszyna" class="form-select bg-white text-dark" required>
+                <option th:each="m : ${maszyny}" th:value="${m.id}" th:text="${m.nazwa}" th:selected="${m.id == harmonogram.maszyna.id}"></option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label text-light">Osoba</label>
+            <select name="osoba" class="form-select bg-white text-dark" required>
+                <option th:each="o : ${osoby}" th:value="${o.id}" th:text="${o.imieNazwisko}" th:selected="${o.id == harmonogram.osoba.id}"></option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label text-light">Status</label>
+            <select name="status" class="form-select bg-white text-dark" required>
+                <option value="planowane" th:selected="${harmonogram.status == 'planowane'}">Planowane</option>
+                <option value="w trakcie" th:selected="${harmonogram.status == 'w trakcie'}">W trakcie</option>
+                <option value="zakończone" th:selected="${harmonogram.status == 'zakończone'}">Zakończone</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Zapisz zmiany</button>
+    </form>
+</div>
+</body>
+</html>

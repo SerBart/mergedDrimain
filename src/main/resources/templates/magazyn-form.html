@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<!-- Dodawanie części -->
+<div th:fragment="addForm">
+    <form th:action="@{/magazyn/dodaj}" method="post" style="background: linear-gradient(135deg,#0f0c29,#302b63); border-radius:15px; padding:30px;">
+        <div class="mb-3">
+            <label class="form-label text-light">Nazwa produktu</label>
+            <input type="text" name="nazwa" class="form-control bg-white text-dark" required>
+        </div>
+        <div class="mb-3">
+            <label class="form-label text-light">Kod produktu</label>
+            <input type="text" name="numerKatalogowy" class="form-control bg-white text-dark" required>
+        </div>
+        <div class="mb-3">
+            <label class="form-label text-light">Dostawca</label>
+            <input type="text" name="dostawca" class="form-control bg-white text-dark">
+        </div>
+        <div class="mb-3">
+            <label class="form-label text-light">Producent</label>
+            <input type="text" name="producent" class="form-control bg-white text-dark">
+        </div>
+        <div class="mb-3">
+            <label class="form-label text-light">Liczba sztuk</label>
+            <input type="number" name="ilosc" class="form-control bg-white text-dark" required min="0">
+        </div>
+        <div class="mb-3">
+            <label class="form-label text-light">Data dostawy</label>
+            <input type="date" name="dataDodania" class="form-control bg-white text-dark" required>
+        </div>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Zapisz</button>
+    </form>
+</div>
+
+<!-- Edycja części -->
+<div th:fragment="editForm">
+    <form th:action="@{/magazyn/edit}" method="post" style="background: linear-gradient(135deg,#0f0c29,#302b63); border-radius:15px; padding:30px;">
+        <input type="hidden" name="id" th:value="${czesc.id}" />
+        <div class="mb-3">
+            <label class="form-label text-light">Nazwa produktu</label>
+            <input type="text" name="nazwa" class="form-control bg-white text-dark" th:value="${czesc.nazwa}" required>
+        </div>
+        <div class="mb-3">
+            <label class="form-label text-light">Kod produktu</label>
+            <input type="text" name="numerKatalogowy" class="form-control bg-white text-dark" th:value="${czesc.numerKatalogowy}" required>
+        </div>
+        <div class="mb-3">
+            <label class="form-label text-light">Dostawca</label>
+            <input type="text" name="dostawca" class="form-control bg-white text-dark" th:value="${czesc.dostawca}">
+        </div>
+        <div class="mb-3">
+            <label class="form-label text-light">Producent</label>
+            <input type="text" name="producent" class="form-control bg-white text-dark" th:value="${czesc.producent}">
+        </div>
+        <div class="mb-3">
+            <label class="form-label text-light">Liczba sztuk</label>
+            <input type="number" name="ilosc" class="form-control bg-white text-dark" th:value="${czesc.ilosc}" required min="0">
+        </div>
+        <div class="mb-3">
+            <label class="form-label text-light">Data dostawy</label>
+            <input type="date" name="dataDodania" class="form-control bg-white text-dark" th:value="${#temporals.format(czesc.dataDodania, 'yyyy-MM-dd')}" required>
+        </div>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Zapisz zmiany</button>
+    </form>
+</div>
+</body>
+</html>

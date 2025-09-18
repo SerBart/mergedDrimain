@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>driMain - Brak dostępu</title>
+    <!-- Bootstrap 5 CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+    <!-- Font Awesome (ikony) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <!-- SweetAlert2 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" />
+    <!-- Twój CSS (jeśli masz globalny style.css) -->
+    <link rel="stylesheet" th:href="@{/css/style.css}" />
+    <style>
+        body { background-color: #212529; color: #f8f9fa; }
+        .card-dark { background-color: #343a40; }
+        .fade-in { animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body class="fade-in">
+
+<div class="container py-4">
+    <h1 class="mb-4"><i class="fas fa-ban text-danger"></i> driMain - Brak dostępu</h1>
+
+    <!-- Card z komunikatem błędu -->
+    <div class="card card-dark text-light mb-5">
+        <div class="card-body">
+            <h5 class="card-title"><i class="fas fa-exclamation-triangle text-warning"></i> Nie masz uprawnień!</h5>
+            <p class="card-text">Próbowałeś uzyskać dostęp do zastrzeżonej sekcji (np. Raporty). Jeśli uważasz, że to błąd, skontaktuj się z administratorem.</p>
+            <div class="d-flex justify-content-start">
+                <a href="/dashboard" class="btn btn-primary me-2"><i class="fas fa-arrow-left"></i> Powrót do dashboardu</a>
+                <a href="/logout" class="btn btn-secondary"><i class="fas fa-sign-out-alt"></i> Wyloguj się</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript (opcjonalnie, jeśli chcesz SweetAlert do powiadomień) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+    // Opcjonalny alert na wejściu (możesz usunąć, jeśli niepotrzebny)
+    document.addEventListener('DOMContentLoaded', function() {
+        Swal.fire({
+            icon: 'error',
+            title: 'Brak dostępu',
+            text: 'Nie masz uprawnień do tej sekcji.',
+            confirmButtonText: 'OK',
+            background: '#343a40',
+            color: '#f8f9fa'
+        });
+    });
+</script>
+
+</body>
+</html>

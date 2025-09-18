@@ -1,0 +1,93 @@
+HELP.md
+target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+### Attachment Storage ###
+uploads/attachments/
+
+### Flutter ###
+# Build directories
+frontend/build/
+frontend/.dart_tool/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/.pub-cache/
+frontend/.pub/
+frontend/pubspec.lock
+
+# Platform-specific files
+frontend/android/local.properties
+frontend/android/keystore.properties
+frontend/android/.gradle/
+frontend/android/gradle/wrapper/gradle-wrapper.jar
+frontend/android/build/
+frontend/android/app/build/
+frontend/android/app/debug/
+frontend/android/app/profile/
+frontend/android/app/release/
+
+frontend/ios/Runner.app/
+frontend/ios/Runner.ipa/
+frontend/ios/DerivedData/
+frontend/ios/build/
+frontend/ios/.symlinks/
+frontend/ios/Flutter/App.framework
+frontend/ios/Flutter/Flutter.framework
+frontend/ios/Flutter/Generated.xcconfig
+frontend/ios/Flutter/app.flx
+frontend/ios/Flutter/app.zip
+frontend/ios/Flutter/flutter_assets/
+frontend/ios/Flutter/flutter_export_environment.sh
+frontend/ios/ServiceDefinitions.json
+frontend/ios/Runner/GeneratedPluginRegistrant.*
+frontend/ios/Pods/
+frontend/ios/.symlinks/
+frontend/ios/Podfile.lock
+
+frontend/web/packages/
+frontend/linux/flutter/ephemeral/
+frontend/macos/Flutter/ephemeral/
+frontend/windows/flutter/ephemeral/
+
+# Flutter/Dart tool files
+frontend/.packages
+frontend/.metadata
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+
+# IDE
+frontend/.idea/
+frontend/.vscode/
+frontend/*.iml
+frontend/*.ipr
+frontend/*.iws

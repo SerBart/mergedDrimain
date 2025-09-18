@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard - Drimer App</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts dla logo -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <style>
+        body {
+            background: linear-gradient(135deg, #0f0c29, #302b63);
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+        }
+
+        .logo {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 24px;
+            background: linear-gradient(135deg, #667eea, #ffffff);
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+        .logo small {
+            font-size: 12px;
+            color: #ccc;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            animation: fadeIn 1s ease-in-out;
+            margin-bottom: 30px;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .btn-primary {
+            background: #302b63;
+            border: none;
+            transition: background 0.3s;
+        }
+        .btn-primary:hover {
+            background: #0f0c29;
+        }
+        .welcome-message {
+            text-align: center;
+            margin: 30px 0;
+            font-size: 28px;
+        }
+    </style>
+</head>
+<body>
+<!-- Wstaw fragment navbar na początku body -->
+<div th:replace="navbar :: navbar"></div>
+
+<!-- Główna zawartość dashboard -->
+<div class="container mt-5">
+    <div class="welcome-message" th:if="${#authentication != null}">
+        Witaj, <span th:text="${#authentication?.name ?: 'Użytkowniku'}">Użytkowniku</span>! <i class="fas fa-user-circle"></i>
+    </div>
+    <div class="welcome-message" th:unless="${#authentication != null}">
+        Witaj, Gościu! Zaloguj się, aby kontynuować.
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-md-6" sec:authorize="hasRole('ADMIN')">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-chart-bar fa-2x mb-3" style="color: #302b63;"></i> Raporty</h5>
+                    <p class="card-text">Przeglądaj i analizuj raporty firmy.</p>
+                    <a href="/raporty" class="btn btn-primary">Przejdź</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-file-alt fa-2x mb-3" style="color: #302b63;"></i> Zgłoszenia</h5>
+                    <p class="card-text">Zarządzaj zgłoszeniami i ticketami.</p>
+                    <a href="/zgloszenia" class="btn btn-primary">Przejdź</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- NOWE KARTY widoczne tylko dla admina lub użytkownika "magazyn" -->
+        <div class="col-md-6"
+             th:if="${#authentication != null and (#authentication.name == 'magazyn' or #authorization.expression('hasRole(''ADMIN'')'))}">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-calendar-alt fa-2x mb-3" style="color: #302b63;"></i> Harmonogramy</h5>
+                    <p class="card-text">Przeglądaj harmonogramy prac i przeglądów.</p>
+                    <a href="/harmonogramy" class="btn btn-primary">Przejdź</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6"
+             th:if="${#authentication != null and (#authentication.name == 'magazyn' or #authorization.expression('hasRole(''ADMIN'')'))}">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-boxes fa-2x mb-3" style="color: #302b63;"></i> Magazyn części</h5>
+                    <p class="card-text">Zarządzaj częściami zamiennymi i stanem magazynu.</p>
+                    <a href="/magazyn" class="btn btn-primary">Przejdź</a>
+                </div>
+            </div>
+        </div>
+        <!-- ... (pozostałe kafelki) ... -->
+        <div class="col-md-6" sec:authorize="hasRole('ADMIN')">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-user-shield fa-2x mb-3" style="color: #302b63;"></i>
+                        Panel administratora
+                    </h5>
+                    <p class="card-text">
+                        Dodawaj użytkowników, nadaj uprawnienia, zarządzaj maszynami i osobami.
+                    </p>
+                    <a href="/admin" class="btn btn-primary">Przejdź</a>
+                </div>
+            </div>
+        </div>
+        <!-- KONIEC NOWYCH KART -->
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
+</body>
+</html>

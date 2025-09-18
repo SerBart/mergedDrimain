@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>driMain - Raporty </title>
+    <!-- Bootstrap 5 CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css" />
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.3.6/css/buttons.bootstrap5.min.css" />
+    <!-- SweetAlert2 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" />
+    <style>
+        /* Tło gradientowe */
+        body {
+            background: linear-gradient(135deg, #0f0c29, #302b63);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            color: #212529;
+        }
+        /* Nagłówek główny */
+        h1 {
+            font-weight: 700;
+            margin-bottom: 30px;
+            color: #ffffff;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        /* Sekcja z przyciskami */
+        .btn-custom {
+            transition: all 0.3s ease;
+        }
+        .btn-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        /* Karta z raportami */
+        .card {
+            background-color: #ffffff; /* Jasne tło */
+            border-radius: 20px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        }
+
+        /* Nagłówek tabeli */
+        thead th {
+            background-color: #f8f9fa; /* Jasny szary */
+            color: #212529;
+            font-weight: 600;
+        }
+
+        /* Tabela */
+        table.dataTable {
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        /* Hover na wierszach tabeli */
+        table.dataTable tbody tr:hover {
+            background-color: #e9ecef;
+        }
+
+        /* Modal */
+        .modal-content {
+            background-color: #ffffff; /* Białe tło */
+            color: #212529;
+            border-radius: 20px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        }
+
+        /* Przyciski w modalach */
+        .modal-header {
+            border-bottom: none;
+        }
+
+        /* Ikony */
+        i {
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+<!-- Wstaw fragment navbar na początku body -->
+<div th:replace="navbar :: navbar"></div>
+<div class="container py-4">
+    <h1 class="text-center mb-4"><i class="fas fa-file-alt"></i> DriMain - Raporty</h1>
+    <div class="d-flex justify-content-between mb-3 flex-wrap">
+        <button class="btn btn-primary btn-lg btn-custom" data-bs-toggle="modal" data-bs-target="#addModal" onclick="loadAddForm()"><i class="fas fa-plus"></i> Dodaj nowy raport</button>
+        <a href="/dashboard" class="btn btn-secondary btn-lg btn-custom"><i class="fas fa-arrow-left"></i> Powrót do dashboardu</a>
+    </div>
+
+    <!-- Karta z raportami -->
+    <div class="card mb-5 shadow-lg">
+        <div class="card-body p-4">
+            <h5 class="card-title mb-4"><i class="fas fa-list"></i> Lista wszystkich raportów</h5>
+            <table id="raportyTable" class="table table-striped table-bordered" style="width:100%">
+                <thead>
+                <tr>
+                    <th>Maszyna</th>
+                    <th>Typ Naprawy</th>
+                    <th>Opis (skrót)</th>
+                    <th>Osoba</th>
+                    <th>Status</th>
+                    <th>Data Naprawy</th>
+                    <th>Czas Od-Do</th>
+                    <th>Akcje</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="raport : ${raporty}">
+                    <td th:text="${raport.maszyna.nazwa}"></td>
+                    <td th:text="${raport.typNaprawy}"></td>
+                    <td th:text="${#strings.abbreviate(raport.opis, 50)}" th:title="${raport.opis}"></td>
+                    <td th:text="${raport.osoba.imieNazwisko}"></td>
+                    <td th:text="${raport.status}"></td>
+                    <td th:text="${#temporals.format(raport.dataNaprawy, 'yyyy-MM-dd')}"></td>
+                    <td th:text="${#temporals.format(raport.czasOd, 'HH:mm')} + ' - ' + ${#temporals.format(raport.czasDo, 'HH:mm')}"></td>
+                    <td>
+                        <button class="btn btn-warning btn-sm btn-custom" data-bs-toggle="modal" data-bs-target="#editModal" th:onclick="'loadEditForm(' + ${raport.id} + ')'"><i class="fas fa-edit"></i> Edytuj</button>
+                        <button class="btn btn-danger btn-sm btn-custom" th:onclick="'confirmDelete(' + ${raport.id} + ')'"><i class="fas fa-trash"></i> Usuń</button>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+            <div th:if="${#lists.isEmpty(raporty)}" class="alert alert-info mt-3 text-center">
+                Brak raportów do wyświetlenia.
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal dodawania raportu -->
+<div class="modal fade" id="addModal" tabindex="-1" aria-labelledby="addModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content p-4">
+            <div class="modal-header border-0 pb-2">
+                <h5 class="modal-title" id="addModalLabel"><i class="fas fa-plus"></i> Dodaj nowy raport</h5>
+                <button type="button" class="btn-close btn-close-black" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="addFormContent"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal edycji raportu -->
+<div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content p-4">
+            <div class="modal-header border-0 pb-2">
+                <h5 class="modal-title" id="editModalLabel"><i class="fas fa-edit"></i> Edytuj raport</h5>
+                <button type="button" class="btn-close btn-close-black" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="editFormContent"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Skrypty -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.3.6/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.html5.min.js"></script>
+<script>
+    $(document).ready(function() {
+        $('#raportyTable').DataTable({
+            "paging": true,
+            "searching": true,
+            "ordering": true,
+            "dom": 'Bfrtip',
+            "buttons": ['copy', 'csv', 'excel', 'pdf', 'print'],
+            "language": { "url": "//cdn.datatables.net/plug-ins/1.13.4/i18n/pl.json" },
+            "columnDefs": [{ "orderable": false, "targets": -1 }],
+            "responsive": true
+        });
+    });
+
+    function loadAddForm() {
+        fetch('/raport/nowy?fragment=true')
+            .then(response => {
+                if (!response.ok) throw new Error('Błąd odpowiedzi: ' + response.status);
+                return response.text();
+            })
+            .then(html => { document.getElementById('addFormContent').innerHTML = html; })
+            .catch(error => { Swal.fire('Błąd', 'Nie udało się załadować formularza.', 'error'); });
+    }
+
+    function loadEditForm(id) {
+        fetch('/raport/edytuj/' + id + '?fragment=true')
+            .then(response => response.text())
+            .then(html => { document.getElementById('editFormContent').innerHTML = html; });
+    }
+
+    function confirmDelete(id) {
+        Swal.fire({
+            title: 'Czy na pewno chcesz usunąć?',
+            text: "Tej akcji nie można cofnąć!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Tak, usuń!',
+            cancelButtonText: 'Anuluj'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const form = document.createElement('form');
+                form.method = 'post';
+                form.action = '/raport/delete';
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'id';
+                input.value = id;
+                form.appendChild(input);
+                document.body.appendChild(form);
+                form.submit();
+            }
+        });
+    }
+
+    function validateForm(form) {
+        if (form.opis.value.length < 10) {
+            Swal.fire('Błąd', 'Opis musi mieć co najmniej 10 znaków', 'error');
+            return false;
+        }
+        return true;
+    }
+</script>
+
+</body>
+</html>

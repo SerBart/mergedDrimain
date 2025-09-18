@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>driMain - Magazyn części</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"/>
+    <style>
+        body {
+            background: linear-gradient(135deg, #0f0c29, #302b63);
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+        }
+        .table th, .table td { vertical-align: middle; font-size: 1em; }
+        .btn-custom { background: #302b63; color: #fff; }
+        .btn-custom:hover { background: #0f0c29; color: #fff; }
+    </style>
+</head>
+<body>
+<!-- Wstaw fragment navbar na początku body -->
+<div th:replace="navbar :: navbar"></div>
+<div class="container py-4">
+    <h1 class="mb-4"><i class="fas fa-cubes"></i> Magazyn części</h1>
+    <div class="d-flex justify-content-between mb-3">
+        <button class="btn btn-custom btn-lg mb-3" data-bs-toggle="modal" data-bs-target="#addModal" onclick="loadAddForm()">
+            <i class="fas fa-plus"></i> Dodaj część
+        </button>
+        <a href="/dashboard" class="btn btn-secondary btn-lg mb-3"><i class="fas fa-arrow-left"></i> Powrót do dashboardu</a>
+    </div>
+    <table class="table table-striped table-bordered table-hover">
+        <thead>
+        <tr>
+            <th>Nazwa</th>
+            <th>Kod produktu</th>
+            <th>Dostawca</th>
+            <th>Producent</th>
+            <th>Liczba sztuk</th>
+            <th>Data dostawy</th>
+            <th>Akcje</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="czesc : ${czesci}">
+            <td th:text="${czesc.nazwa}"></td>
+            <td th:text="${czesc.numerKatalogowy}"></td>
+            <td th:text="${czesc.dostawca}"></td>
+            <td th:text="${czesc.producent}"></td>
+            <td th:text="${czesc.ilosc}"></td>
+            <td th:text="${#temporals.format(czesc.dataDodania, 'yyyy-MM-dd')}"></td>
+            <td>
+                <button class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#editModal" th:onclick="'loadEditForm(' + ${czesc.id} + ')'">
+                    <i class="fas fa-edit"></i> Edytuj
+                </button>
+                <form th:action="@{/magazyn/delete}" method="post" style="display:inline;">
+                    <input type="hidden" name="id" th:value="${czesc.id}"/>
+                    <button type="submit" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i> Usuń</button>
+                </form>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Modal dodawania -->
+<div class="modal fade" id="addModal" tabindex="-1" aria-labelledby="addModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content p-4">
+            <div class="modal-header border-0 pb-2">
+                <h5 class="modal-title" id="addModalLabel"><i class="fas fa-plus"></i> Dodaj część</h5>
+                <button type="button" class="btn-close btn-close-black" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="addFormContent"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal edycji -->
+<div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content p-4">
+            <div class="modal-header border-0 pb-2">
+                <h5 class="modal-title" id="editModalLabel"><i class="fas fa-edit"></i> Edytuj część</h5>
+                <button type="button" class="btn-close btn-close-black" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="editFormContent"></div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    function loadAddForm() {
+        fetch('/magazyn/nowa')
+            .then(response => response.text())
+            .then(html => { document.getElementById('addFormContent').innerHTML = html; });
+    }
+    function loadEditForm(id) {
+        fetch('/magazyn/edytuj/' + id)
+            .then(response => response.text())
+            .then(html => { document.getElementById('editFormContent').innerHTML = html; });
+    }
+</script>
+</body>
+</html>

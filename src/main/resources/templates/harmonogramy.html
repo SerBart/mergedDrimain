@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>driMain - Harmonogramy</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"/>
+    <style>
+        body {
+            background: linear-gradient(135deg, #0f0c29, #302b63);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #fff;
+        }
+        .calendar-table th, .calendar-table td {
+            text-align: left;
+            vertical-align: top;
+            min-width: 100px;
+            height: 100px;
+            background: rgba(255,255,255,0.95);
+            color: #302b63;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .calendar-table th {
+            background: #302b63;
+            color: #fff;
+        }
+        .event-box {
+            background: #667eea;
+            color: #fff;
+            border-radius: 5px;
+            padding: 3px 6px;
+            margin: 2px 0;
+            font-size: 0.95em;
+        }
+        .btn-custom {
+            background: #302b63;
+            color: #fff;
+        }
+        .btn-custom:hover {
+            background: #0f0c29;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+<!-- Wstaw fragment navbar na początku body -->
+<div th:replace="navbar :: navbar"></div>
+<div class="container py-4">
+    <h1 class="mb-4"><i class="fas fa-calendar-alt"></i> Harmonogramy prac utrzymania ruchu</h1>
+    <div class="d-flex justify-content-between mb-3">
+        <a th:href="@{'/harmonogramy?year=' + ${prevYear} + '&month=' + ${prevMonth}}" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Poprzedni miesiąc</a>
+        <span class="fs-4 fw-bold">Miesiąc: <span th:text="${month}"></span>/<span th:text="${year}"></span></span>
+        <a th:href="@{'/harmonogramy?year=' + ${nextYear} + '&month=' + ${nextMonth}}" class="btn btn-secondary">Następny miesiąc <i class="fas fa-arrow-right"></i></a>
+    </div>
+    <button class="btn btn-custom btn-lg mb-3" data-bs-toggle="modal" data-bs-target="#addModal" onclick="loadAddForm()"><i class="fas fa-plus"></i> Dodaj harmonogram</button>
+    <a href="/dashboard" class="btn btn-secondary btn-lg mb-3"><i class="fas fa-arrow-left"></i> Powrót do dashboardu</a>
+
+    <table class="calendar-table table table-bordered">
+        <thead>
+        <tr>
+            <th>Pon</th>
+            <th>Wt</th>
+            <th>Śr</th>
+            <th>Czw</th>
+            <th>Pt</th>
+            <th>Sob</th>
+            <th>Nd</th>
+        </tr>
+        </thead>
+        <tbody>
+        <!-- Generowanie kalendarza -->
+        <tr th:each="weekNum : ${#numbers.sequence(0, weeksCount-1)}">
+            <td th:each="dow : ${#numbers.sequence(1,7)}"
+                th:with="day=${weekNum * 7 + dow - firstDayOfWeek + 1}">
+                <div th:if="${day > 0 and day <= daysInMonth}">
+                    <strong th:text="${day}"></strong>
+                    <div th:each="h : ${harmonogramy}" th:if="${h.data.dayOfMonth == day}">
+                        <div class="event-box">
+                            <span th:text="${h.opis}"></span><br/>
+                            <span th:text="'Maszyna: ' + ${h.maszyna.nazwa}"></span><br/>
+                            <span th:text="'Osoba: ' + ${h.osoba.imieNazwisko}"></span><br/>
+                            <span th:text="'Status: ' + ${h.status}"></span>
+                            <div class="mt-2">
+                                <button class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#editModal" th:onclick="'loadEditForm(' + ${h.id} + ')'"><i class="fas fa-edit"></i> Edytuj</button>
+                                <form th:action="@{/harmonogramy/delete}" method="post" style="display:inline;">
+                                    <input type="hidden" name="id" th:value="${h.id}"/>
+                                    <button type="submit" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i> Usuń</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div th:if="${day <= 0 or day > daysInMonth}"></div>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Modal dodawania harmonogramu -->
+<div class="modal fade" id="addModal" tabindex="-1" aria-labelledby="addModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content p-4">
+            <div class="modal-header border-0 pb-2">
+                <h5 class="modal-title" id="addModalLabel"><i class="fas fa-plus"></i> Dodaj harmonogram</h5>
+                <button type="button" class="btn-close btn-close-black" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="addFormContent"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal edycji harmonogramu -->
+<div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content p-4">
+            <div class="modal-header border-0 pb-2">
+                <h5 class="modal-title" id="editModalLabel"><i class="fas fa-edit"></i> Edytuj harmonogram</h5>
+                <button type="button" class="btn-close btn-close-black" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="editFormContent"></div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    function loadAddForm() {
+        fetch('/harmonogramy/nowy')
+            .then(response => response.text())
+            .then(html => { document.getElementById('addFormContent').innerHTML = html; });
+    }
+    function loadEditForm(id) {
+        fetch('/harmonogramy/edytuj/' + id)
+            .then(response => response.text())
+            .then(html => { document.getElementById('editFormContent').innerHTML = html; });
+    }
+</script>
+</body>
+</html>
