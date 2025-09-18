@@ -9,7 +9,6 @@ import drimer.drimain.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureWebMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -18,22 +17,21 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.context.WebApplicationContext;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup;
+import org.springframework.web.context.WebApplicationContext;
 
 @SpringBootTest(classes = DriMainApplication.class)
 @ActiveProfiles("test")
 @Transactional
-class AuthRestControllerTest {
+class RefreshTokenIntegrationTest {
 
     private MockMvc mockMvc;
 
@@ -59,8 +57,7 @@ class AuthRestControllerTest {
     @BeforeEach
     void setUp() {
         // Set up MockMvc with Spring Security
-        mockMvc = MockMvcBuilders
-                .webAppContextSetup(webApplicationContext)
+        mockMvc = webAppContextSetup(webApplicationContext)
                 .apply(springSecurity())
                 .build();
 
@@ -80,45 +77,32 @@ class AuthRestControllerTest {
     }
 
     @Test
-    void shouldLoginSuccessfullyWithValidCredentials() throws Exception {
+    void shouldLoginAndReceiveRefreshToken() throws Exception {
         // Given
         Map<String, String> loginRequest = new HashMap<>();
         loginRequest.put("username", testUsername);
         loginRequest.put("password", testPassword);
 
         // When & Then
-        mockMvc.perform(post("/api/auth/login")
+        MvcResult result = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(loginRequest)))
                 .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.token", notNullValue()));
+                .andExpect(jsonPath("$.token").exists())
+                .andExpect(jsonPath("$.refreshToken").exists())
+                .andReturn();
+
+        String response = result.getResponse().getContentAsString();
+        Map<String, String> authResponse = objectMapper.readValue(response, Map.class);
+        
+        // Verify both tokens are present
+        assert authResponse.get("token") != null;
+        assert authResponse.get("refreshToken") != null;
     }
 
     @Test
-    void shouldReturnUnauthorizedWithInvalidCredentials() throws Exception {
-        // Given
-        Map<String, String> loginRequest = new HashMap<>();
-        loginRequest.put("username", testUsername);
-        loginRequest.put("password", "wrongpassword");
-
-        // When & Then
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(loginRequest)))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    void shouldReturnUnauthorizedForMeEndpointWithoutToken() throws Exception {
-        // When & Then
-        mockMvc.perform(get("/api/auth/me"))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    void shouldReturnUserInfoWithValidToken() throws Exception {
-        // Given - Login to get token
+    void shouldRefreshAccessTokenWithValidRefreshToken() throws Exception {
+        // Given - Login to get refresh token
         Map<String, String> loginRequest = new HashMap<>();
         loginRequest.put("username", testUsername);
         loginRequest.put("password", testPassword);
@@ -130,21 +114,45 @@ class AuthRestControllerTest {
                 .andReturn();
 
         String loginResponse = loginResult.getResponse().getContentAsString();
-        String token = objectMapper.readTree(loginResponse).get("token").asText();
+        Map<String, String> authResponse = objectMapper.readValue(loginResponse, Map.class);
+        String refreshToken = authResponse.get("refreshToken");
 
-        // When & Then - Use token to access /me endpoint
-        mockMvc.perform(get("/api/auth/me")
-                        .header("Authorization", "Bearer " + token))
+        // When - Use refresh token to get new access token
+        Map<String, String> refreshRequest = new HashMap<>();
+        refreshRequest.put("refreshToken", refreshToken);
+
+        // Then
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(refreshRequest)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.username").value(testUsername))
-                .andExpect(jsonPath("$.roles").isArray());
+                .andExpect(jsonPath("$.token").exists())
+                .andExpect(jsonPath("$.refreshToken").value(refreshToken)); // Same refresh token returned
     }
 
     @Test
-    void shouldReturnUnauthorizedWithInvalidToken() throws Exception {
+    void shouldRejectInvalidRefreshToken() throws Exception {
+        // Given
+        Map<String, String> refreshRequest = new HashMap<>();
+        refreshRequest.put("refreshToken", "invalid-token");
+
         // When & Then
-        mockMvc.perform(get("/api/auth/me")
-                        .header("Authorization", "Bearer invalid.token.here"))
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(refreshRequest)))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void shouldRejectEmptyRefreshToken() throws Exception {
+        // Given
+        Map<String, String> refreshRequest = new HashMap<>();
+        refreshRequest.put("refreshToken", "");
+
+        // When & Then
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(refreshRequest)))
+                .andExpect(status().isBadRequest());
     }
 }

@@ -2,9 +2,12 @@ package drimer.drimain.api.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -16,6 +19,25 @@ public class ApiExceptionHandler {
                 ex.getMessage(),
                 Instant.now(),
                 HttpStatus.BAD_REQUEST.value()
+        );
+        return ResponseEntity.badRequest().body(resp);
+    }
+
+    // NOTE: Handle validation errors with detailed field error information
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ValidationErrorResponse> handleValidation(MethodArgumentNotValidException ex) {
+        List<String> errors = ex.getBindingResult()
+                .getFieldErrors()
+                .stream()
+                .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                .collect(Collectors.toList());
+        
+        ValidationErrorResponse resp = new ValidationErrorResponse(
+                "ValidationError",
+                "Validation failed",
+                Instant.now(),
+                HttpStatus.BAD_REQUEST.value(),
+                errors
         );
         return ResponseEntity.badRequest().body(resp);
     }

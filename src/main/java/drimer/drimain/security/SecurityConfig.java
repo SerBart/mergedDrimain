@@ -120,4 +120,8 @@ public class SecurityConfig {
     public BCryptPasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
+
+    // TODO: Implement logout endpoint to revoke refresh tokens
+    // TODO: Implement refresh token rotation for enhanced security
+    // TODO: Add rate limiting for login and refresh endpoints
 }

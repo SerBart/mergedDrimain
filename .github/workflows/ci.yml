@@ -28,10 +28,17 @@ jobs:
         restore-keys: ${{ runner.os }}-m2
         
     - name: Run backend tests
-      run: ./mvnw clean test
+      run: ./mvnw clean verify
       
-    - name: Build backend
-      run: ./mvnw clean compile
+    - name: Upload test results on failure
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: test-results
+        path: |
+          target/surefire-reports/
+          target/failsafe-reports/
+        retention-days: 30
       
   test-frontend:
     runs-on: ubuntu-latest

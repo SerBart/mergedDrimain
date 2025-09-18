@@ -19,7 +19,9 @@ class JwtServiceTest {
         jwtService = new JwtService(
                 60L, // 60 minutes TTL
                 "", // empty base64Secret to trigger plain secret usage
-                "test-secret-key-that-is-at-least-32-characters-long-for-hmac-sha256"
+                "test-secret-key-that-is-at-least-32-characters-long-for-hmac-sha256",
+                3600000L, // access token expiration in ms
+                604800000L // refresh token expiration in ms
         );
     }
 
