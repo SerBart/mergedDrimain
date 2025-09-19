@@ -2,18 +2,22 @@ package drimer.drimain.controller;
 
 import drimer.drimain.api.dto.RefreshRequest;
 import drimer.drimain.model.RefreshToken;
+import drimer.drimain.model.Role;
 import drimer.drimain.model.User;
+import drimer.drimain.repository.RoleRepository;
 import drimer.drimain.repository.UserRepository;
 import drimer.drimain.security.JwtService;
 import drimer.drimain.service.CustomUserDetailsService;
 import drimer.drimain.service.RefreshTokenService;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.Cookie;
@@ -21,6 +25,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -32,17 +37,23 @@ public class AuthController {
     private final CustomUserDetailsService userDetailsService;
     private final RefreshTokenService refreshTokenService;
     private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
 
     public AuthController(AuthenticationManager authenticationManager,
                           JwtService jwtService,
                           CustomUserDetailsService userDetailsService,
                           RefreshTokenService refreshTokenService,
-                          UserRepository userRepository) {
+                          UserRepository userRepository,
+                          RoleRepository roleRepository,
+                          PasswordEncoder passwordEncoder) {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
         this.refreshTokenService = refreshTokenService;
         this.userRepository = userRepository;
+        this.roleRepository = roleRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @PostMapping("/login")
@@ -114,6 +125,54 @@ public class AuthController {
         }
     }
 
+    // NOTE: User registration endpoint
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
+        try {
+            // Validate input
+            if (request.getUsername() == null || request.getUsername().trim().isEmpty()) {
+                return ResponseEntity.badRequest().body("Username is required");
+            }
+            if (request.getPassword() == null || request.getPassword().trim().isEmpty()) {
+                return ResponseEntity.badRequest().body("Password is required");
+            }
+
+            // Check if username already exists
+            if (userRepository.findByUsername(request.getUsername()).isPresent()) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body("Username already exists");
+            }
+
+            // Create new user
+            User user = new User();
+            user.setUsername(request.getUsername().trim());
+            user.setPassword(passwordEncoder.encode(request.getPassword()));
+            
+            // Assign default ROLE_USER
+            Role userRole = roleRepository.findByName("ROLE_USER")
+                    .orElseThrow(() -> new RuntimeException("Default role ROLE_USER not found"));
+            user.setRoles(Set.of(userRole));
+
+            userRepository.save(user);
+
+            // Generate tokens for immediate login
+            var userDetails = userDetailsService.loadUserByUsername(user.getUsername());
+            Map<String, Object> claims = new HashMap<>();
+            claims.put("roles", userDetails.getAuthorities()
+                    .stream().map(a -> a.getAuthority()).toList());
+
+            String accessToken = jwtService.generateAccessToken(user.getUsername(), claims);
+            RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
+
+            log.info("User {} registered successfully", user.getUsername());
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(new AuthResponse(accessToken, refreshToken.getToken()));
+
+        } catch (Exception e) {
+            log.error("Failed to register user: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Registration failed");
+        }
+    }
+
     @GetMapping("/me")
     public ResponseEntity<?> me(@RequestHeader(name = "Authorization", required = false) String authHeader,
                                HttpServletRequest request) {
@@ -167,18 +226,42 @@ public class AuthController {
     }
 
     @Data
+    public static class RegisterRequest {
+        private String username;
+        private String password;
+    }
+
+    @Data
     public static class AuthResponse {
-        private final String token;
-        private final String refreshToken; // NOTE: Added refresh token to response
+        private final String accessToken;
+        private final String refreshToken;
+        private final String tokenType;
+        private final long expiresIn; // in seconds
         
-        public AuthResponse(String token) {
-            this.token = token;
+        public AuthResponse(String accessToken) {
+            this.accessToken = accessToken;
             this.refreshToken = null;
+            this.tokenType = "Bearer";
+            this.expiresIn = 3600; // 1 hour default
         }
         
-        public AuthResponse(String token, String refreshToken) {
-            this.token = token;
+        public AuthResponse(String accessToken, String refreshToken) {
+            this.accessToken = accessToken;
             this.refreshToken = refreshToken;
+            this.tokenType = "Bearer";
+            this.expiresIn = 3600; // 1 hour
+        }
+        
+        public AuthResponse(String accessToken, String refreshToken, long expiresIn) {
+            this.accessToken = accessToken;
+            this.refreshToken = refreshToken;
+            this.tokenType = "Bearer";
+            this.expiresIn = expiresIn;
+        }
+
+        // Backward compatibility for the tests that expect "token" field
+        public String getToken() {
+            return accessToken;
         }
     }
 }
