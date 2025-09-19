@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
@@ -19,6 +20,7 @@ import java.util.Locale;
  */
 @Component
 @Profile({"dev","default"}) // dostosuj do swoich profili – lub usuń adnotację jeśli ma działać zawsze
+@DependsOn("flyway")
 public class StatusMigrationInitializer implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(StatusMigrationInitializer.class);

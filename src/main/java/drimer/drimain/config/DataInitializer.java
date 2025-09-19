@@ -6,6 +6,7 @@ import drimer.drimain.repository.RoleRepository;
 import drimer.drimain.repository.UserRepository;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -14,6 +15,7 @@ import java.util.Set;
 
 @Component
 @Order(10) // Initialize roles and users
+@DependsOn("flyway")
 public class DataInitializer implements ApplicationRunner {
 
     private final RoleRepository roleRepository;

@@ -1,4 +1,4 @@
-package drimer.drimain.api.controller;
+package drimer.drimain.controller;
 
 import drimer.drimain.model.enums.RaportStatus;
 import drimer.drimain.model.enums.ZgloszenieStatus;

@@ -1,0 +1,2 @@
+ALTER TABLE raporty
+  ADD COLUMN IF NOT EXISTS created_by VARCHAR(255);

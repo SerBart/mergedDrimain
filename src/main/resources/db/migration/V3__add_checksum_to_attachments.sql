@@ -1,0 +1,3 @@
+ALTER TABLE attachments
+    ADD COLUMN IF NOT EXISTS checksum VARCHAR(128),
+    ADD COLUMN IF NOT EXISTS created_by VARCHAR(255);
