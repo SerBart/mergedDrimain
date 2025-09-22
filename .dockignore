@@ -1,0 +1,22 @@
+# VCS / IDE
+.git
+.github
+.idea
+.vscode
+*.iml
+
+# Java/Maven
+target
+.mvn/wrapper/maven-wrapper.jar
+
+# Node/TS client
+client/node_modules
+
+# Flutter
+frontend/build
+frontend/.dart_tool
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+
+# Misc
+*.log
