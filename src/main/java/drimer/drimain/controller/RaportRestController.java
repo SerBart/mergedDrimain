@@ -4,6 +4,7 @@ import drimer.drimain.api.dto.RaportCreateRequest;
 import drimer.drimain.api.dto.RaportDTO;
 import drimer.drimain.api.dto.RaportUpdateRequest;
 import drimer.drimain.api.mapper.RaportMapper;
+import drimer.drimain.events.RaportChangedEvent;
 import drimer.drimain.model.Raport;
 import drimer.drimain.model.enums.RaportStatus;
 import drimer.drimain.repository.MaszynaRepository;
@@ -22,6 +23,9 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/raporty")
@@ -43,28 +47,9 @@ public class RaportRestController {
                                 @RequestParam(required = false) String q,
                                 @RequestParam(defaultValue = "0") int page,
                                 @RequestParam(defaultValue = "25") int size,
-                                @RequestParam(defaultValue = "dataNaprawy,desc") String sort) {
+                                @RequestParam(defaultValue = "dataNaprawy:desc") String sort) {
 
-        // Poprawione parsowanie sortowania: wspiera "pole,desc" (Spring) oraz "pole:desc"
-        Sort sortObj;
-        if (sort == null || sort.isBlank()) {
-            sortObj = Sort.by(Sort.Order.desc("dataNaprawy"));
-        } else if (sort.contains(",")) {
-            String[] t = sort.split(",", 2);
-            String field = t[0].trim();
-            String dirStr = t[1].trim();
-            Sort.Direction dir = "asc".equalsIgnoreCase(dirStr) ? Sort.Direction.ASC : Sort.Direction.DESC;
-            sortObj = Sort.by(new Sort.Order(dir, field));
-        } else if (sort.contains(":")) {
-            String[] t = sort.split(":", 2);
-            String field = t[0].trim();
-            String dirStr = t[1].trim();
-            Sort.Direction dir = "asc".equalsIgnoreCase(dirStr) ? Sort.Direction.ASC : Sort.Direction.DESC;
-            sortObj = Sort.by(new Sort.Order(dir, field));
-        } else {
-            sortObj = Sort.by(sort.trim());
-        }
-
+        Sort sortObj = parseSort(sort);
         Pageable pageable = PageRequest.of(page, size, sortObj);
 
         RaportStatus statusEnum = null;
@@ -83,6 +68,36 @@ public class RaportRestController {
         return pageData.map(raportMapper::toDto);
     }
 
+    private Sort parseSort(String sort) {
+        if (sort == null || sort.isBlank()) {
+            return Sort.by(Sort.Order.desc("dataNaprawy"));
+        }
+        String[] items = sort.split(";");
+        List<Sort.Order> orders = new ArrayList<>();
+        for (String item : items) {
+            String it = item.trim();
+            if (it.isEmpty()) continue;
+
+            String field;
+            String dirStr = "desc";
+
+            if (it.contains(":")) {
+                String[] t = it.split(":", 2);
+                field = t[0].trim();
+                dirStr = t[1].trim();
+            } else if (it.contains(",")) {
+                String[] t = it.split(",", 2);
+                field = t[0].trim();
+                dirStr = t[1].trim();
+            } else {
+                field = it;
+            }
+            Sort.Direction dir = "asc".equalsIgnoreCase(dirStr) ? Sort.Direction.ASC : Sort.Direction.DESC;
+            orders.add(new Sort.Order(dir, field));
+        }
+        return orders.isEmpty() ? Sort.by(Sort.Order.desc("dataNaprawy")) : Sort.by(orders);
+    }
+
     @GetMapping("/{id}")
     public RaportDTO get(@PathVariable Long id) {
         Raport r = raportRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Raport not found"));
@@ -93,23 +108,62 @@ public class RaportRestController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasRole('ADMIN')")
-    public RaportDTO create(@RequestBody RaportCreateRequest req, @AuthenticationPrincipal UserDetails user) {
-        // ... reszta metody (bez zmian) ...
-        throw new UnsupportedOperationException("Method body unchanged here for brevity");
+    public RaportDTO create(@RequestBody RaportCreateRequest req,
+                            @AuthenticationPrincipal UserDetails userDetails) {
+        Raport r = new Raport();
+        r.setTypNaprawy(req.getTypNaprawy());
+        r.setOpis(req.getOpis());
+
+        // NOTE: Set audit field - who created the report
+        if (userDetails != null) {
+            r.setCreatedBy(userDetails.getUsername());
+            log.info("Report created by user: {}", userDetails.getUsername());
+        }
+
+        raportMapper.applyCreateDefaults(r, req);
+        r.setDataNaprawy(req.getDataNaprawy());
+        if (req.getCzasOd() != null) r.setCzasOd(LocalTime.parse(req.getCzasOd()));
+        if (req.getCzasDo() != null) r.setCzasDo(LocalTime.parse(req.getCzasDo()));
+        if (req.getMaszynaId() != null)
+            r.setMaszyna(maszynaRepository.findById(req.getMaszynaId()).orElse(null));
+        if (req.getOsobaId() != null)
+            r.setOsoba(osobaRepository.findById(req.getOsobaId()).orElse(null));
+        if (req.getPartUsages() != null) {
+            raportMapper.applyPartUsages(r, req.getPartUsages());
+        }
+        raportRepository.save(r);
+        publisher.publishEvent(new RaportChangedEvent(this, raportMapper.toDto(r), "CREATED"));
+
+        return raportMapper.toDto(r);
     }
 
+    // NOTE: Restrict report updates to ADMIN role only
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public RaportDTO update(@PathVariable Long id, @RequestBody RaportUpdateRequest req) {
-        // ... reszta metody (bez zmian) ...
-        throw new UnsupportedOperationException("Method body unchanged here for brevity");
+    public RaportDTO update(@PathVariable Long id, @RequestBody RaportUpdateRequest req,
+                            @AuthenticationPrincipal UserDetails userDetails) {
+        Raport r = raportRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Raport not found"));
+        if (req.getStatus() != null) {
+            try { r.setStatus(RaportStatus.valueOf(req.getStatus())); } catch (Exception ignored) {}
+        }
+        raportMapper.updateEntity(r, req);
+        raportRepository.save(r);
+        publisher.publishEvent(new RaportChangedEvent(this, raportMapper.toDto(r), "UPDATED"));
+
+        if (userDetails != null) {
+            log.info("Report {} updated by user: {}", id, userDetails.getUsername());
+        }
+        return raportMapper.toDto(r);
     }
 
+    // NOTE: Restrict report deletion to ADMIN role only
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasRole('ADMIN')")
-    public void delete(@PathVariable Long id) {
-        // ... reszta metody (bez zmian) ...
-        throw new UnsupportedOperationException("Method body unchanged here for brevity");
+    public void delete(@PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
+        raportRepository.deleteById(id);
+        if (userDetails != null) {
+            log.info("Report {} deleted by user: {}", id, userDetails.getUsername());
+        }
     }
 }
