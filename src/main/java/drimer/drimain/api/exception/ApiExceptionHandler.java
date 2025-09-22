@@ -2,6 +2,7 @@ package drimer.drimain.api.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 
@@ -40,6 +41,18 @@ public class ApiExceptionHandler {
                 errors
         );
         return ResponseEntity.badRequest().body(resp);
+    }
+
+    // NOTE: Handle security access denied exceptions from @PreAuthorize
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccessDenied(AccessDeniedException ex) {
+        ApiErrorResponse resp = new ApiErrorResponse(
+                "AccessDenied",
+                "Access denied",
+                Instant.now(),
+                HttpStatus.FORBIDDEN.value()
+        );
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(resp);
     }
 
     @ExceptionHandler(Exception.class)
