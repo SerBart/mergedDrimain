@@ -7,6 +7,7 @@ import drimer.drimain.repository.UserRepository;
 import org.flywaydb.core.Flyway;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.annotation.Profile;
 
