@@ -4,10 +4,12 @@ import drimer.drimain.model.Role;
 import drimer.drimain.model.User;
 import drimer.drimain.repository.RoleRepository;
 import drimer.drimain.repository.UserRepository;
+import org.flywaydb.core.Flyway;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.annotation.Profile;
+
 import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -16,8 +18,7 @@ import java.util.Set;
 
 @Component
 @Order(10) // Initialize roles and users
-@Profile("!test") // Don't run in test environment
-@DependsOn("flyway")
+@ConditionalOnBean(Flyway.class) // Only create when Flyway is present (e.g., non-test profiles)
 public class DataInitializer implements ApplicationRunner {
 
     private final RoleRepository roleRepository;
