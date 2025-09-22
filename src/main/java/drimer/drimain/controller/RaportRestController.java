@@ -72,10 +72,11 @@ public class RaportRestController {
         if (sort == null || sort.isBlank()) {
             return Sort.by(Sort.Order.desc("dataNaprawy"));
         }
+        // Obsługa wielu dyrektyw: "pole1:asc;pole2,desc"
         String[] items = sort.split(";");
         List<Sort.Order> orders = new ArrayList<>();
-        for (String item : items) {
-            String it = item.trim();
+        for (String raw : items) {
+            String it = raw.trim();
             if (it.isEmpty()) continue;
 
             String field;
@@ -122,8 +123,8 @@ public class RaportRestController {
 
         raportMapper.applyCreateDefaults(r, req);
         r.setDataNaprawy(req.getDataNaprawy());
-        if (req.getCzasOd() != null) r.setCzasOd(LocalTime.parse(req.getCzasOd()));
-        if (req.getCzasDo() != null) r.setCzasDo(LocalTime.parse(req.getCzasDo()));
+        if (req.getCzasOd() != null && !req.getCzasOd().isBlank()) r.setCzasOd(LocalTime.parse(req.getCzasOd()));
+        if (req.getCzasDo() != null && !req.getCzasDo().isBlank()) r.setCzasDo(LocalTime.parse(req.getCzasDo()));
         if (req.getMaszynaId() != null)
             r.setMaszyna(maszynaRepository.findById(req.getMaszynaId()).orElse(null));
         if (req.getOsobaId() != null)
