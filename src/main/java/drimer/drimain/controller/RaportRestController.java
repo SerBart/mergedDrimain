@@ -46,7 +46,7 @@ public class RaportRestController {
                                 @RequestParam(required = false) String q,
                                 @RequestParam(defaultValue = "0") int page,
                                 @RequestParam(defaultValue = "25") int size,
-                                @RequestParam(defaultValue = "dataNaprawy,desc") String sort) {
+                                @RequestParam(defaultValue = "dataNaprawy:desc") String sort) {
 
         Sort sortObj = Sort.by(
             java.util.Arrays.stream(sort.split(","))
