@@ -24,6 +24,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @RestController
@@ -46,19 +48,23 @@ public class RaportRestController {
                                 @RequestParam(required = false) String q,
                                 @RequestParam(defaultValue = "0") int page,
                                 @RequestParam(defaultValue = "25") int size,
-                                @RequestParam(defaultValue = "dataNaprawy,desc") String sort) {
+                                @RequestParam(defaultValue = "dataNaprawy:desc") String sort) {
 
-        Sort sortObj = Sort.by(
-            java.util.Arrays.stream(sort.split(","))
-                .map(s -> {
-                    String[] p = s.split(":");
-                    String field = p[0];
-                    Sort.Direction dir = p.length > 1 && p[1].equalsIgnoreCase("asc") ? Sort.Direction.ASC : Sort.Direction.DESC;
-                    return new Sort.Order(dir, field);
-                }).collect(Collectors.toList())
-        );
-
-        Pageable pageable = PageRequest.of(page, size, sortObj);
+        List<Sort.Order> orders = new ArrayList<>();
+        for (String item : sort.split(",")) {
+            if (item == null || item.isBlank()) continue;
+            String[] p = item.split(":");
+            String field = p[0].trim();
+            if (field.isEmpty()) continue;
+            Sort.Direction dir = (p.length > 1 && "asc".equalsIgnoreCase(p[1].trim()))
+                    ? Sort.Direction.ASC
+                    : Sort.Direction.DESC;
+            orders.add(new Sort.Order(dir, field));
+        }
+        if (orders.isEmpty()) {
+            orders.add(new Sort.Order(Sort.Direction.DESC, "dataNaprawy"));
+        }
+        Pageable pageable = PageRequest.of(page, size, Sort.by(orders));
 
         RaportStatus statusEnum = null;
         if (status != null && !status.isBlank()) {
@@ -82,22 +88,20 @@ public class RaportRestController {
         return raportMapper.toDto(r);
     }
 
-    // NOTE: Restrict report creation to ADMIN role only
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasRole('ADMIN')")
-    public RaportDTO create(@RequestBody RaportCreateRequest req, 
-                           @AuthenticationPrincipal UserDetails userDetails) {
+    public RaportDTO create(@RequestBody RaportCreateRequest req,
+                            @AuthenticationPrincipal UserDetails userDetails) {
         Raport r = new Raport();
         r.setTypNaprawy(req.getTypNaprawy());
         r.setOpis(req.getOpis());
-        
-        // NOTE: Set audit field - who created the report
+
         if (userDetails != null) {
             r.setCreatedBy(userDetails.getUsername());
             log.info("Report created by user: {}", userDetails.getUsername());
         }
-        
+
         raportMapper.applyCreateDefaults(r, req);
         r.setDataNaprawy(req.getDataNaprawy());
         if (req.getCzasOd() != null) r.setCzasOd(LocalTime.parse(req.getCzasOd()));
@@ -115,11 +119,10 @@ public class RaportRestController {
         return raportMapper.toDto(r);
     }
 
-    // NOTE: Restrict report updates to ADMIN role only
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public RaportDTO update(@PathVariable Long id, @RequestBody RaportUpdateRequest req,
-                           @AuthenticationPrincipal UserDetails userDetails) {
+                            @AuthenticationPrincipal UserDetails userDetails) {
         Raport r = raportRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Raport not found"));
         if (req.getStatus() != null) {
             try { r.setStatus(RaportStatus.valueOf(req.getStatus())); } catch (Exception ignored) {}
@@ -134,7 +137,6 @@ public class RaportRestController {
         return raportMapper.toDto(r);
     }
 
-    // NOTE: Restrict report deletion to ADMIN role only
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasRole('ADMIN')")
