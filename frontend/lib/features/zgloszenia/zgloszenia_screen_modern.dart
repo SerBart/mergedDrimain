@@ -33,6 +33,8 @@ class _ZgloszeniaScreenModernState
   int _sortCol = 1;
   bool _asc = false;
 
+  bool _busy = false;
+
   static const types = ['Usterka', 'Awaria', 'Przezbrojenie'];
   static const statusy = ['NOWE', 'W TOKU', 'WERYFIKACJA', 'ZAMKNIĘTE'];
 
@@ -53,23 +55,22 @@ class _ZgloszeniaScreenModernState
 
   // Pobranie z backendu i zasilenie lokalnego mock repo (cache dla UI)
   Future<void> _loadFromApi() async {
+    setState(() => _busy = true);
     try {
       final apiRepo = ref.read(zgloszeniaApiRepositoryProvider);
       final items = await apiRepo.fetchAll();
 
       final mock = ref.read(mockRepoProvider);
-      // Użyj bezpośredniego dostępu do listy jeżeli MockRepository na to pozwala;
-      // alternatywnie, jeżeli jest setZgloszenia(List), możesz go użyć.
       mock.zgloszenia
         ..clear()
         ..addAll(items);
-
-      if (mounted) setState(() {});
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Błąd pobierania z API: $e')),
       );
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -134,21 +135,38 @@ class _ZgloszeniaScreenModernState
     _typSelected = 'Usterka';
   }
 
-  void _add() {
+  Future<void> _add() async {
     if (!_formKey.currentState!.validate()) return;
-    ref.read(mockRepoProvider).addZgloszenie(
-      Zgloszenie(
-        id: 0,
+    setState(() => _busy = true);
+    try {
+      final api = ref.read(zgloszeniaApiRepositoryProvider);
+      final created = await api.create(
         imie: _imieCtrl.text.trim(),
         nazwisko: _nazCtrl.text.trim(),
-        typ: _typSelected,
-        dataGodzina: DateTime.now(),
+        typUi: _typSelected,
         opis: _opisCtrl.text.trim(),
-        status: _status,
-      ),
-    );
-    _resetForm();
-    setState(() {});
+        statusUi: _status,
+      );
+
+      // Zaktualizuj lokalny cache
+      ref.read(mockRepoProvider).addZgloszenie(created);
+      _resetForm();
+
+      if (mounted) {
+        Navigator.of(context).maybePop(); // zamknij bottom sheet jeśli otwarty
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Dodano zgłoszenie')),
+        );
+        setState(() {});
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Błąd dodawania: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   void _editDialog(Zgloszenie z) {
@@ -214,18 +232,43 @@ class _ZgloszeniaScreenModernState
                 Align(
                   alignment: Alignment.centerRight,
                   child: FilledButton(
-                    onPressed: () {
-                      ref.read(mockRepoProvider).updateZgloszenie(
-                        z.copyWith(
+                    onPressed: _busy
+                        ? null
+                        : () async {
+                      setState(() => _busy = true);
+                      try {
+                        final updated = z.copyWith(
                           imie: imie.text.trim(),
                           nazwisko: nazw.text.trim(),
                           typ: typ,
                           opis: opis.text.trim(),
                           status: status,
-                        ),
-                      );
-                      Navigator.pop(context);
-                      setState(() {});
+                        );
+                        final api =
+                        ref.read(zgloszeniaApiRepositoryProvider);
+                        final saved = await api.update(updated);
+
+                        ref
+                            .read(mockRepoProvider)
+                            .updateZgloszenie(saved);
+                        if (mounted) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text('Zapisano zmiany')),
+                          );
+                          setState(() {});
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content: Text('Błąd zapisu: $e')),
+                          );
+                        }
+                      } finally {
+                        if (mounted) setState(() => _busy = false);
+                      }
                     },
                     child: const Text('Zapisz'),
                   ),
@@ -249,7 +292,7 @@ class _ZgloszeniaScreenModernState
       context: context,
       builder: (_) => AlertDialog(
         title: Text('Usuń zgłoszenie #${z.id}?'),
-        content: const Text('Tej operacji nie można cofnąć (demo).'),
+        content: const Text('Tej operacji nie można cofnąć.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -263,8 +306,26 @@ class _ZgloszeniaScreenModernState
       ),
     );
     if (ok == true) {
-      ref.read(mockRepoProvider).deleteZgloszenie(z.id);
-      setState(() {});
+      setState(() => _busy = true);
+      try {
+        final api = ref.read(zgloszeniaApiRepositoryProvider);
+        await api.delete(z.id);
+        ref.read(mockRepoProvider).deleteZgloszenie(z.id);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Usunięto zgłoszenie')),
+          );
+          setState(() {});
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Błąd usuwania: $e')),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
     }
   }
 
@@ -299,12 +360,14 @@ class _ZgloszeniaScreenModernState
           IconButton(
             tooltip: 'Odśwież z API',
             icon: const Icon(Icons.refresh),
-            onPressed: _loadFromApi,
+            onPressed: _busy ? null : _loadFromApi,
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
+        onPressed: _busy
+            ? null
+            : () {
           showModalBottomSheet(
             isScrollControlled: true,
             context: context,
@@ -326,19 +389,21 @@ class _ZgloszeniaScreenModernState
                           Expanded(
                             child: TextFormField(
                               controller: _imieCtrl,
-                              decoration:
-                              const InputDecoration(labelText: 'Imię'),
-                              validator: (v) =>
-                              (v == null || v.isEmpty) ? 'Podaj imię' : null,
+                              decoration: const InputDecoration(
+                                  labelText: 'Imię'),
+                              validator: (v) => (v == null || v.isEmpty)
+                                  ? 'Podaj imię'
+                                  : null,
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: TextFormField(
                               controller: _nazCtrl,
-                              decoration:
-                              const InputDecoration(labelText: 'Nazwisko'),
-                              validator: (v) => (v == null || v.isEmpty)
+                              decoration: const InputDecoration(
+                                  labelText: 'Nazwisko'),
+                              validator: (v) =>
+                              (v == null || v.isEmpty)
                                   ? 'Podaj nazwisko'
                                   : null,
                             ),
@@ -348,38 +413,43 @@ class _ZgloszeniaScreenModernState
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
                         value: _typSelected,
-                        decoration: const InputDecoration(labelText: 'Typ'),
+                        decoration:
+                        const InputDecoration(labelText: 'Typ'),
                         items: types
-                            .map((e) =>
-                            DropdownMenuItem(value: e, child: Text(e)))
+                            .map((e) => DropdownMenuItem(
+                            value: e, child: Text(e)))
                             .toList(),
-                        onChanged: (v) =>
-                            setState(() => _typSelected = v ?? _typSelected),
+                        onChanged: (v) => setState(
+                                () => _typSelected = v ?? _typSelected),
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _opisCtrl,
                         maxLines: 3,
-                        decoration: const InputDecoration(labelText: 'Opis'),
-                        validator: (v) => (v == null || v.trim().length < 5)
+                        decoration:
+                        const InputDecoration(labelText: 'Opis'),
+                        validator: (v) =>
+                        (v == null || v.trim().length < 5)
                             ? 'Opis min. 5 znaków'
                             : null,
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
                         value: _status,
-                        decoration: const InputDecoration(labelText: 'Status'),
+                        decoration:
+                        const InputDecoration(labelText: 'Status'),
                         items: statusy
-                            .map((s) =>
-                            DropdownMenuItem(value: s, child: Text(s)))
+                            .map((s) => DropdownMenuItem(
+                            value: s, child: Text(s)))
                             .toList(),
-                        onChanged: (v) => setState(() => _status = v ?? _status),
+                        onChanged: (v) =>
+                            setState(() => _status = v ?? _status),
                       ),
                       const SizedBox(height: 16),
                       Align(
                         alignment: Alignment.centerRight,
                         child: FilledButton(
-                          onPressed: _add,
+                          onPressed: _busy ? null : _add,
                           child: const Text('Dodaj'),
                         ),
                       ),
@@ -393,119 +463,127 @@ class _ZgloszeniaScreenModernState
         icon: const Icon(Icons.add),
         label: const Text('Dodaj'),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // Wyszukiwarka
-            Row(
+      body: AbsorbPointer(
+        absorbing: _busy,
+        child: Opacity(
+          opacity: _busy ? 0.6 : 1,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _search,
-                    decoration: InputDecoration(
-                      hintText: 'Szukaj po opisie, typie, osobie, statusie...',
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _query.isNotEmpty
-                          ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _search.clear();
-                          setState(() => _query = '');
-                        },
-                      )
-                          : null,
+                // Wyszukiwarka
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _search,
+                        decoration: InputDecoration(
+                          hintText:
+                          'Szukaj po opisie, typie, osobie, statusie...',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: _query.isNotEmpty
+                              ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _search.clear();
+                              setState(() => _query = '');
+                            },
+                          )
+                              : null,
+                        ),
+                        onChanged: (v) => setState(() => _query = v.trim()),
+                      ),
                     ),
-                    onChanged: (v) => setState(() => _query = v.trim()),
-                  ),
+                    const SizedBox(width: 12),
+                    FilledButton.icon(
+                      onPressed: _busy ? null : _loadFromApi,
+                      icon: const Icon(Icons.sync),
+                      label: const Text('Synchronizuj'),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                FilledButton.icon(
-                  onPressed: _loadFromApi,
-                  icon: const Icon(Icons.sync),
-                  label: const Text('Synchronizuj'),
+                const SizedBox(height: 12),
+                // Filtry statusów
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: _filtersBar(),
+                ),
+                const SizedBox(height: 12),
+                // Tabela wyników
+                Expanded(
+                  child: Card(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: DataTable(
+                        sortColumnIndex: _sortCol,
+                        sortAscending: _asc,
+                        columns: [
+                          DataColumn(
+                            label: const Text('ID'),
+                            numeric: true,
+                            onSort: (i, asc) => _onSort(i, asc),
+                          ),
+                          DataColumn(
+                            label: const Text('Data'),
+                            onSort: (i, asc) => _onSort(i, asc),
+                          ),
+                          DataColumn(
+                            label: const Text('Typ'),
+                            onSort: (i, asc) => _onSort(i, asc),
+                          ),
+                          DataColumn(
+                            label: const Text('Status'),
+                            onSort: (i, asc) => _onSort(i, asc),
+                          ),
+                          const DataColumn(label: Text('Osoba')),
+                          const DataColumn(label: Text('Opis')),
+                          const DataColumn(label: Text('Akcje')),
+                        ],
+                        rows: data.map((z) {
+                          return DataRow(
+                            cells: [
+                              DataCell(Text(z.id.toString())),
+                              DataCell(Text(_dtf.format(z.dataGodzina))),
+                              DataCell(Text(z.typ)),
+                              DataCell(_statusChip(z.status)),
+                              DataCell(Text('${z.imie} ${z.nazwisko}')),
+                              DataCell(
+                                ConstrainedBox(
+                                  constraints:
+                                  const BoxConstraints(maxWidth: 320),
+                                  child: Text(
+                                    z.opis,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                              DataCell(Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    tooltip: 'Edytuj',
+                                    icon: const Icon(Icons.edit),
+                                    onPressed: () => _editDialog(z),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Usuń',
+                                    icon: const Icon(Icons.delete,
+                                        color: Colors.red),
+                                    onPressed: () => _delete(z),
+                                  ),
+                                ],
+                              )),
+                            ],
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            // Filtry statusów
-            Align(
-              alignment: Alignment.centerLeft,
-              child: _filtersBar(),
-            ),
-            const SizedBox(height: 12),
-            // Tabela wyników
-            Expanded(
-              child: Card(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: DataTable(
-                    sortColumnIndex: _sortCol,
-                    sortAscending: _asc,
-                    columns: [
-                      DataColumn(
-                        label: const Text('ID'),
-                        numeric: true,
-                        onSort: (i, asc) => _onSort(i, asc),
-                      ),
-                      DataColumn(
-                        label: const Text('Data'),
-                        onSort: (i, asc) => _onSort(i, asc),
-                      ),
-                      DataColumn(
-                        label: const Text('Typ'),
-                        onSort: (i, asc) => _onSort(i, asc),
-                      ),
-                      DataColumn(
-                        label: const Text('Status'),
-                        onSort: (i, asc) => _onSort(i, asc),
-                      ),
-                      const DataColumn(label: Text('Osoba')),
-                      const DataColumn(label: Text('Opis')),
-                      const DataColumn(label: Text('Akcje')),
-                    ],
-                    rows: data.map((z) {
-                      return DataRow(
-                        cells: [
-                          DataCell(Text(z.id.toString())),
-                          DataCell(Text(_dtf.format(z.dataGodzina))),
-                          DataCell(Text(z.typ)),
-                          DataCell(_statusChip(z.status)),
-                          DataCell(Text('${z.imie} ${z.nazwisko}')),
-                          DataCell(
-                            ConstrainedBox(
-                              constraints:
-                              const BoxConstraints(maxWidth: 320),
-                              child: Text(
-                                z.opis,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                          DataCell(Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                tooltip: 'Edytuj',
-                                icon: const Icon(Icons.edit),
-                                onPressed: () => _editDialog(z),
-                              ),
-                              IconButton(
-                                tooltip: 'Usuń',
-                                icon: const Icon(Icons.delete, color: Colors.red),
-                                onPressed: () => _delete(z),
-                              ),
-                            ],
-                          )),
-                        ],
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -531,8 +609,10 @@ class _ZgloszeniaScreenModernState
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration:
-      BoxDecoration(color: color.withOpacity(.15), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.15),
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Text(
         status,
         style: TextStyle(color: color, fontWeight: FontWeight.w600),

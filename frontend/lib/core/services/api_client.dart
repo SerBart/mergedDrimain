@@ -6,7 +6,7 @@ class ApiClient {
   ApiClient._(this._dio);
 
   factory ApiClient({String? baseUrl}) {
-    // Czytaj adres API z --dart-define=API_BASE, fallback na localhost
+    // Odczyt z --dart-define=API_BASE; fallback na localhost
     final resolvedBaseUrl = baseUrl ??
         const String.fromEnvironment('API_BASE', defaultValue: 'http://localhost:8080');
 

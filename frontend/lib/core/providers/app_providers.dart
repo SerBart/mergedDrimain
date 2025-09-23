@@ -6,23 +6,17 @@ import '../repositories/mock_repository.dart';
 import '../repositories/zgloszenia_api_repository.dart';
 import '../models/user.dart';
 
-// Klient HTTP (realne API z bazą URL z --dart-define=API_BASE)
 final apiClientProvider = Provider((ref) => ApiClient());
-
-// Bezpieczne przechowywanie tokenu
 final secureStorageProvider = Provider((ref) => SecureStorageService());
 
-// Serwis logowania – realny (HTTP), zależny od ApiClient i SecureStorage
 final authServiceProvider = Provider<AuthService>((ref) {
   final api = ref.watch(apiClientProvider);
   final storage = ref.watch(secureStorageProvider);
   return AuthService(api.dio, storage);
 });
 
-// Repozytorium mockowanych danych (UI nadal je czyta, traktujemy jako cache)
 final mockRepoProvider = Provider((ref) => MockRepository());
 
-// Repozytorium API dla zgłoszeń
 final zgloszeniaApiRepositoryProvider =
 Provider<ZgloszeniaApiRepository>((ref) {
   final api = ref.watch(apiClientProvider);
@@ -30,13 +24,12 @@ Provider<ZgloszeniaApiRepository>((ref) {
   return ZgloszeniaApiRepository(api.dio, storage);
 });
 
-// Stan zalogowanego użytkownika
 final authStateProvider = StateNotifierProvider<AuthController, User?>(
       (ref) => AuthController(ref),
 );
 
 class AuthController extends StateNotifier<User?> {
-  final Ref _ref; // Ref = dostęp do innych providerów
+  final Ref _ref;
   AuthController(this._ref) : super(null);
 
   Future<void> login(String username, String password) async {

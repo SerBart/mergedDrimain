@@ -9,28 +9,79 @@ class ZgloszeniaApiRepository {
   ZgloszeniaApiRepository(this._dio, this._storage);
 
   Future<List<Zgloszenie>> fetchAll() async {
-    final token = await _storage.readToken();
-    if (token == null || token.isEmpty) {
-      throw Exception('Brak tokenu — zaloguj się ponownie.');
-    }
-
+    final token = await _readToken();
     final resp = await _dio.get(
       '/api/zgloszenia',
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
-
     final list = (resp.data as List<dynamic>).cast<Map<String, dynamic>>();
     return list.map(_fromDto).toList();
   }
 
+  Future<Zgloszenie> create({
+    required String imie,
+    required String nazwisko,
+    required String typUi, // 'Usterka' | 'Awaria' | 'Przezbrojenie' | ...
+    required String opis,
+    required String statusUi, // 'NOWE' | 'W TOKU' | 'WERYFIKACJA' | 'ZAMKNIĘTE'
+    DateTime? dataGodzina,
+  }) async {
+    final token = await _readToken();
+    final dto = {
+      'imie': imie,
+      'nazwisko': nazwisko,
+      'typ': _uiTypToDto(typUi),
+      'opis': opis,
+      'status': _uiStatusToEnum(statusUi), // enum z backendu
+      'dataGodzina': (dataGodzina ?? DateTime.now()).toIso8601String(),
+    };
+
+    final resp = await _dio.post(
+      '/api/zgloszenia',
+      data: dto,
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    return _fromDto((resp.data as Map).cast<String, dynamic>());
+  }
+
+  Future<Zgloszenie> update(Zgloszenie z) async {
+    final token = await _readToken();
+    final dto = {
+      'id': z.id,
+      'imie': z.imie,
+      'nazwisko': z.nazwisko,
+      'typ': _uiTypToDto(z.typ),
+      'opis': z.opis,
+      'status': _uiStatusToEnum(z.status),
+      'dataGodzina': z.dataGodzina.toIso8601String(),
+    };
+
+    final resp = await _dio.put(
+      '/api/zgloszenia/${z.id}',
+      data: dto,
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    return _fromDto((resp.data as Map).cast<String, dynamic>());
+  }
+
+  Future<void> delete(int id) async {
+    final token = await _readToken();
+    await _dio.delete(
+      '/api/zgloszenia/$id',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  }
+
+  // ---- Mappers ----
+
   Zgloszenie _fromDto(Map<String, dynamic> j) {
     final String statusEnum = (j['status'] ?? '').toString();
-    final String status = _mapStatus(statusEnum);
+    final String status = _enumStatusToUi(statusEnum);
 
     final String imie = (j['imie'] ?? '').toString();
     final String nazwisko = (j['nazwisko'] ?? '').toString();
     final String typRaw = (j['typ'] ?? '').toString();
-    final String typ = _mapTyp(typRaw);
+    final String typ = _dtoTypToUi(typRaw);
 
     final String opis = (j['opis'] ?? '').toString();
     final String? dt = j['dataGodzina'] as String?;
@@ -48,7 +99,7 @@ class ZgloszeniaApiRepository {
     );
   }
 
-  String _mapStatus(String s) {
+  String _enumStatusToUi(String s) {
     switch (s.toUpperCase()) {
       case 'OPEN':
         return 'NOWE';
@@ -64,11 +115,45 @@ class ZgloszeniaApiRepository {
     }
   }
 
-  String _mapTyp(String t) {
+  String _uiStatusToEnum(String s) {
+    switch (s.toUpperCase()) {
+      case 'NOWE':
+        return 'OPEN';
+      case 'W TOKU':
+        return 'IN_PROGRESS';
+      case 'WERYFIKACJA':
+        return 'ON_HOLD';
+      case 'ZAMKNIĘTE':
+        return 'DONE'; // domyślnie mapuj na DONE
+      default:
+        return 'OPEN';
+    }
+  }
+
+  String _dtoTypToUi(String t) {
     final v = t.toUpperCase();
     if (v == 'AWARIA') return 'Awaria';
     if (v == 'SERWIS') return 'Serwis';
     if (v == 'PRZEZBROJENIE' || v == 'PRZEZBROJENIA') return 'Przezbrojenie';
+    if (v == 'USTERKA') return 'Usterka';
     return t;
+  }
+
+  String _uiTypToDto(String t) {
+    final v = t.toUpperCase();
+    if (v == 'AWARIA') return 'AWARIA';
+    if (v == 'SERWIS') return 'SERWIS';
+    if (v == 'PRZEZBROJENIE' || v == 'PRZEZBROJENIA') return 'PRZEZBROJENIE';
+    if (v == 'USTERKA') return 'USTERKA';
+    // fallback: upper-case
+    return v;
+  }
+
+  Future<String> _readToken() async {
+    final token = await _storage.readToken();
+    if (token == null || token.isEmpty) {
+      throw Exception('Brak tokenu — zaloguj się ponownie.');
+    }
+    return token;
   }
 }
