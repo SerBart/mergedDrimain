@@ -27,11 +27,11 @@ class DashboardScreen extends ConsumerWidget {
         onTap: () => context.go('/zgloszenia'),
       ),
       _DashboardItem(
-  icon: Icons.inventory_2_outlined,
-  label: 'Części',
-  color: Colors.deepPurple,
-  onTap: () => context.go('/czesci'),
-),
+        icon: Icons.inventory_2_outlined,
+        label: 'Części',
+        color: Colors.deepPurple,
+        onTap: () => context.go('/czesci'),
+      ),
       if (isAdmin)
         _DashboardItem(
           icon: FontAwesomeIcons.userShield,
@@ -39,7 +39,6 @@ class DashboardScreen extends ConsumerWidget {
           color: Colors.teal,
           onTap: () => context.go('/admin'),
         ),
-        
     ];
 
     return Scaffold(
@@ -60,8 +59,9 @@ class DashboardScreen extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
         itemCount: items.length,
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount:
-              MediaQuery.of(context).size.width > 800 ? 4 : (MediaQuery.of(context).size.width > 500 ? 3 : 2),
+          crossAxisCount: MediaQuery.of(context).size.width > 800
+              ? 4
+              : (MediaQuery.of(context).size.width > 500 ? 3 : 2),
           childAspectRatio: 1,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
@@ -105,10 +105,14 @@ class _DashboardItem extends StatelessWidget {
             children: [
               Icon(icon, size: 42, color: Colors.white),
               const SizedBox(height: 12),
-              Text(label,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, color: Colors.white)),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
             ],
           ),
         ),

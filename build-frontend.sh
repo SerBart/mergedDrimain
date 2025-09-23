@@ -1,23 +1,19 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-echo "Building Flutter frontend..."
+pushd frontend > /dev/null
 
-API_BASE=${API_BASE:-"http://localhost:8080"}
+# Build Flutter web with same-origin API (empty base)
+flutter build web --release --dart-define=API_BASE=
 
-cd frontend
+popd > /dev/null
 
-echo "Running flutter pub get..."
-flutter pub get
+# Clean existing static (keep folder if exists)
+STATIC_DIR="src/main/resources/static"
+mkdir -p "$STATIC_DIR"
 
-echo "Building Flutter web (release) with API_BASE=$API_BASE..."
-flutter build web -v --release --dart-define=API_BASE="$API_BASE"
+# Copy build
+rm -rf "${STATIC_DIR:?}/"*
+cp -r frontend/build/web/* "$STATIC_DIR/"
 
-echo "Cleaning Spring Boot static resources..."
-rm -rf ../src/main/resources/static/*
-
-echo "Copying Flutter web build to static resources..."
-cp -r build/web/* ../src/main/resources/static/
-
-echo "Flutter frontend build complete!"
-echo "Static resources updated in src/main/resources/static/"
+echo "Frontend built and copied to $STATIC_DIR"
