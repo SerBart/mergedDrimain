@@ -11,6 +11,8 @@ import drimer.drimain.repository.OsobaRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -28,11 +30,22 @@ public class HarmonogramRestController {
     private final OsobaRepository osobaRepository;
 
     @GetMapping
-    public List<HarmonogramDTO> list(@RequestParam Optional<Integer> year,
-                                   @RequestParam Optional<Integer> month) {
-        return harmonogramRepository.findAll().stream()
-                .filter(h -> year.map(y -> h.getData() != null && h.getData().getYear() == y).orElse(true))
-                .filter(h -> month.map(m -> h.getData() != null && h.getData().getMonthValue() == m).orElse(true))
+    public List<HarmonogramDTO> list(@RequestParam Optional<LocalDate> start,
+                                     @RequestParam Optional<LocalDate> end,
+                                     @RequestParam Optional<String> q) {
+        List<Harmonogram> src = (start.isPresent() && end.isPresent())
+                ? harmonogramRepository.findByDataBetween(start.get(), end.get())
+                : harmonogramRepository.findAll();
+
+        return src.stream()
+                .filter(h -> q.map(qq -> {
+                    String s = qq.toLowerCase();
+                    return (h.getOpis() != null && h.getOpis().toLowerCase().contains(s))
+                            || (h.getMaszyna() != null && h.getMaszyna().getNazwa() != null
+                            && h.getMaszyna().getNazwa().toLowerCase().contains(s))
+                            || (h.getOsoba() != null && h.getOsoba().getImieNazwisko() != null
+                            && h.getOsoba().getImieNazwisko().toLowerCase().contains(s));
+                }).orElse(true))
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
@@ -46,58 +59,63 @@ public class HarmonogramRestController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public HarmonogramDTO create(@Valid @RequestBody HarmonogramCreateRequest req) {
+    @PreAuthorize("hasAnyRole('ADMIN','BIURO')")
+    public HarmonogramDTO create(@Valid @RequestBody HarmonogramCreateRequest req,
+                                 Authentication authentication) {
         Harmonogram h = new Harmonogram();
         h.setData(req.getData());
         h.setOpis(req.getOpis());
-        
+
         if (req.getMaszynaId() != null) {
             Maszyna maszyna = maszynaRepository.findById(req.getMaszynaId())
                     .orElseThrow(() -> new IllegalArgumentException("Maszyna not found"));
             h.setMaszyna(maszyna);
         }
-        
+
         if (req.getOsobaId() != null) {
             Osoba osoba = osobaRepository.findById(req.getOsobaId())
                     .orElseThrow(() -> new IllegalArgumentException("Osoba not found"));
             h.setOsoba(osoba);
         }
-        
+
         h.setStatus(req.getStatus() != null ? req.getStatus() : StatusHarmonogramu.PLANOWANE);
-        
         harmonogramRepository.save(h);
         return toDto(h);
     }
 
     @PutMapping("/{id}")
-    public HarmonogramDTO update(@PathVariable Long id, @Valid @RequestBody HarmonogramUpdateRequest req) {
+    @PreAuthorize("hasAnyRole('ADMIN','BIURO')")
+    public HarmonogramDTO update(@PathVariable Long id,
+                                 @Valid @RequestBody HarmonogramUpdateRequest req,
+                                 Authentication authentication) {
         Harmonogram h = harmonogramRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Harmonogram not found"));
-        
+
         if (req.getData() != null) h.setData(req.getData());
         if (req.getOpis() != null) h.setOpis(req.getOpis());
-        
+
         if (req.getMaszynaId() != null) {
             Maszyna maszyna = maszynaRepository.findById(req.getMaszynaId())
                     .orElseThrow(() -> new IllegalArgumentException("Maszyna not found"));
             h.setMaszyna(maszyna);
         }
-        
+
         if (req.getOsobaId() != null) {
             Osoba osoba = osobaRepository.findById(req.getOsobaId())
                     .orElseThrow(() -> new IllegalArgumentException("Osoba not found"));
             h.setOsoba(osoba);
         }
-        
+
         if (req.getStatus() != null) h.setStatus(req.getStatus());
-        
+
         harmonogramRepository.save(h);
         return toDto(h);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) {
+    @PreAuthorize("hasAnyRole('ADMIN','BIURO')")
+    public void delete(@PathVariable Long id, Authentication authentication) {
         harmonogramRepository.deleteById(id);
     }
 
@@ -107,21 +125,19 @@ public class HarmonogramRestController {
         dto.setData(h.getData());
         dto.setOpis(h.getOpis());
         dto.setStatus(h.getStatus());
-        
+
         if (h.getMaszyna() != null) {
-            SimpleMaszynaDTO maszynaDto = new SimpleMaszynaDTO();
-            maszynaDto.setId(h.getMaszyna().getId());
-            maszynaDto.setNazwa(h.getMaszyna().getNazwa());
-            dto.setMaszyna(maszynaDto);
+            SimpleMaszynaDTO m = new SimpleMaszynaDTO();
+            m.setId(h.getMaszyna().getId());
+            m.setNazwa(h.getMaszyna().getNazwa());
+            dto.setMaszyna(m);
         }
-        
         if (h.getOsoba() != null) {
-            SimpleOsobaDTO osobaDto = new SimpleOsobaDTO();
-            osobaDto.setId(h.getOsoba().getId());
-            osobaDto.setImieNazwisko(h.getOsoba().getImieNazwisko());
-            dto.setOsoba(osobaDto);
+            SimpleOsobaDTO o = new SimpleOsobaDTO();
+            o.setId(h.getOsoba().getId());
+            o.setImieNazwisko(h.getOsoba().getImieNazwisko());
+            dto.setOsoba(o);
         }
-        
         return dto;
     }
 }

@@ -18,7 +18,9 @@ public class RefreshToken {
     @Column(nullable = false, unique = true)
     private String token;
 
-    @Column(nullable = false)
+    // BYŁO: @Column(nullable = false)
+    // Problem: w DB kolumna nazywa się expires_at
+    @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiry;
 
     @Column(name = "created_at", nullable = false)
@@ -37,6 +39,10 @@ public class RefreshToken {
         this.user = user;
         this.token = token;
         this.expiry = expiry;
+    }
+    @PrePersist
+    void prePersist() {
+        if (createdAt == null) createdAt = LocalDateTime.now();
     }
 
     // Getters and setters

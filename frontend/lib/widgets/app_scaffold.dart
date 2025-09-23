@@ -1,57 +1,57 @@
 import 'package:flutter/material.dart';
-import '../core/theme/design_tokens.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../services/auth_service.dart';
 
-class AppScaffold extends StatelessWidget {
+class AppScaffold extends ConsumerWidget {
+  final String title;
   final Widget body;
-  final PreferredSizeWidget? appBar;
+  final List<Widget>? actions;
   final Widget? floatingActionButton;
-  final EdgeInsetsGeometry padding;
-  final bool constrained;
 
   const AppScaffold({
     super.key,
+    required this.title,
     required this.body,
-    this.appBar,
+    this.actions,
     this.floatingActionButton,
-    this.padding = const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-    this.constrained = true,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final child = Align(
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: constrained ? Layout.maxContentWidth : double.infinity,
-        ),
-        child: Padding(
-          padding: padding,
-          child: body,
-        ),
-      ),
-    );
-
+  Widget build(BuildContext context, WidgetRef ref) {
+    final auth = ref.watch(authStateProvider);
     return Scaffold(
-      appBar: appBar,
-      body: SafeArea(
-        child: ScrollConfiguration(
-          behavior: const _NoGlowBehavior(),
-          child: SingleChildScrollView(
-            child: child,
+      appBar: AppBar(
+        title: Text(title),
+        actions: [
+          if (actions != null) ...actions!,
+          PopupMenuButton<String>(
+            icon: CircleAvatar(
+              radius: 16,
+              child: Text(
+                (auth.username ?? '?').characters.first.toUpperCase(),
+              ),
+            ),
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                enabled: false,
+                child: Text(auth.username ?? 'Nieznany'),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'logout',
+                child: Text('Wyloguj'),
+              ),
+            ],
+            onSelected: (val) async {
+              if (val == 'logout') {
+                await ref.read(authServiceProvider).logout();
+              }
+            },
           ),
-        ),
+        ],
       ),
+      body: body,
       floatingActionButton: floatingActionButton,
     );
-  }
-}
-
-class _NoGlowBehavior extends ScrollBehavior {
-  const _NoGlowBehavior();
-  @override
-  Widget buildViewportChrome(
-      BuildContext context, Widget child, AxisDirection axisDirection) {
-    return child;
   }
 }
