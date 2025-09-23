@@ -53,6 +53,7 @@ class _ZgloszeniaScreenModernState
     super.dispose();
   }
 
+  // Pobranie z backendu i zasilenie lokalnego mock repo (cache dla UI)
   Future<void> _loadFromApi() async {
     setState(() => _busy = true);
     try {
@@ -139,7 +140,7 @@ class _ZgloszeniaScreenModernState
     setState(() => _busy = true);
     try {
       final api = ref.read(zgloszeniaApiRepositoryProvider);
-      final created = await api.create(
+      await api.create(
         imie: _imieCtrl.text.trim(),
         nazwisko: _nazCtrl.text.trim(),
         typUi: _typSelected,
@@ -148,7 +149,9 @@ class _ZgloszeniaScreenModernState
         dataGodzina: DateTime.now(),
       );
 
-      ref.read(mockRepoProvider).addZgloszenie(created);
+      // Zamiast lokalnego dopisywania – synchronizacja z API,
+      // żeby mieć prawdziwe ID z bazy (unikamy id=0).
+      await _loadFromApi();
       _resetForm();
 
       if (mounted) {
@@ -156,7 +159,6 @@ class _ZgloszeniaScreenModernState
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Dodano zgłoszenie')),
         );
-        setState(() {});
       }
     } catch (e) {
       if (!mounted) return;
@@ -177,6 +179,13 @@ class _ZgloszeniaScreenModernState
   }
 
   void _editDialog(Zgloszenie z) {
+    if (z.id <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('To zgłoszenie nie jest zapisane na serwerze (brak ID).')),
+      );
+      return;
+    }
+
     final imie = TextEditingController(text: z.imie);
     final nazw = TextEditingController(text: z.nazwisko);
     final opis = TextEditingController(text: z.opis);
@@ -258,13 +267,15 @@ class _ZgloszeniaScreenModernState
                         ref
                             .read(mockRepoProvider)
                             .updateZgloszenie(saved);
+
                         if (mounted) {
                           Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                                 content: Text('Zapisano zmiany')),
                           );
-                          setState(() {});
+                          // Po zapisie dociągnij z API, aby uniknąć rozjazdów
+                          await _loadFromApi();
                         }
                       } catch (e) {
                         if (mounted) {
@@ -305,6 +316,13 @@ class _ZgloszeniaScreenModernState
   }
 
   Future<void> _delete(Zgloszenie z) async {
+    if (z.id <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('To zgłoszenie nie jest zapisane na serwerze (brak ID).')),
+      );
+      return;
+    }
+
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -332,7 +350,8 @@ class _ZgloszeniaScreenModernState
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Usunięto zgłoszenie')),
           );
-          setState(() {});
+          // Po usunięciu – odśwież z API
+          await _loadFromApi();
         }
       } catch (e) {
         if (mounted) {
@@ -502,7 +521,7 @@ class _ZgloszeniaScreenModernState
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                // Wyszukiwarka + Sync
+                // Wyszukiwarka
                 Row(
                   children: [
                     Expanded(
@@ -571,6 +590,7 @@ class _ZgloszeniaScreenModernState
                           const DataColumn(label: Text('Akcje')),
                         ],
                         rows: data.map((z) {
+                          final disabled = z.id <= 0;
                           return DataRow(
                             cells: [
                               DataCell(Text(z.id.toString())),
@@ -593,15 +613,21 @@ class _ZgloszeniaScreenModernState
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   IconButton(
-                                    tooltip: 'Edytuj',
+                                    tooltip: disabled
+                                        ? 'Brak ID – nie zapisane na serwerze'
+                                        : 'Edytuj',
                                     icon: const Icon(Icons.edit),
-                                    onPressed: () => _editDialog(z),
+                                    onPressed:
+                                    disabled ? null : () => _editDialog(z),
                                   ),
                                   IconButton(
-                                    tooltip: 'Usuń',
+                                    tooltip: disabled
+                                        ? 'Brak ID – nie zapisane na serwerze'
+                                        : 'Usuń',
                                     icon: const Icon(Icons.delete,
                                         color: Colors.red),
-                                    onPressed: () => _delete(z),
+                                    onPressed:
+                                    disabled ? null : () => _delete(z),
                                   ),
                                 ],
                               )),
