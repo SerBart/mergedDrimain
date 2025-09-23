@@ -13,58 +13,30 @@ import '../features/admin/admin_screen.dart';
 import '../features/raporty/raport_form_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  // Obserwujemy zalogowanego użytkownika
   final auth = ref.watch(authStateProvider);
-
   return GoRouter(
     initialLocation: '/login',
-    // redirect = decyduje czy zmienić ścieżkę automatycznie
     redirect: (context, state) {
       final loggedIn = auth != null;
       final atLogin = state.fullPath == '/login';
-
       if (!loggedIn && !atLogin) return '/login';
       if (loggedIn && atLogin) return '/dashboard';
-      return null; // brak zmiany
+      return null;
     },
     routes: [
-      GoRoute(
-        path: '/czesci',
-        builder: (c, s) => const CzesciListScreen(),
-      ),
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginScreen(),
-      ),
-      GoRoute(
-        path: '/dashboard',
-        builder: (context, state) => const DashboardScreen(),
-      ),
-      GoRoute(
-        path: '/raporty',
-        builder: (context, state) => const RaportyListScreen(),
-      ),
-      GoRoute(
-        path: '/raport/nowy',
-        builder: (context, state) => const RaportFormScreen(),
-      ),
+      GoRoute(path: '/czesci',    builder: (c, s) => const CzesciListScreen()),
+      GoRoute(path: '/login',     builder: (c, s) => const LoginScreen()),
+      GoRoute(path: '/dashboard', builder: (c, s) => const DashboardScreen()),
+      GoRoute(path: '/raporty',   builder: (c, s) => const RaportyListScreen()),
+      GoRoute(path: '/raport/nowy', builder: (c, s) => const RaportFormScreen()),
       GoRoute(
         path: '/raport/edytuj/:id',
-        builder: (context, state) {
-          final idString = state.pathParameters['id'];
-          // jeżeli idString == null -> formularz nowy
-          final raportId = int.tryParse(idString ?? '');
-          return RaportFormScreen(raportId: raportId);
-        },
+        builder: (c, s) => RaportFormScreen(
+          raportId: int.tryParse(s.pathParameters['id'] ?? ''),
+        ),
       ),
-      GoRoute(
-        path: '/zgloszenia',
-        builder: (c, s) => const ZgloszeniaScreenModern(),
-      ),
-      GoRoute(
-        path: '/admin',
-        builder: (context, state) => const AdminScreen(),
-      ),
+      GoRoute(path: '/zgloszenia', builder: (c, s) => const ZgloszeniaScreenModern()),
+      GoRoute(path: '/admin',      builder: (c, s) => const AdminScreen()),
     ],
   );
 });
