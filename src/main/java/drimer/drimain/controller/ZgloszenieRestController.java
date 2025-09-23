@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,8 +29,9 @@ import java.util.stream.Collectors;
  * - PUT    /api/zgloszenia/{id}
  * - DELETE /api/zgloszenia/{id}
  *
- * This version includes explicit @PostMapping and basic error handling so
- * clients get 4xx on validation/permission issues instead of generic 500.
+ * Zabezpieczenia przed LazyInitializationException:
+ * - @Transactional(readOnly = true) na metodach GET (list/get)
+ * - repozytorium fetchuje relacje poprzez @EntityGraph (autor, dzial)
  */
 @RestController
 @RequestMapping("/api/zgloszenia")
@@ -41,11 +43,14 @@ public class ZgloszenieRestController {
 
     /**
      * List with simple filters.
+     * Trzyma transakcję otwartą na czas mapowania do DTO, aby Lazy nie wywalił.
      */
     @GetMapping
+    @Transactional(readOnly = true)
     public List<ZgloszenieDTO> list(@RequestParam Optional<String> status,
                                     @RequestParam Optional<String> typ,
                                     @RequestParam Optional<String> q) {
+
         return zgloszenieRepository.findAll().stream()
                 .filter(z -> status
                         .map(s -> {
@@ -72,8 +77,10 @@ public class ZgloszenieRestController {
 
     /**
      * Get by id.
+     * Trzyma transakcję, a repo fetchuje relacje autor/dzial.
      */
     @GetMapping("/{id}")
+    @Transactional(readOnly = true)
     public ZgloszenieDTO get(@PathVariable Long id) {
         Zgloszenie z = zgloszenieRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Zgłoszenie nie istnieje"));
