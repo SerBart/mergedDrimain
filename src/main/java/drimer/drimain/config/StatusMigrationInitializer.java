@@ -20,7 +20,7 @@ import java.util.Locale;
  */
 @Component
 @Profile({"dev","default"}) // dostosuj do swoich profili – lub usuń adnotację jeśli ma działać zawsze
-@DependsOn("flyway")
+// @DependsOn("flyway") // Removed dependency on Flyway for H2 development
 public class StatusMigrationInitializer implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(StatusMigrationInitializer.class);
