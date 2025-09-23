@@ -53,7 +53,6 @@ class _ZgloszeniaScreenModernState
     super.dispose();
   }
 
-  // Pobranie z backendu i zasilenie lokalnego mock repo (cache dla UI)
   Future<void> _loadFromApi() async {
     setState(() => _busy = true);
     try {
@@ -146,14 +145,14 @@ class _ZgloszeniaScreenModernState
         typUi: _typSelected,
         opis: _opisCtrl.text.trim(),
         statusUi: _status,
+        dataGodzina: DateTime.now(),
       );
 
-      // Zaktualizuj lokalny cache
       ref.read(mockRepoProvider).addZgloszenie(created);
       _resetForm();
 
       if (mounted) {
-        Navigator.of(context).maybePop(); // zamknij bottom sheet jeśli otwarty
+        Navigator.of(context).maybePop();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Dodano zgłoszenie')),
         );
@@ -161,9 +160,17 @@ class _ZgloszeniaScreenModernState
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Błąd dodawania: $e')),
-      );
+      String msg = 'Błąd dodawania: $e';
+      try {
+        final dioResp = (e as dynamic).response;
+        final data = dioResp?.data;
+        if (data is Map && data['message'] is String) {
+          msg = 'Błąd dodawania: ${data['message']}';
+        } else if (data is String && data.isNotEmpty) {
+          msg = 'Błąd dodawania: $data';
+        }
+      } catch (_) {}
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -261,9 +268,19 @@ class _ZgloszeniaScreenModernState
                         }
                       } catch (e) {
                         if (mounted) {
+                          String msg = 'Błąd zapisu: $e';
+                          try {
+                            final dioResp = (e as dynamic).response;
+                            final data = dioResp?.data;
+                            if (data is Map && data['message'] is String) {
+                              msg = 'Błąd zapisu: ${data['message']}';
+                            } else if (data is String &&
+                                data.isNotEmpty) {
+                              msg = 'Błąd zapisu: $data';
+                            }
+                          } catch (_) {}
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                                content: Text('Błąd zapisu: $e')),
+                            SnackBar(content: Text(msg)),
                           );
                         }
                       } finally {
@@ -319,8 +336,18 @@ class _ZgloszeniaScreenModernState
         }
       } catch (e) {
         if (mounted) {
+          String msg = 'Błąd usuwania: $e';
+          try {
+            final dioResp = (e as dynamic).response;
+            final data = dioResp?.data;
+            if (data is Map && data['message'] is String) {
+              msg = 'Błąd usuwania: ${data['message']}';
+            } else if (data is String && data.isNotEmpty) {
+              msg = 'Błąd usuwania: $data';
+            }
+          } catch (_) {}
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Błąd usuwania: $e')),
+            SnackBar(content: Text(msg)),
           );
         }
       } finally {
@@ -428,10 +455,14 @@ class _ZgloszeniaScreenModernState
                         maxLines: 3,
                         decoration:
                         const InputDecoration(labelText: 'Opis'),
-                        validator: (v) =>
-                        (v == null || v.trim().length < 5)
-                            ? 'Opis min. 5 znaków'
-                            : null,
+                        validator: (v) {
+                          final txt = v?.trim() ?? '';
+                          if (txt.isEmpty) return 'Opis jest wymagany';
+                          if (txt.length < 10) {
+                            return 'Opis musi mieć co najmniej 10 znaków';
+                          }
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
@@ -471,7 +502,7 @@ class _ZgloszeniaScreenModernState
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                // Wyszukiwarka
+                // Wyszukiwarka + Sync
                 Row(
                   children: [
                     Expanded(

@@ -1,22 +1,29 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/auth_service.dart';
-import '../services/secure_storage_service.dart';
 import '../services/api_client.dart';
-import '../repositories/mock_repository.dart';
+import '../services/secure_storage_service.dart';
+import '../services/auth_service.dart';
 import '../repositories/zgloszenia_api_repository.dart';
+import '../repositories/mock_repository.dart';
 import '../models/user.dart';
 
-final apiClientProvider = Provider((ref) => ApiClient());
-final secureStorageProvider = Provider((ref) => SecureStorageService());
+// Globalny klient HTTP (adres z --dart-define=API_BASE)
+final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
 
+// Bezpieczny storage na token
+final secureStorageProvider =
+Provider<SecureStorageService>((ref) => SecureStorageService());
+
+// Realny serwis autoryzacji (HTTP)
 final authServiceProvider = Provider<AuthService>((ref) {
   final api = ref.watch(apiClientProvider);
   final storage = ref.watch(secureStorageProvider);
   return AuthService(api.dio, storage);
 });
 
-final mockRepoProvider = Provider((ref) => MockRepository());
+// Mock repo (lokalny cache dla UI)
+final mockRepoProvider = Provider<MockRepository>((ref) => MockRepository());
 
+// Repozytorium API dla zgłoszeń
 final zgloszeniaApiRepositoryProvider =
 Provider<ZgloszeniaApiRepository>((ref) {
   final api = ref.watch(apiClientProvider);
@@ -24,6 +31,7 @@ Provider<ZgloszeniaApiRepository>((ref) {
   return ZgloszeniaApiRepository(api.dio, storage);
 });
 
+// Stan/logika autoryzacji w aplikacji
 final authStateProvider = StateNotifierProvider<AuthController, User?>(
       (ref) => AuthController(ref),
 );

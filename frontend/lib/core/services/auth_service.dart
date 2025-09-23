@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import '../models/user.dart';
 import 'secure_storage_service.dart';
 
+/// Realna autoryzacja: POST /api/auth/login -> token, GET /api/auth/me -> role
 class AuthService {
   final Dio _dio;
   final SecureStorageService _storage;
@@ -22,17 +23,17 @@ class AuthService {
 
     await _storage.saveToken(token);
 
-    final me = await _dio.get(
+    final meResp = await _dio.get(
       '/api/auth/me',
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
-    final meData = me.data as Map<String, dynamic>;
-    final roles = (meData['roles'] as List<dynamic>? ?? const []).cast<String>();
+    final me = meResp.data as Map<String, dynamic>;
+    final roles = (me['roles'] as List<dynamic>? ?? const []).cast<String>();
     final role = roles.contains('ROLE_ADMIN') ? 'ADMIN' : 'USER';
 
     return User(
       id: 0,
-      username: (meData['username'] as String?) ?? username,
+      username: (me['username'] as String?) ?? username,
       role: role,
       token: token,
     );

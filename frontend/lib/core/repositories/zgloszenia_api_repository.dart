@@ -21,19 +21,21 @@ class ZgloszeniaApiRepository {
   Future<Zgloszenie> create({
     required String imie,
     required String nazwisko,
-    required String typUi, // 'Usterka' | 'Awaria' | 'Przezbrojenie' | ...
+    required String typUi,
     required String opis,
-    required String statusUi, // 'NOWE' | 'W TOKU' | 'WERYFIKACJA' | 'ZAMKNIĘTE'
+    required String statusUi,
     DateTime? dataGodzina,
   }) async {
     final token = await _readToken();
     final dto = {
+      'typ': _uiTypToDto(typUi),
       'imie': imie,
       'nazwisko': nazwisko,
-      'typ': _uiTypToDto(typUi),
+      'status': _uiStatusToEnum(statusUi),
+      'priorytet': 'NORMALNY', // zgodnie z DTO backendu
       'opis': opis,
-      'status': _uiStatusToEnum(statusUi), // enum z backendu
       'dataGodzina': (dataGodzina ?? DateTime.now()).toIso8601String(),
+      // 'tytul': 'Zgłoszenie', // opcjonalnie
     };
 
     final resp = await _dio.post(
@@ -48,11 +50,11 @@ class ZgloszeniaApiRepository {
     final token = await _readToken();
     final dto = {
       'id': z.id,
+      'typ': _uiTypToDto(z.typ),
       'imie': z.imie,
       'nazwisko': z.nazwisko,
-      'typ': _uiTypToDto(z.typ),
-      'opis': z.opis,
       'status': _uiStatusToEnum(z.status),
+      'opis': z.opis,
       'dataGodzina': z.dataGodzina.toIso8601String(),
     };
 
@@ -72,7 +74,7 @@ class ZgloszeniaApiRepository {
     );
   }
 
-  // ---- Mappers ----
+  // ---- Mapowania ----
 
   Zgloszenie _fromDto(Map<String, dynamic> j) {
     final String statusEnum = (j['status'] ?? '').toString();
@@ -124,7 +126,7 @@ class ZgloszeniaApiRepository {
       case 'WERYFIKACJA':
         return 'ON_HOLD';
       case 'ZAMKNIĘTE':
-        return 'DONE'; // domyślnie mapuj na DONE
+        return 'DONE';
       default:
         return 'OPEN';
     }
@@ -145,8 +147,7 @@ class ZgloszeniaApiRepository {
     if (v == 'SERWIS') return 'SERWIS';
     if (v == 'PRZEZBROJENIE' || v == 'PRZEZBROJENIA') return 'PRZEZBROJENIE';
     if (v == 'USTERKA') return 'USTERKA';
-    // fallback: upper-case
-    return v;
+    return v; // fallback
   }
 
   Future<String> _readToken() async {
