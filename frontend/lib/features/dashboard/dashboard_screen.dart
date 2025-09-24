@@ -27,11 +27,17 @@ class DashboardScreen extends ConsumerWidget {
         onTap: () => context.go('/zgloszenia'),
       ),
       _DashboardItem(
-  icon: Icons.inventory_2_outlined,
-  label: 'Części',
-  color: Colors.deepPurple,
-  onTap: () => context.go('/czesci'),
-),
+        icon: FontAwesomeIcons.calendarDays,
+        label: 'Harmonogramy',
+        color: Colors.green.shade700,
+        onTap: () => context.go('/harmonogramy'),
+      ),
+      _DashboardItem(
+        icon: Icons.inventory_2_outlined,
+        label: 'Części',
+        color: Colors.deepPurple,
+        onTap: () => context.go('/czesci'),
+      ),
       if (isAdmin)
         _DashboardItem(
           icon: FontAwesomeIcons.userShield,
@@ -39,7 +45,6 @@ class DashboardScreen extends ConsumerWidget {
           color: Colors.teal,
           onTap: () => context.go('/admin'),
         ),
-        
     ];
 
     return Scaffold(
