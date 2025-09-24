@@ -33,6 +33,12 @@ class DashboardScreen extends ConsumerWidget {
         onTap: () => context.go('/harmonogramy'),
       ),
       _DashboardItem(
+        icon: FontAwesomeIcons.clipboardCheck,
+        label: 'Przeglądy',
+        color: Colors.blueGrey,
+        onTap: () => context.go('/przeglady'),
+      ),
+      _DashboardItem(
         icon: Icons.inventory_2_outlined,
         label: 'Części',
         color: Colors.deepPurple,
