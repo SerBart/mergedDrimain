@@ -15,4 +15,7 @@ public class ZgloszenieUpdateRequest {
     private Long dzialId; // New field
     private Long autorId; // New field
     private String photoBase64; // opcjonalnie
+    private Long maszynaId; // id maszyny (opcjonalnie)
+    private String acceptedAt; // iso datetime (opcjonalne)
+    private String completedAt; // iso datetime (opcjonalne)
 }

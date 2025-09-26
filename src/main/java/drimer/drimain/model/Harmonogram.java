@@ -1,6 +1,7 @@
 package drimer.drimain.model;
 
 import drimer.drimain.model.enums.StatusHarmonogramu;
+import drimer.drimain.model.enums.HarmonogramOkres;
 import jakarta.persistence.*;
 import java.time.LocalDate;
 
@@ -24,9 +25,20 @@ public class Harmonogram {
     @JoinColumn(name = "osoba_id")
     private Osoba osoba;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "dzial_id")
+    private Dzial dzial;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 40)
     private StatusHarmonogramu status = StatusHarmonogramu.PLANOWANE;
+
+    @Column(name = "duration_minutes")
+    private Integer durationMinutes; // czas trwania w minutach
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "frequency", length = 20)
+    private HarmonogramOkres frequency;
 
     // Gettery / settery
     public Long getId() { return id; }
@@ -43,7 +55,13 @@ public class Harmonogram {
 
     public Osoba getOsoba() { return osoba; }
     public void setOsoba(Osoba osoba) { this.osoba = osoba; }
-
+    public Dzial getDzial() { return dzial; }
+    public void setDzial(Dzial dzial) { this.dzial = dzial; }
     public StatusHarmonogramu getStatus() { return status; }
     public void setStatus(StatusHarmonogramu status) { this.status = status; }
+
+    public Integer getDurationMinutes() { return durationMinutes; }
+    public void setDurationMinutes(Integer durationMinutes) { this.durationMinutes = durationMinutes; }
+    public HarmonogramOkres getFrequency() { return frequency; }
+    public void setFrequency(HarmonogramOkres frequency) { this.frequency = frequency; }
 }

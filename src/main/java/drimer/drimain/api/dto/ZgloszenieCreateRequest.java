@@ -17,4 +17,5 @@ public class ZgloszenieCreateRequest {
     private Long dzialId; // New field
     private Long autorId; // New field  
     private String photoBase64; // opcjonalnie
+    private Long maszynaId; // id maszyny (opcjonalnie)
 }

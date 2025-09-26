@@ -3,7 +3,6 @@ package drimer.drimain.security;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -21,58 +20,56 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-import java.io.IOException;
-
 @Configuration
 @RequiredArgsConstructor
-@EnableMethodSecurity(prePostEnabled = true) // NOTE: Enable method-level security for @PreAuthorize
+@EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final UserDetailsService userDetailsService;
 
+    // ... importy bez zmian
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
-                .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(reg -> reg
-                        // Authentication endpoints
                         .requestMatchers("/api/auth/**").permitAll()
-                        
-                        // Static assets (Flutter web + legacy)
+
+                        // Statyki Fluttera (jak wcześniej)
                         .requestMatchers(
-                                "/",
-                                "/index.html",
-                                "/css/**",
-                                "/js/**", 
-                                "/img/**",
-                                "/assets/**",
-                                "/icons/**",
+                                "/", "/index.html",
+                                "/css/**", "/js/**", "/img/**",
+                                "/assets/**", "/icons/**", "/canvaskit/**",
                                 "/manifest.json",
-                                "/flutter.js",
-                                "/main.dart.js",
-                                "/favicon.ico",
-                                "/canvaskit/**"
+                                "/flutter.js", "/main.dart.js",
+                                "/flutter_bootstrap.js", "/flutter_service_worker.js",
+                                "/version.json",
+                                "/favicon.ico", "/favicon.png"
                         ).permitAll()
-                        
-                        // Swagger/OpenAPI
-                        .requestMatchers(
-                                "/v3/api-docs/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui.html"
-                        ).permitAll()
-                        
-                        // API endpoints (require authentication)
+
+                        // H2 Console
+                        .requestMatchers("/h2-console/**").permitAll()
+
+                        // Swagger
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+
+                        // API wymaga auth
                         .requestMatchers("/api/**").authenticated()
-                        
+
+
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        .requestMatchers("/api/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(e -> e
                         .authenticationEntryPoint(authenticationEntryPoint())
                         .accessDeniedHandler(accessDeniedHandler())
-                );
+                )
+
+                // Pozwól H2 Console w iframie
+                .headers(h -> h.frameOptions(f -> f.disable()));
 
         http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
@@ -91,7 +88,6 @@ public class SecurityConfig {
             boolean wantsHtml = accept != null && accept.contains("text/html");
 
             if (isApi) {
-                // API – return JSON 401
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.setContentType("application/json;charset=UTF-8");
                 response.getWriter().write("{\"error\":\"Unauthorized\"}");
@@ -99,13 +95,11 @@ public class SecurityConfig {
             }
 
             if (wantsHtml) {
-                // HTML request – serve index.html for SPA routing (Flutter web)
-                // This allows the Flutter app to handle authentication UI
+                // HTML request – przekieruj do strony głównej SPA
                 response.sendRedirect("/");
                 return;
             }
 
-            // Fallback for other requests
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType("application/json;charset=UTF-8");
             response.getWriter().write("{\"error\":\"Unauthorized\"}");
@@ -122,14 +116,12 @@ public class SecurityConfig {
             boolean isApi = uri.startsWith("/api/");
 
             if (isApi) {
-                // API – return JSON 403
                 response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                 response.setContentType("application/json;charset=UTF-8");
                 response.getWriter().write("{\"error\":\"Access denied\"}");
                 return;
             }
 
-            // For non-API requests, redirect to home page
             response.sendRedirect("/");
         };
     }
@@ -146,8 +138,4 @@ public class SecurityConfig {
     public BCryptPasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
-
-    // TODO: Implement logout endpoint to revoke refresh tokens
-    // TODO: Implement refresh token rotation for enhanced security
-    // TODO: Add rate limiting for login and refresh endpoints
 }

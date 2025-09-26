@@ -1,29 +1,84 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/auth_service.dart';
-import '../services/secure_storage_service.dart';
 import '../services/api_client.dart';
+import '../services/secure_storage_service.dart';
+import '../services/auth_service.dart';
+import '../repositories/zgloszenia_api_repository.dart';
 import '../repositories/mock_repository.dart';
 import '../models/user.dart';
+import '../repositories/harmonogramy_api_repository.dart';
+import '../repositories/meta_api_repository.dart';
+import '../repositories/admin_api_repository.dart';
+import '../repositories/instructions_api_repository.dart';
+import '../repositories/parts_api_repository.dart';
 
-// Klient HTTP (później do realnego API)
-final apiClientProvider = Provider((ref) => ApiClient());
+// Globalny klient HTTP (adres z --dart-define=API_BASE)
+final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
 
-// Bezpieczne przechowywanie tokenu
-final secureStorageProvider = Provider((ref) => SecureStorageService());
+// Bezpieczny storage na token
+final secureStorageProvider =
+Provider<SecureStorageService>((ref) => SecureStorageService());
 
-// Serwis logowania (na razie mock)
-final authServiceProvider = Provider((ref) => AuthService());
+// Realny serwis autoryzacji (HTTP)
+final authServiceProvider = Provider<AuthService>((ref) {
+  final api = ref.watch(apiClientProvider);
+  final storage = ref.watch(secureStorageProvider);
+  return AuthService(api.dio, storage);
+});
 
-// Repozytorium mockowanych danych
-final mockRepoProvider = Provider((ref) => MockRepository());
+// Mock repo (lokalny cache dla UI)
+final mockRepoProvider = Provider<MockRepository>((ref) => MockRepository());
 
-// Stan zalogowanego użytkownika
+// Repozytorium API dla zgłoszeń
+final zgloszeniaApiRepositoryProvider =
+Provider<ZgloszeniaApiRepository>((ref) {
+  final api = ref.watch(apiClientProvider);
+  final storage = ref.watch(secureStorageProvider);
+  return ZgloszeniaApiRepository(api.dio, storage);
+});
+
+// Repozytorium API dla harmonogramów
+final harmonogramyApiRepositoryProvider =
+Provider<HarmonogramyApiRepository>((ref) {
+  final api = ref.watch(apiClientProvider);
+  final storage = ref.watch(secureStorageProvider);
+  return HarmonogramyApiRepository(api.dio, storage);
+});
+
+// Repozytorium meta (maszyny, osoby)
+final metaApiRepositoryProvider = Provider<MetaApiRepository>((ref) {
+  final api = ref.watch(apiClientProvider);
+  final storage = ref.watch(secureStorageProvider);
+  return MetaApiRepository(api.dio, storage);
+});
+
+// Repozytorium admin (działy, maszyny, osoby)
+final adminApiRepositoryProvider = Provider<AdminApiRepository>((ref) {
+  final api = ref.watch(apiClientProvider);
+  final storage = ref.watch(secureStorageProvider);
+  return AdminApiRepository(api.dio, storage);
+});
+
+// Repozytorium API dla instrukcji napraw
+final instructionsApiRepositoryProvider = Provider<InstructionsApiRepository>((ref) {
+  final api = ref.watch(apiClientProvider);
+  final storage = ref.watch(secureStorageProvider);
+  return InstructionsApiRepository(api.dio, storage);
+});
+
+// Repozytorium API dla części (pobieranie z backendu)
+final partsApiRepositoryProvider = Provider<PartsApiRepository>((ref) {
+  final api = ref.watch(apiClientProvider);
+  final storage = ref.watch(secureStorageProvider);
+  return PartsApiRepository(api.dio, storage);
+});
+
+// Stan/logika autoryzacji w aplikacji
 final authStateProvider = StateNotifierProvider<AuthController, User?>(
-  (ref) => AuthController(ref),
+      (ref) => AuthController(ref),
 );
 
 class AuthController extends StateNotifier<User?> {
-  final Ref _ref; // Ref = dostęp do innych providerów
+  final Ref _ref;
   AuthController(this._ref) : super(null);
 
   Future<void> login(String username, String password) async {

@@ -1,19 +1,45 @@
+import 'package:dio/dio.dart';
 import '../models/user.dart';
+import 'secure_storage_service.dart';
 
-/// Na razie mock. Podmień na realne wywołanie API (POST /auth/login).
+/// Realna autoryzacja: POST /api/auth/login -> token, GET /api/auth/me -> role
 class AuthService {
+  final Dio _dio;
+  final SecureStorageService _storage;
+
+  AuthService(this._dio, this._storage);
+
   Future<User> login(String username, String password) async {
-    await Future.delayed(const Duration(milliseconds: 600));
-    if (username == 'admin' && password == 'admin') {
-      return User(id: 1, username: 'admin', role: 'ADMIN', token: 'mock-token-admin');
+    final resp = await _dio.post(
+      '/api/auth/login',
+      data: {'username': username, 'password': password},
+    );
+
+    final data = resp.data as Map<String, dynamic>;
+    final token = (data['token'] ?? data['accessToken']) as String?;
+    if (token == null || token.isEmpty) {
+      throw Exception('Brak access token w odpowiedzi logowania');
     }
-    if (username == 'user' && password == 'user') {
-      return User(id: 2, username: 'user', role: 'USER', token: 'mock-token-user');
-    }
-    throw Exception('Nieprawidłowy login lub hasło');
+
+    await _storage.saveToken(token);
+
+    final meResp = await _dio.get(
+      '/api/auth/me',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    final me = meResp.data as Map<String, dynamic>;
+    final roles = (me['roles'] as List<dynamic>? ?? const []).cast<String>();
+    final role = roles.contains('ROLE_ADMIN') ? 'ADMIN' : 'USER';
+
+    return User(
+      id: 0,
+      username: (me['username'] as String?) ?? username,
+      role: role,
+      token: token,
+    );
   }
 
   Future<void> logout() async {
-    await Future.delayed(const Duration(milliseconds: 300));
+    await _storage.clear();
   }
 }

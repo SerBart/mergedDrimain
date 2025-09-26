@@ -11,4 +11,6 @@ public class PartDTO {
     private Integer ilosc;
     private Integer minIlosc;
     private String jednostka;
+    private Long maszynaId;
+    private String maszynaNazwa;
 }

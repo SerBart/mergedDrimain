@@ -1,6 +1,7 @@
 package drimer.drimain.api.dto;
 
 import drimer.drimain.model.enums.StatusHarmonogramu;
+import drimer.drimain.model.enums.HarmonogramOkres;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
@@ -13,11 +14,15 @@ public class HarmonogramCreateRequest {
     
     private String opis;
     
-    @NotNull
     private Long maszynaId;
     
-    @NotNull
     private Long osobaId;
     
+    private Long dzialId;
+
+    private HarmonogramOkres frequency;
+
     private StatusHarmonogramu status;
+
+    private Integer durationMinutes;
 }

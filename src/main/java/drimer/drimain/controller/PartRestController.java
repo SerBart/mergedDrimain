@@ -1,7 +1,9 @@
 package drimer.drimain.controller;
 
 import drimer.drimain.api.dto.*;
+import drimer.drimain.model.Maszyna;
 import drimer.drimain.model.Part; // TODO: encja części
+import drimer.drimain.repository.MaszynaRepository;
 import drimer.drimain.repository.PartRepository; // TODO
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -17,6 +19,7 @@ import java.util.stream.Collectors;
 public class PartRestController {
 
     private final PartRepository partRepository;
+    private final MaszynaRepository maszynaRepository;
 
     @GetMapping
     public List<PartDTO> list(@RequestParam Optional<String> kat,
@@ -62,6 +65,14 @@ public class PartRestController {
         if (req.getKategoria() != null) p.setKategoria(req.getKategoria());
         if (req.getMinIlosc() != null) p.setMinIlosc(req.getMinIlosc());
         if (req.getJednostka() != null) p.setJednostka(req.getJednostka());
+        if (req.getMaszynaId() != null) {
+            if (req.getMaszynaId() <= 0) {
+                p.setMaszyna(null); // grupa "Inne"
+            } else {
+                Maszyna m = maszynaRepository.findById(req.getMaszynaId()).orElse(null);
+                p.setMaszyna(m);
+            }
+        }
         partRepository.save(p);
         return toDto(p);
     }
@@ -89,6 +100,10 @@ public class PartRestController {
         dto.setIlosc(p.getIlosc());
         dto.setMinIlosc(p.getMinIlosc());
         dto.setJednostka(p.getJednostka());
+        if (p.getMaszyna() != null) {
+            dto.setMaszynaId(p.getMaszyna().getId());
+            dto.setMaszynaNazwa(p.getMaszyna().getNazwa());
+        }
         return dto;
     }
 }

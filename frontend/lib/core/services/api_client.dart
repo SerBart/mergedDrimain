@@ -5,13 +5,19 @@ class ApiClient {
 
   ApiClient._(this._dio);
 
-  factory ApiClient({String baseUrl = 'https://api.twojserwer.pl'}) {
-    final dio = Dio(BaseOptions(
-      baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 15),
-      headers: {'Content-Type': 'application/json'},
-    ));
+  factory ApiClient({String? baseUrl}) {
+    // Odczyt adresu z --dart-define=API_BASE (patrz build-frontend.sh)
+    final resolvedBaseUrl = baseUrl ??
+        const String.fromEnvironment('API_BASE', defaultValue: 'http://localhost:8080');
+
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: resolvedBaseUrl,
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 15),
+        headers: {'Content-Type': 'application/json'},
+      ),
+    );
     return ApiClient._(dio);
   }
 
