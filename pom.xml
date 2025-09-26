@@ -154,6 +154,25 @@
 
 	<build>
 		<plugins>
+			<!-- Ensure Lombok annotation processing during compile -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<version>3.11.0</version>
+				<configuration>
+					<source>${java.version}</source>
+					<target>${java.version}</target>
+					<encoding>${project.build.sourceEncoding}</encoding>
+					<annotationProcessorPaths>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+							<version>1.18.32</version>
+						</path>
+					</annotationProcessorPaths>
+				</configuration>
+			</plugin>
+
 			<!-- Jeśli chcesz uruchamiać TestNG testy: Surefire -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
@@ -174,6 +193,27 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+
+			<!-- Flyway Maven Plugin do operacji takich jak flyway:repair -->
+			<plugin>
+				<groupId>org.flywaydb</groupId>
+				<artifactId>flyway-maven-plugin</artifactId>
+				<version>10.16.0</version>
+				<dependencies>
+					<!-- Od Flyway 10.x wsparcie baz wyciągnięto do osobnych artefaktów -->
+					<dependency>
+						<groupId>org.flywaydb</groupId>
+						<artifactId>flyway-database-postgresql</artifactId>
+						<version>10.16.0</version>
+					</dependency>
+					<!-- Sterownik JDBC dostępny na classpath pluginu -->
+					<dependency>
+						<groupId>org.postgresql</groupId>
+						<artifactId>postgresql</artifactId>
+						<version>42.7.3</version>
+					</dependency>
+				</dependencies>
 			</plugin>
 		</plugins>
 	</build>

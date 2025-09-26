@@ -11,6 +11,9 @@ import '../features/czesci/czesci_list_screen.dart';
 import '../features/zgloszenia/zgloszenia_screen_modern.dart';
 import '../features/harmonogramy/harmonogramy_screen.dart';
 import '../features/przeglady/przeglady_screen.dart';
+import '../features/admin/admin_screen.dart';
+import '../features/instrukcje/instrukcje_list_screen.dart' as instrukcje_list;
+import '../features/instrukcje/instrukcja_form_screen.dart' as instrukcja_form;
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authStateProvider);
@@ -33,6 +36,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/zgloszenia', builder: (_, __) => const ZgloszeniaScreenModern()),
       GoRoute(path: '/harmonogramy', builder: (_, __) => const HarmonogramyScreen()),
       GoRoute(path: '/przeglady', builder: (_, __) => const PrzegladyScreen()),
+      GoRoute(path: '/instrukcje', builder: (_, __) => const instrukcje_list.InstrukcjeListScreen()),
+      GoRoute(path: '/instrukcje/nowa', builder: (_, __) => const instrukcja_form.InstrukcjaFormScreen()),
+      // Panel Admina
+      GoRoute(path: '/admin', builder: (_, __) => const AdminScreen()),
     ],
   );
 });

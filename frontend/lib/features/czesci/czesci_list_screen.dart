@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/models/part.dart';
+import '../../core/models/maszyna.dart';
 
 class CzesciListScreen extends ConsumerStatefulWidget {
   const CzesciListScreen({super.key});
@@ -11,7 +13,7 @@ class CzesciListScreen extends ConsumerStatefulWidget {
 }
 
 class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
-  // Dodawanie
+  // Dodawanie (kontrolki formularza)
   final _nazwaCtrl = TextEditingController();
   final _kodCtrl = TextEditingController();
   final _iloscCtrl = TextEditingController();
@@ -27,6 +29,43 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
   int _sortColumn = 0;
   bool _sortAsc = true;
 
+  // Dane z backendu
+  bool _loading = false;
+  List<Part> _items = [];
+  List<Maszyna> _maszyny = [];
+  int? _filterMaszynaId; // null=wszystkie, 0=Inne, >0=konkretna
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    _loadMaszyny();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final api = ref.read(partsApiRepositoryProvider);
+      final list = await api.listFull();
+      setState(() => _items = list);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Błąd ładowania części: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadMaszyny() async {
+    try {
+      final list = await ref.read(adminApiRepositoryProvider).getMaszyny();
+      if (mounted) setState(() => _maszyny = list);
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
     _nazwaCtrl.dispose();
@@ -39,34 +78,23 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
     super.dispose();
   }
 
-  void _add() {
-    final repo = ref.read(mockRepoProvider);
-    if (_nazwaCtrl.text.isEmpty || _kodCtrl.text.isEmpty) return;
-    final ilosc = int.tryParse(_iloscCtrl.text) ?? 0;
-    final minI = int.tryParse(_minCtrl.text) ?? 0;
-    repo.addPart(
-      nazwa: _nazwaCtrl.text.trim(),
-      kod: _kodCtrl.text.trim(),
-      ilosc: ilosc,
-      minIlosc: minI,
-      jednostka: _jednCtrl.text.trim().isEmpty ? 'szt' : _jednCtrl.text.trim(),
-      kategoria: _katCtrl.text.trim().isEmpty ? null : _katCtrl.text.trim(),
-    );
-    _nazwaCtrl.clear();
-    _kodCtrl.clear();
-    _iloscCtrl.clear();
-    _minCtrl.clear();
-    _katCtrl.clear();
-    setState(() {});
-  }
-
   List<Part> _filtered(List<Part> parts) {
     final q = _query.trim().toLowerCase();
-    if (q.isEmpty) return _sorted(parts);
-    final f = parts.where((p) {
+    List<Part> base = parts;
+    if (_filterMaszynaId != null) {
+      if (_filterMaszynaId == 0) {
+        base = base.where((p) => p.maszynaId == null).toList();
+      } else {
+        base = base.where((p) => p.maszynaId == _filterMaszynaId).toList();
+      }
+    }
+    if (q.isEmpty) return _sorted([...base]);
+    final f = base.where((p) {
       return p.nazwa.toLowerCase().contains(q) ||
           p.kod.toLowerCase().contains(q) ||
-          (p.kategoria?.toLowerCase().contains(q) ?? false);
+          (p.kategoria?.toLowerCase().contains(q) ?? false) ||
+          (p.maszynaNazwa?.toLowerCase().contains(q) ?? false) ||
+          (p.maszynaId == null && 'inne'.contains(q));
     }).toList();
     return _sorted(f);
   }
@@ -85,9 +113,12 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
           cmp = (a.kategoria ?? '').compareTo(b.kategoria ?? '');
           break;
         case 3:
-          cmp = a.iloscMagazyn.compareTo(b.iloscMagazyn);
+          cmp = (a.maszynaNazwa ?? 'Inne').compareTo(b.maszynaNazwa ?? 'Inne');
           break;
         case 4:
+          cmp = a.iloscMagazyn.compareTo(b.iloscMagazyn);
+          break;
+        case 5:
           cmp = a.minIlosc.compareTo(b.minIlosc);
           break;
         default:
@@ -110,34 +141,57 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
       builder: (_) => AlertDialog(
         title: Text('Edytuj część #${part.id}'),
         content: SizedBox(
-          width: 400,
+          width: 560,
           child: SingleChildScrollView(
             child: Column(
               children: [
                 TextField(
                   controller: nazwa,
-                  decoration: const InputDecoration(labelText: 'Nazwa'),
+                  decoration: const InputDecoration(
+                    labelText: 'Nazwa',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: kod,
-                  decoration: const InputDecoration(labelText: 'Kod'),
+                  decoration: const InputDecoration(
+                    labelText: 'Kod',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: kat,
-                  decoration: const InputDecoration(labelText: 'Kategoria / typ'),
+                  decoration: const InputDecoration(
+                    labelText: 'Kategoria / typ',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 8),
-                TextField(
-                  controller: min,
-                  decoration: const InputDecoration(labelText: 'Min. ilość'),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: jedn,
-                  decoration: const InputDecoration(labelText: 'Jednostka'),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: min,
+                        decoration: const InputDecoration(
+                          labelText: 'Min. ilość',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: jedn,
+                        decoration: const InputDecoration(
+                          labelText: 'Jednostka',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -148,19 +202,26 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Anuluj'),
           ),
-            ElevatedButton(
-            onPressed: () {
-              final repo = ref.read(mockRepoProvider);
-              final newObj = part.copyWith(
-                nazwa: nazwa.text.trim(),
-                kod: kod.text.trim(),
-                kategoria: kat.text.trim().isEmpty ? null : kat.text.trim(),
-                minIlosc: int.tryParse(min.text) ?? part.minIlosc,
-                jednostka: jedn.text.trim().isEmpty ? part.jednostka : jedn.text.trim(),
-              );
-              repo.updatePart(newObj);
-              Navigator.pop(context);
-              setState(() {});
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await ref.read(partsApiRepositoryProvider).updatePart(
+                  id: part.id,
+                  nazwa: nazwa.text.trim(),
+                  kod: kod.text.trim(),
+                  kategoria: kat.text.trim().isEmpty ? null : kat.text.trim(),
+                  minIlosc: int.tryParse(min.text),
+                  jednostka: jedn.text.trim().isEmpty ? null : jedn.text.trim(),
+                );
+                if (mounted) Navigator.pop(context);
+                await _load();
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Błąd zapisu: $e')),
+                  );
+                }
+              }
             },
             child: const Text('Zapisz'),
           ),
@@ -169,204 +230,365 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
     );
   }
 
-  void _adjustQty(Part p, int delta) {
-    final repo = ref.read(mockRepoProvider);
+  Future<void> _openAddPartDialog() async {
+    final nazwa = TextEditingController();
+    final kod = TextEditingController();
+    final kat = TextEditingController();
+    final iloscCtrl = TextEditingController();
+    final minCtrl = TextEditingController();
+    final jednCtrl = TextEditingController(text: 'szt');
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Dodaj część'),
+        content: SizedBox(
+          width: 560,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nazwa,
+                  decoration: const InputDecoration(
+                    labelText: 'Nazwa (wymagane)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: kod,
+                  decoration: const InputDecoration(
+                    labelText: 'Kod (wymagane)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: kat,
+                  decoration: const InputDecoration(
+                    labelText: 'Kategoria / typ (opcjonalne)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: iloscCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Ilość startowa',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: minCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Min. ilość',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: jednCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Jednostka',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Anuluj'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Dodaj'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok == true) {
+      try {
+        await ref.read(partsApiRepositoryProvider).createPart(
+          nazwa: nazwa.text.trim(),
+          kod: kod.text.trim(),
+          ilosc: int.tryParse(iloscCtrl.text.trim()) ?? 0,
+          minIlosc: int.tryParse(minCtrl.text.trim()) ?? 0,
+          jednostka: jednCtrl.text.trim().isEmpty ? 'szt' : jednCtrl.text.trim(),
+          kategoria: kat.text.trim().isEmpty ? null : kat.text.trim(),
+        );
+        await _load();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Błąd dodawania: $e')),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _assignPartDialog(Part part) async {
+    List<Maszyna> maszyny = [];
+    int? selectedMaszynaId;
+
     try {
-      repo.adjustPartQuantity(p.id, delta);
-      setState(() {});
+      maszyny = await ref.read(adminApiRepositoryProvider).getMaszyny();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Błąd: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Nie udało się pobrać listy maszyn: $e')),
+        );
+      }
+      return;
+    }
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Przypisz część: ${part.nazwa}'),
+        content: SizedBox(
+          width: 480,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Wybierz maszynę lub "Inne"', style: TextStyle(fontWeight: FontWeight.w600)),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<int?>(
+                value: selectedMaszynaId,
+                decoration: const InputDecoration(border: OutlineInputBorder()),
+                items: [
+                  const DropdownMenuItem<int?>(value: 0, child: Text('Inne')),
+                  ...maszyny.map((m) => DropdownMenuItem<int?>(value: m.id, child: Text(m.nazwa))),
+                ],
+                onChanged: (v) => selectedMaszynaId = v,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Anuluj')),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Zapisz')),
+        ],
+      ),
+    );
+
+    if (ok == true) {
+      try {
+        await ref.read(partsApiRepositoryProvider)
+            .assignToMaszyna(partId: part.id, maszynaId: selectedMaszynaId);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Przypisano część.')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Błąd przypisywania: $e')),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _adjustQty(Part p, int delta) async {
+    try {
+      await ref.read(partsApiRepositoryProvider).adjustQuantity(partId: p.id, delta: delta);
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Błąd zmiany ilości: $e')),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final repo = ref.watch(mockRepoProvider);
-    final parts = _filtered(repo.getParts().toList());
+    final parts = _filtered(_items);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Części zamienne'),
-      ),
-      body: Column(
-        children: [
-          // Pasek wyszukiwania
-            Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-            child: TextField(
-              controller: _searchCtrl,
-              decoration: InputDecoration(
-                labelText: 'Szukaj (nazwa / kod / kategoria)',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _query.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchCtrl.clear();
-                          setState(() => _query = '');
-                        },
-                      )
-                    : null,
-              ),
-              onChanged: (v) => setState(() => _query = v),
-            ),
-          ),
-          ExpansionTile(
-            title: const Text('Dodaj część'),
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: _nazwaCtrl,
-                      decoration: const InputDecoration(labelText: 'Nazwa'),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _kodCtrl,
-                      decoration: const InputDecoration(labelText: 'Kod'),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _katCtrl,
-                      decoration: const InputDecoration(labelText: 'Kategoria / typ'),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _iloscCtrl,
-                            decoration: const InputDecoration(labelText: 'Ilość startowa'),
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            controller: _minCtrl,
-                            decoration: const InputDecoration(labelText: 'Min. ilość'),
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            controller: _jednCtrl,
-                            decoration: const InputDecoration(labelText: 'Jednostka'),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: ElevatedButton(
-                        onPressed: _add,
-                        child: const Text('Dodaj'),
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            ],
-          ),
-          const Divider(height: 1),
-          // Tabela
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                sortColumnIndex: _sortColumn,
-                sortAscending: _sortAsc,
-                columns: [
-                  DataColumn(
-                    label: const Text('Nazwa'),
-                    onSort: (i, asc) => setState(() {
-                      _sortColumn = i;
-                      _sortAsc = asc;
-                    }),
-                  ),
-                  DataColumn(
-                    label: const Text('Kod'),
-                    onSort: (i, asc) => setState(() {
-                      _sortColumn = i;
-                      _sortAsc = asc;
-                    }),
-                  ),
-                  DataColumn(
-                    label: const Text('Kategoria'),
-                    onSort: (i, asc) => setState(() {
-                      _sortColumn = i;
-                      _sortAsc = asc;
-                    }),
-                  ),
-                  DataColumn(
-                    numeric: true,
-                    label: const Text('Stan'),
-                    onSort: (i, asc) => setState(() {
-                      _sortColumn = i;
-                      _sortAsc = asc;
-                    }),
-                  ),
-                  DataColumn(
-                    numeric: true,
-                    label: const Text('Min'),
-                    onSort: (i, asc) => setState(() {
-                      _sortColumn = i;
-                      _sortAsc = asc;
-                    }),
-                  ),
-                  const DataColumn(label: Text('Jedn.')),
-                  const DataColumn(label: Text('Akcje')),
-                ],
-                rows: parts.map((p) {
-                  return DataRow(
-                    color: p.belowMin
-                        ? WidgetStatePropertyAll(Colors.red.withOpacity(.08))
-                        : null,
-                    cells: [
-                      DataCell(Text(p.nazwa)),
-                      DataCell(Text(p.kod)),
-                      DataCell(Text(p.kategoria ?? '-')),
-                      DataCell(Text(p.iloscMagazyn.toString())),
-                      DataCell(Text(p.minIlosc.toString())),
-                      DataCell(Text(p.jednostka)),
-                      DataCell(
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              tooltip: 'Zwiększ',
-                              icon: const Icon(Icons.add_circle_outline,
-                                  color: Colors.green),
-                              onPressed: () => _adjustQty(p, 1),
-                            ),
-                            IconButton(
-                              tooltip: 'Zmniejsz',
-                              icon: const Icon(Icons.remove_circle_outline,
-                                  color: Colors.orange),
-                              onPressed: () => _adjustQty(p, -1),
-                            ),
-                            IconButton(
-                              tooltip: 'Edytuj',
-                              icon: const Icon(Icons.edit, color: Colors.blue),
-                              onPressed: () => _editPartDialog(p),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                }).toList(),
-              ),
-            ),
+        leading: IconButton(
+          tooltip: 'Dashboard',
+          icon: const Icon(Icons.home),
+          onPressed: () => context.go('/dashboard'),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loading ? null : () async { await _load(); await _loadMaszyny(); },
+            tooltip: 'Odśwież',
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openAddPartDialog,
+        icon: const Icon(Icons.add),
+        label: const Text('Dodaj część'),
+      ),
+      body: _loading && _items.isEmpty
+          ? const Center(child: CircularProgressIndicator())
+          : Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 900),
+                child: ListView(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _searchCtrl,
+                              decoration: InputDecoration(
+                                labelText: 'Szukaj (nazwa / kod / kategoria / maszyna)',
+                                prefixIcon: const Icon(Icons.search),
+                                suffixIcon: _query.isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(Icons.clear),
+                                        onPressed: () {
+                                          _searchCtrl.clear();
+                                          setState(() => _query = '');
+                                        },
+                                      )
+                                    : null,
+                              ),
+                              onChanged: (v) => setState(() => _query = v),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          SizedBox(
+                            width: 260,
+                            child: DropdownButtonFormField<int?>(
+                              value: _filterMaszynaId,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Maszyna', border: OutlineInputBorder(),
+                              ),
+                              items: [
+                                const DropdownMenuItem<int?>(value: null, child: Text('Wszystkie')),
+                                const DropdownMenuItem<int?>(value: 0, child: Text('Inne')),
+                                ..._maszyny.map((m) => DropdownMenuItem<int?>(value: m.id, child: Text(m.nazwa))),
+                              ],
+                              onChanged: (v) => setState(() => _filterMaszynaId = v),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Card(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: DataTable(
+                            sortColumnIndex: _sortColumn,
+                            sortAscending: _sortAsc,
+                            columns: [
+                              DataColumn(
+                                label: const Text('Nazwa'),
+                                onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
+                              ),
+                              DataColumn(
+                                label: const Text('Kod'),
+                                onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
+                              ),
+                              DataColumn(
+                                label: const Text('Kategoria'),
+                                onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
+                              ),
+                              DataColumn(
+                                label: const Text('Maszyna'),
+                                onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
+                              ),
+                              DataColumn(
+                                numeric: true,
+                                label: const Text('Stan'),
+                                onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
+                              ),
+                              DataColumn(
+                                numeric: true,
+                                label: const Text('Min'),
+                                onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
+                              ),
+                              const DataColumn(label: Text('Jedn.')),
+                              const DataColumn(label: Text('Akcje')),
+                            ],
+                            rows: parts.map((p) {
+                              return DataRow(
+                                color: p.belowMin
+                                    ? WidgetStatePropertyAll(Colors.red.withOpacity(.08))
+                                    : null,
+                                cells: [
+                                  DataCell(Text(p.nazwa)),
+                                  DataCell(Text(p.kod)),
+                                  DataCell(Text(p.kategoria ?? '-')),
+                                  DataCell(Text(p.maszynaNazwa ?? 'Inne')),
+                                  DataCell(Text(p.iloscMagazyn.toString())),
+                                  DataCell(Text(p.minIlosc.toString())),
+                                  DataCell(Text(p.jednostka)),
+                                  DataCell(
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          tooltip: 'Zwiększ',
+                                          icon: const Icon(Icons.add_circle_outline, color: Colors.green),
+                                          onPressed: () => _adjustQty(p, 1),
+                                        ),
+                                        IconButton(
+                                          tooltip: 'Zmniejsz',
+                                          icon: const Icon(Icons.remove_circle_outline, color: Colors.orange),
+                                          onPressed: () => _adjustQty(p, -1),
+                                        ),
+                                        IconButton(
+                                          tooltip: 'Edytuj',
+                                          icon: const Icon(Icons.edit, color: Colors.blue),
+                                          onPressed: () => _editPartDialog(p),
+                                        ),
+                                        IconButton(
+                                          tooltip: 'Przypisz do maszyny / Inne',
+                                          icon: const Icon(Icons.link, color: Colors.purple),
+                                          onPressed: () => _assignPartDialog(p),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              ),
+            ),
     );
   }
 }

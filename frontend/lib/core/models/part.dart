@@ -6,6 +6,8 @@ class Part {
   final int minIlosc;
   final String jednostka;
   final String? kategoria; // nowość (typ / grupa)
+  final int? maszynaId; // assigned machine id (null => Inne)
+  final String? maszynaNazwa; // assigned machine name
 
   Part({
     required this.id,
@@ -15,6 +17,8 @@ class Part {
     required this.minIlosc,
     required this.jednostka,
     this.kategoria,
+    this.maszynaId,
+    this.maszynaNazwa,
   });
 
   bool get belowMin => iloscMagazyn <= minIlosc;
@@ -27,6 +31,8 @@ class Part {
     int? minIlosc,
     String? jednostka,
     String? kategoria,
+    int? maszynaId,
+    String? maszynaNazwa,
   }) {
     return Part(
       id: id ?? this.id,
@@ -36,6 +42,8 @@ class Part {
       minIlosc: minIlosc ?? this.minIlosc,
       jednostka: jednostka ?? this.jednostka,
       kategoria: kategoria ?? this.kategoria,
+      maszynaId: maszynaId ?? this.maszynaId,
+      maszynaNazwa: maszynaNazwa ?? this.maszynaNazwa,
     );
   }
 }

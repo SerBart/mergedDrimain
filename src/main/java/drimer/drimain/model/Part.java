@@ -22,4 +22,8 @@ public class Part {
     private Integer ilosc;
     private Integer minIlosc;
     private String jednostka;
+
+    // new optional assignment to a machine
+    @ManyToOne
+    private Maszyna maszyna;
 }

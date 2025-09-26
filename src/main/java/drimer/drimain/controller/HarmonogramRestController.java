@@ -6,6 +6,7 @@ import drimer.drimain.model.Maszyna;
 import drimer.drimain.model.Osoba;
 import drimer.drimain.model.enums.StatusHarmonogramu;
 import drimer.drimain.repository.HarmonogramRepository;
+import drimer.drimain.repository.DzialRepository;
 import drimer.drimain.repository.MaszynaRepository;
 import drimer.drimain.repository.OsobaRepository;
 import jakarta.validation.Valid;
@@ -13,7 +14,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -26,6 +26,7 @@ public class HarmonogramRestController {
     private final HarmonogramRepository harmonogramRepository;
     private final MaszynaRepository maszynaRepository;
     private final OsobaRepository osobaRepository;
+    private final DzialRepository dzialRepository;
 
     @GetMapping
     public List<HarmonogramDTO> list(@RequestParam Optional<Integer> year,
@@ -50,7 +51,8 @@ public class HarmonogramRestController {
         Harmonogram h = new Harmonogram();
         h.setData(req.getData());
         h.setOpis(req.getOpis());
-        
+        h.setDurationMinutes(req.getDurationMinutes());
+
         if (req.getMaszynaId() != null) {
             Maszyna maszyna = maszynaRepository.findById(req.getMaszynaId())
                     .orElseThrow(() -> new IllegalArgumentException("Maszyna not found"));
@@ -64,7 +66,14 @@ public class HarmonogramRestController {
         }
         
         h.setStatus(req.getStatus() != null ? req.getStatus() : StatusHarmonogramu.PLANOWANE);
-        
+        if (req.getDzialId() != null) {
+            h.setDzial(dzialRepository.findById(req.getDzialId())
+                .orElseThrow(() -> new IllegalArgumentException("Dzial not found")));
+        }
+        if (req.getFrequency() != null) {
+            h.setFrequency(req.getFrequency());
+        }
+
         harmonogramRepository.save(h);
         return toDto(h);
     }
@@ -76,7 +85,8 @@ public class HarmonogramRestController {
         
         if (req.getData() != null) h.setData(req.getData());
         if (req.getOpis() != null) h.setOpis(req.getOpis());
-        
+        if (req.getDurationMinutes() != null) h.setDurationMinutes(req.getDurationMinutes());
+
         if (req.getMaszynaId() != null) {
             Maszyna maszyna = maszynaRepository.findById(req.getMaszynaId())
                     .orElseThrow(() -> new IllegalArgumentException("Maszyna not found"));
@@ -90,7 +100,14 @@ public class HarmonogramRestController {
         }
         
         if (req.getStatus() != null) h.setStatus(req.getStatus());
-        
+        if (req.getDzialId() != null) {
+            h.setDzial(dzialRepository.findById(req.getDzialId())
+                .orElseThrow(() -> new IllegalArgumentException("Dzial not found")));
+        }
+        if (req.getFrequency() != null) {
+            h.setFrequency(req.getFrequency());
+        }
+
         harmonogramRepository.save(h);
         return toDto(h);
     }
@@ -107,7 +124,15 @@ public class HarmonogramRestController {
         dto.setData(h.getData());
         dto.setOpis(h.getOpis());
         dto.setStatus(h.getStatus());
-        
+        dto.setDurationMinutes(h.getDurationMinutes());
+        dto.setFrequency(h.getFrequency());
+        if (h.getDzial() != null) {
+            SimpleDzialDTO dzDto = new SimpleDzialDTO();
+            dzDto.setId(h.getDzial().getId());
+            dzDto.setNazwa(h.getDzial().getNazwa());
+            dto.setDzial(dzDto);
+        }
+
         if (h.getMaszyna() != null) {
             SimpleMaszynaDTO maszynaDto = new SimpleMaszynaDTO();
             maszynaDto.setId(h.getMaszyna().getId());

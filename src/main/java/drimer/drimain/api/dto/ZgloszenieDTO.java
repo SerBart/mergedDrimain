@@ -39,6 +39,18 @@ public class ZgloszenieDTO {
 
     private boolean hasPhoto; // NOWE POLE
 
+    // New fields for accepted and completed times
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    private LocalDateTime acceptedAt;
+
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    private LocalDateTime completedAt;
+
+    // New fields for machine information
+    private Long maszynaId;
+    private String maszynaNazwa;
+    private String maszynaDzialNazwa;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -86,4 +98,15 @@ public class ZgloszenieDTO {
 
     public boolean isHasPhoto() { return hasPhoto; }
     public void setHasPhoto(boolean hasPhoto) { this.hasPhoto = hasPhoto; }
+
+    public LocalDateTime getAcceptedAt() { return acceptedAt; }
+    public void setAcceptedAt(LocalDateTime acceptedAt) { this.acceptedAt = acceptedAt; }
+    public LocalDateTime getCompletedAt() { return completedAt; }
+    public void setCompletedAt(LocalDateTime completedAt) { this.completedAt = completedAt; }
+    public Long getMaszynaId() { return maszynaId; }
+    public void setMaszynaId(Long maszynaId) { this.maszynaId = maszynaId; }
+    public String getMaszynaNazwa() { return maszynaNazwa; }
+    public void setMaszynaNazwa(String maszynaNazwa) { this.maszynaNazwa = maszynaNazwa; }
+    public String getMaszynaDzialNazwa() { return maszynaDzialNazwa; }
+    public void setMaszynaDzialNazwa(String maszynaDzialNazwa) { this.maszynaDzialNazwa = maszynaDzialNazwa; }
 }

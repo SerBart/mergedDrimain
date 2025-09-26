@@ -5,6 +5,11 @@ import '../services/auth_service.dart';
 import '../repositories/zgloszenia_api_repository.dart';
 import '../repositories/mock_repository.dart';
 import '../models/user.dart';
+import '../repositories/harmonogramy_api_repository.dart';
+import '../repositories/meta_api_repository.dart';
+import '../repositories/admin_api_repository.dart';
+import '../repositories/instructions_api_repository.dart';
+import '../repositories/parts_api_repository.dart';
 
 // Globalny klient HTTP (adres z --dart-define=API_BASE)
 final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
@@ -29,6 +34,42 @@ Provider<ZgloszeniaApiRepository>((ref) {
   final api = ref.watch(apiClientProvider);
   final storage = ref.watch(secureStorageProvider);
   return ZgloszeniaApiRepository(api.dio, storage);
+});
+
+// Repozytorium API dla harmonogramów
+final harmonogramyApiRepositoryProvider =
+Provider<HarmonogramyApiRepository>((ref) {
+  final api = ref.watch(apiClientProvider);
+  final storage = ref.watch(secureStorageProvider);
+  return HarmonogramyApiRepository(api.dio, storage);
+});
+
+// Repozytorium meta (maszyny, osoby)
+final metaApiRepositoryProvider = Provider<MetaApiRepository>((ref) {
+  final api = ref.watch(apiClientProvider);
+  final storage = ref.watch(secureStorageProvider);
+  return MetaApiRepository(api.dio, storage);
+});
+
+// Repozytorium admin (działy, maszyny, osoby)
+final adminApiRepositoryProvider = Provider<AdminApiRepository>((ref) {
+  final api = ref.watch(apiClientProvider);
+  final storage = ref.watch(secureStorageProvider);
+  return AdminApiRepository(api.dio, storage);
+});
+
+// Repozytorium API dla instrukcji napraw
+final instructionsApiRepositoryProvider = Provider<InstructionsApiRepository>((ref) {
+  final api = ref.watch(apiClientProvider);
+  final storage = ref.watch(secureStorageProvider);
+  return InstructionsApiRepository(api.dio, storage);
+});
+
+// Repozytorium API dla części (pobieranie z backendu)
+final partsApiRepositoryProvider = Provider<PartsApiRepository>((ref) {
+  final api = ref.watch(apiClientProvider);
+  final storage = ref.watch(secureStorageProvider);
+  return PartsApiRepository(api.dio, storage);
 });
 
 // Stan/logika autoryzacji w aplikacji

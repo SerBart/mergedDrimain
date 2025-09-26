@@ -39,6 +39,12 @@ class DashboardScreen extends ConsumerWidget {
         onTap: () => context.go('/przeglady'),
       ),
       _DashboardItem(
+        icon: Icons.menu_book_outlined,
+        label: 'Instrukcje napraw',
+        color: Colors.brown,
+        onTap: () => context.go('/instrukcje'),
+      ),
+      _DashboardItem(
         icon: Icons.inventory_2_outlined,
         label: 'Części',
         color: Colors.deepPurple,
@@ -55,7 +61,11 @@ class DashboardScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dashboard'),
+        centerTitle: true,
+        title: SizedBox(
+          height: 42,
+          child: Image.asset('assets/images/logo.png', fit: BoxFit.contain),
+        ),
         actions: [
           IconButton(
             tooltip: 'Wyloguj',

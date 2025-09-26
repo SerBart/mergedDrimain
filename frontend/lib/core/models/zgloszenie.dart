@@ -1,3 +1,5 @@
+import 'maszyna.dart';
+
 class Zgloszenie {
   final int id;
   final String imie;
@@ -8,6 +10,9 @@ class Zgloszenie {
   final String status;      // NOWE / W TOKU / WERYFIKACJA / ZAMKNIĘTE
   final String? photoBase64;
   final DateTime lastUpdated;
+  final DateTime? acceptedAt; // moment podjęcia naprawy
+  final DateTime? completedAt; // moment zakończenia naprawy
+  final Maszyna? maszyna; // wybrana maszyna (z działem)
 
   Zgloszenie({
     required this.id,
@@ -19,6 +24,9 @@ class Zgloszenie {
     this.status = 'NOWE',
     this.photoBase64,
     DateTime? lastUpdated,
+    this.acceptedAt,
+    this.completedAt,
+    this.maszyna,
   }) : lastUpdated = lastUpdated ?? DateTime.now();
 
   Zgloszenie copyWith({
@@ -31,6 +39,13 @@ class Zgloszenie {
     String? status,
     String? photoBase64,
     DateTime? lastUpdated,
+    DateTime? acceptedAt,
+    DateTime? completedAt,
+    Maszyna? maszyna,
+    bool setNullPhoto = false,
+    bool setNullAccepted = false,
+    bool setNullCompleted = false,
+    bool setNullMaszyna = false,
   }) {
     return Zgloszenie(
       id: id ?? this.id,
@@ -40,8 +55,11 @@ class Zgloszenie {
       dataGodzina: dataGodzina ?? this.dataGodzina,
       opis: opis ?? this.opis,
       status: status ?? this.status,
-      photoBase64: photoBase64 ?? this.photoBase64,
+      photoBase64: setNullPhoto ? null : (photoBase64 ?? this.photoBase64),
       lastUpdated: lastUpdated ?? DateTime.now(),
+      acceptedAt: setNullAccepted ? null : (acceptedAt ?? this.acceptedAt),
+      completedAt: setNullCompleted ? null : (completedAt ?? this.completedAt),
+      maszyna: setNullMaszyna ? null : (maszyna ?? this.maszyna),
     );
   }
 }

@@ -9,4 +9,6 @@ public class PartUpdateRequest {
     private String kategoria;
     private Integer minIlosc;
     private String jednostka;
+    // new optional machine assignment
+    private Long maszynaId;
 }

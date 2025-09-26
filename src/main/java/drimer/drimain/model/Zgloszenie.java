@@ -59,6 +59,12 @@ public class Zgloszenie {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    @Column(name = "accepted_at")
+    private LocalDateTime acceptedAt;
+
+    @Column(name = "completed_at")
+    private LocalDateTime completedAt;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "dzial_id")
     private Dzial dzial;
@@ -66,6 +72,10 @@ public class Zgloszenie {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "autor_id")
     private User autor;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "maszyna_id")
+    private Maszyna maszyna;
 
     @OneToMany(mappedBy = "zgloszenie", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Attachment> attachments = new ArrayList<>();
@@ -108,10 +118,16 @@ public class Zgloszenie {
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public LocalDateTime getAcceptedAt() { return acceptedAt; }
+    public void setAcceptedAt(LocalDateTime acceptedAt) { this.acceptedAt = acceptedAt; }
+    public LocalDateTime getCompletedAt() { return completedAt; }
+    public void setCompletedAt(LocalDateTime completedAt) { this.completedAt = completedAt; }
     public Dzial getDzial() { return dzial; }
     public void setDzial(Dzial dzial) { this.dzial = dzial; }
     public User getAutor() { return autor; }
     public void setAutor(User autor) { this.autor = autor; }
+    public Maszyna getMaszyna() { return maszyna; }
+    public void setMaszyna(Maszyna maszyna) { this.maszyna = maszyna; }
     public List<Attachment> getAttachments() { return attachments; }
     public void setAttachments(List<Attachment> attachments) { this.attachments = attachments; }
     public void addAttachment(Attachment attachment) {
