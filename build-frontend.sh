@@ -3,7 +3,7 @@ set -e
 
 echo "Building Flutter frontend..."
 
-API_BASE=${API_BASE:-"http://localhost:8080"}
+API_BASE=${API_BASE:-"https://mergeddrimain-production.up.railway.app"}
 
 cd frontend
 
