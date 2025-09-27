@@ -1,4 +1,6 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../util/platform_origin.dart';
 
 class ApiClient {
   final Dio _dio;
@@ -6,9 +8,15 @@ class ApiClient {
   ApiClient._(this._dio);
 
   factory ApiClient({String? baseUrl}) {
-    // Odczyt adresu z --dart-define=API_BASE (patrz build-frontend.sh)
-    final resolvedBaseUrl = baseUrl ??
-        const String.fromEnvironment('API_BASE', defaultValue: 'http://localhost:8080');
+    // Prefer explicit param, then build-time define, then web origin, finally localhost
+    final defineBase = const String.fromEnvironment('API_BASE', defaultValue: '');
+
+    String resolvedBaseUrl = baseUrl ?? defineBase;
+
+    if (resolvedBaseUrl.isEmpty) {
+      final origin = kIsWeb ? PlatformOrigin.origin() : null;
+      resolvedBaseUrl = origin ?? 'http://localhost:8080';
+    }
 
     final dio = Dio(
       BaseOptions(
