@@ -26,6 +26,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.time.Duration;
+import org.springframework.http.ResponseCookie;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -57,7 +59,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody AuthRequest request, HttpServletResponse response) {
+    public ResponseEntity<?> login(@RequestBody AuthRequest request, HttpServletResponse response, HttpServletRequest httpRequest) {
         try {
             Authentication auth = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
@@ -75,13 +77,18 @@ public class AuthController {
                     .orElseThrow(() -> new RuntimeException("User not found"));
             RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
 
-            // Set HttpOnly JWT cookie
-            Cookie jwtCookie = new Cookie("JWT", accessToken);
-            jwtCookie.setHttpOnly(true);
-            jwtCookie.setSecure(false); // Set to true in production with HTTPS
-            jwtCookie.setPath("/");
-            jwtCookie.setMaxAge(60 * 60); // 1 hour, same as JWT expiration
-            response.addCookie(jwtCookie);
+            // Detect if request is over HTTPS (behind proxy on Railway)
+            boolean isHttps = httpRequest.isSecure() || "https".equalsIgnoreCase(httpRequest.getHeader("X-Forwarded-Proto"));
+
+            // Set HttpOnly JWT cookie in a browser-friendly way (SameSite=None requires Secure)
+            ResponseCookie jwtCookie = ResponseCookie.from("JWT", accessToken)
+                    .httpOnly(true)
+                    .secure(isHttps)
+                    .path("/")
+                    .maxAge(Duration.ofHours(1))
+                    .sameSite("None")
+                    .build();
+            response.addHeader("Set-Cookie", jwtCookie.toString());
 
             log.info("User {} logged in successfully", request.getUsername());
             return ResponseEntity.ok(new AuthResponse(accessToken, refreshToken.getToken()));
