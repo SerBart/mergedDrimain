@@ -560,16 +560,16 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                               ),
                               onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
                             ),
-                            const DataColumn(
+                            DataColumn(
                               label: ConstrainedBox(
-                                constraints: BoxConstraints(minWidth: _wUnit),
-                                child: Text('Jedn.'),
+                                constraints: const BoxConstraints(minWidth: _wUnit),
+                                child: const Text('Jedn.'),
                               ),
                             ),
-                            const DataColumn(
+                            DataColumn(
                               label: ConstrainedBox(
-                                constraints: BoxConstraints(minWidth: _wActions),
-                                child: Text('Akcje'),
+                                constraints: const BoxConstraints(minWidth: _wActions),
+                                child: const Text('Akcje'),
                               ),
                             ),
                           ],
