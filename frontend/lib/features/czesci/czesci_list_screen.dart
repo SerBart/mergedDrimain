@@ -35,6 +35,16 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
   List<Maszyna> _maszyny = [];
   int? _filterMaszynaId; // null=wszystkie, 0=Inne, >0=konkretna
 
+  // Minimalne szerokości kolumn, aby uniknąć przycinania i pustej przestrzeni
+  static const double _wName = 260;
+  static const double _wCode = 140;
+  static const double _wCategory = 180;
+  static const double _wMachine = 200;
+  static const double _wQty = 90;
+  static const double _wMin = 80;
+  static const double _wUnit = 80;
+  static const double _wActions = 220;
+
   @override
   void initState() {
     super.initState();
@@ -498,85 +508,137 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                 const Divider(height: 1),
                 Padding(
                   padding: const EdgeInsets.all(12),
-                  child: Card(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: DataTable(
-                        sortColumnIndex: _sortColumn,
-                        sortAscending: _sortAsc,
-                        columns: [
-                          DataColumn(
-                            label: const Text('Nazwa'),
-                            onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
-                          ),
-                          DataColumn(
-                            label: const Text('Kod'),
-                            onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
-                          ),
-                          DataColumn(
-                            label: const Text('Kategoria'),
-                            onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
-                          ),
-                          DataColumn(
-                            label: const Text('Maszyna'),
-                            onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
-                          ),
-                          DataColumn(
-                            numeric: true,
-                            label: const Text('Stan'),
-                            onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
-                          ),
-                          DataColumn(
-                            numeric: true,
-                            label: const Text('Min'),
-                            onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
-                          ),
-                          const DataColumn(label: Text('Jedn.')),
-                          const DataColumn(label: Text('Akcje')),
-                        ],
-                        rows: parts.map((p) {
-                          return DataRow(
-                            color: p.belowMin
-                                ? WidgetStatePropertyAll(Colors.red.withOpacity(.08))
-                                : null,
-                            cells: [
-                              DataCell(Text(p.nazwa)),
-                              DataCell(Text(p.kod)),
-                              DataCell(Text(p.kategoria ?? '-')),
-                              DataCell(Text(p.maszynaNazwa ?? 'Inne')),
-                              DataCell(Text(p.iloscMagazyn.toString())),
-                              DataCell(Text(p.minIlosc.toString())),
-                              DataCell(Text(p.jednostka)),
-                              DataCell(
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      tooltip: 'Zwiększ',
-                                      icon: const Icon(Icons.add_circle_outline, color: Colors.green),
-                                      onPressed: () => _adjustQty(p, 1),
-                                    ),
-                                    IconButton(
-                                      tooltip: 'Zmniejsz',
-                                      icon: const Icon(Icons.remove_circle_outline, color: Colors.orange),
-                                      onPressed: () => _adjustQty(p, -1),
-                                    ),
-                                    IconButton(
-                                      tooltip: 'Edytuj',
-                                      icon: const Icon(Icons.edit, color: Colors.blue),
-                                      onPressed: () => _editPartDialog(p),
-                                    ),
-                                    IconButton(
-                                      tooltip: 'Przypisz do maszyny / Inne',
-                                      icon: const Icon(Icons.link, color: Colors.purple),
-                                      onPressed: () => _assignPartDialog(p),
-                                    ),
-                                  ],
-                                ),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: IntrinsicWidth(
+                      child: Card(
+                        child: DataTable(
+                          sortColumnIndex: _sortColumn,
+                          sortAscending: _sortAsc,
+                          columns: [
+                            DataColumn(
+                              label: ConstrainedBox(
+                                constraints: const BoxConstraints(minWidth: _wName),
+                                child: const Text('Nazwa'),
                               ),
-                            ],
-                          );
-                        }).toList(),
+                              onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
+                            ),
+                            DataColumn(
+                              label: ConstrainedBox(
+                                constraints: const BoxConstraints(minWidth: _wCode),
+                                child: const Text('Kod'),
+                              ),
+                              onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
+                            ),
+                            DataColumn(
+                              label: ConstrainedBox(
+                                constraints: const BoxConstraints(minWidth: _wCategory),
+                                child: const Text('Kategoria'),
+                              ),
+                              onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
+                            ),
+                            DataColumn(
+                              label: ConstrainedBox(
+                                constraints: const BoxConstraints(minWidth: _wMachine),
+                                child: const Text('Maszyna'),
+                              ),
+                              onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
+                            ),
+                            DataColumn(
+                              numeric: true,
+                              label: ConstrainedBox(
+                                constraints: const BoxConstraints(minWidth: _wQty),
+                                child: const Text('Stan'),
+                              ),
+                              onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
+                            ),
+                            DataColumn(
+                              numeric: true,
+                              label: ConstrainedBox(
+                                constraints: const BoxConstraints(minWidth: _wMin),
+                                child: const Text('Min'),
+                              ),
+                              onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
+                            ),
+                            const DataColumn(
+                              label: ConstrainedBox(
+                                constraints: BoxConstraints(minWidth: _wUnit),
+                                child: Text('Jedn.'),
+                              ),
+                            ),
+                            const DataColumn(
+                              label: ConstrainedBox(
+                                constraints: BoxConstraints(minWidth: _wActions),
+                                child: Text('Akcje'),
+                              ),
+                            ),
+                          ],
+                          rows: parts.map((p) {
+                            return DataRow(
+                              color: p.belowMin
+                                  ? WidgetStatePropertyAll(Colors.red.withOpacity(.08))
+                                  : null,
+                              cells: [
+                                DataCell(ConstrainedBox(
+                                  constraints: const BoxConstraints(minWidth: _wName),
+                                  child: Text(p.nazwa, overflow: TextOverflow.visible),
+                                )),
+                                DataCell(ConstrainedBox(
+                                  constraints: const BoxConstraints(minWidth: _wCode),
+                                  child: Text(p.kod, overflow: TextOverflow.visible),
+                                )),
+                                DataCell(ConstrainedBox(
+                                  constraints: const BoxConstraints(minWidth: _wCategory),
+                                  child: Text(p.kategoria ?? '-', overflow: TextOverflow.visible),
+                                )),
+                                DataCell(ConstrainedBox(
+                                  constraints: const BoxConstraints(minWidth: _wMachine),
+                                  child: Text(p.maszynaNazwa ?? 'Inne', overflow: TextOverflow.visible),
+                                )),
+                                DataCell(ConstrainedBox(
+                                  constraints: const BoxConstraints(minWidth: _wQty),
+                                  child: Text(p.iloscMagazyn.toString()),
+                                )),
+                                DataCell(ConstrainedBox(
+                                  constraints: const BoxConstraints(minWidth: _wMin),
+                                  child: Text(p.minIlosc.toString()),
+                                )),
+                                DataCell(ConstrainedBox(
+                                  constraints: const BoxConstraints(minWidth: _wUnit),
+                                  child: Text(p.jednostka),
+                                )),
+                                DataCell(ConstrainedBox(
+                                  constraints: const BoxConstraints(minWidth: _wActions),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        tooltip: 'Zwiększ',
+                                        icon: const Icon(Icons.add_circle_outline, color: Colors.green),
+                                        onPressed: () => _adjustQty(p, 1),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Zmniejsz',
+                                        icon: const Icon(Icons.remove_circle_outline, color: Colors.orange),
+                                        onPressed: () => _adjustQty(p, -1),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Edytuj',
+                                        icon: const Icon(Icons.edit, color: Colors.blue),
+                                        onPressed: () => _editPartDialog(p),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Przypisz do maszyny / Inne',
+                                        icon: const Icon(Icons.link, color: Colors.purple),
+                                        onPressed: () => _assignPartDialog(p),
+                                      ),
+                                    ],
+                                  ),
+                                )),
+                              ],
+                            );
+                          }).toList(),
+                        ),
                       ),
                     ),
                   ),
