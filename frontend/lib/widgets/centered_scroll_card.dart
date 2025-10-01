@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// A reusable wrapper that centers a card horizontally and lets its width
-/// grow to match its content. If the content is wider than the viewport,
-/// a horizontal scrollbar is provided.
+/// Centers a Card horizontally and lets it grow to its intrinsic content width.
+/// If content is wider than the viewport, horizontal scroll is enabled.
+/// Always aligns to the top vertically (no vertical centering).
 class CenteredScrollableCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
@@ -11,23 +11,40 @@ class CenteredScrollableCard extends StatelessWidget {
   const CenteredScrollableCard({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(0),
+    this.padding = EdgeInsets.zero,
     this.enableHorizontalScroll = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    Widget content = IntrinsicWidth(child: Card(child: child));
-    if (enableHorizontalScroll) {
-      content = SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Center(child: content),
-      );
-    }
     return Padding(
       padding: padding,
-      child: content,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final content = IntrinsicWidth(child: Card(child: child));
+
+          if (!enableHorizontalScroll) {
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [content],
+            );
+          }
+
+          // Ensure the scroll area is at least as wide as the viewport, so centering works
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: constraints.maxWidth),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [content],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }
-
