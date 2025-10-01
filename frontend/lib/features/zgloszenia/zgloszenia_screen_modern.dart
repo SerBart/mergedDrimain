@@ -7,6 +7,7 @@ import '../../core/providers/app_providers.dart';
 import '../../core/models/zgloszenie.dart';
 import '../../core/models/maszyna.dart';
 import '../../widgets/photo_picker_field.dart';
+import '../../widgets/centered_scroll_card.dart';
 
 class ZgloszeniaScreenModern extends ConsumerStatefulWidget {
   const ZgloszeniaScreenModern({super.key});
@@ -875,16 +876,9 @@ class _ZgloszeniaScreenModernState
                         child: SizedBox(
                           height: targetHeight,
                           child: Center(
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Card(
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  child: needsVerticalScroll
-                                      ? SingleChildScrollView(child: table)
-                                      : table,
-                                ),
-                              ),
+                            child: CenteredScrollableCard(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              child: needsVerticalScroll ? SingleChildScrollView(child: table) : table,
                             ),
                           ),
                         ),

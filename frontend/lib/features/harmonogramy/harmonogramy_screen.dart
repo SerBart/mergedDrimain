@@ -5,6 +5,7 @@ import '../../core/providers/app_providers.dart';
 import '../../core/models/harmonogram.dart';
 import '../../core/models/maszyna.dart';
 import '../../core/models/osoba.dart';
+import '../../widgets/centered_scroll_card.dart';
 
 class HarmonogramyScreen extends ConsumerStatefulWidget {
   const HarmonogramyScreen({super.key});
@@ -359,85 +360,82 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                     onRefresh: _loadAll,
                     child: Padding(
                       padding: const EdgeInsets.all(12),
-                      child: Card(
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: DataTable(
-                            sortColumnIndex: _sortCol,
-                            sortAscending: _asc,
-                            columns: [
-                              DataColumn(
-                                label: const Text('Data'),
-                                onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; }),
-                              ),
-                              DataColumn(
-                                label: const Text('Maszyna'),
-                                onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; }),
-                              ),
-                              DataColumn(
-                                label: const Text('Osoba'),
-                                onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; }),
-                              ),
-                              DataColumn(
-                                numeric: true,
-                                label: const Text('Czas [min]'),
-                                onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; }),
-                              ),
-                              DataColumn(
-                                label: const Text('Status'),
-                                onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; }),
-                              ),
-                              const DataColumn(label: Text('Opis')),
-                              const DataColumn(label: Text('Akcje')),
-                            ],
-                            rows: filtered.map((h) {
-                              final dateStr = _fmtDate(h.data);
-                              return DataRow(
-                                cells: [
-                                  DataCell(Text(dateStr)),
-                                  DataCell(Text(h.maszyna?.nazwa ?? '-')),
-                                  DataCell(Text(h.osoba?.imieNazwisko ?? '-')),
-                                  DataCell(Text((h.durationMinutes ?? 0).toString())),
-                                  DataCell(Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: _statusColor(h.status).withOpacity(.12),
-                                      borderRadius: BorderRadius.circular(12),
+                      child: CenteredScrollableCard(
+                        child: DataTable(
+                          sortColumnIndex: _sortCol,
+                          sortAscending: _asc,
+                          columns: [
+                            DataColumn(
+                              label: const Text('Data'),
+                              onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; }),
+                            ),
+                            DataColumn(
+                              label: const Text('Maszyna'),
+                              onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; }),
+                            ),
+                            DataColumn(
+                              label: const Text('Osoba'),
+                              onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; }),
+                            ),
+                            DataColumn(
+                              numeric: true,
+                              label: const Text('Czas [min]'),
+                              onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; }),
+                            ),
+                            DataColumn(
+                              label: const Text('Status'),
+                              onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; }),
+                            ),
+                            const DataColumn(label: Text('Opis')),
+                            const DataColumn(label: Text('Akcje')),
+                          ],
+                          rows: filtered.map((h) {
+                            final dateStr = _fmtDate(h.data);
+                            return DataRow(
+                              cells: [
+                                DataCell(Text(dateStr)),
+                                DataCell(Text(h.maszyna?.nazwa ?? '-')),
+                                DataCell(Text(h.osoba?.imieNazwisko ?? '-')),
+                                DataCell(Text((h.durationMinutes ?? 0).toString())),
+                                DataCell(Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: _statusColor(h.status).withOpacity(.12),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    _statusLabel(h.status),
+                                    style: TextStyle(color: _statusColor(h.status), fontWeight: FontWeight.w600),
+                                  ),
+                                )),
+                                DataCell(ConstrainedBox(
+                                  constraints: const BoxConstraints(maxWidth: 260),
+                                  child: Text(h.opis, maxLines: 2, overflow: TextOverflow.ellipsis),
+                                )),
+                                DataCell(Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      tooltip: 'Zmień status',
+                                      icon: const Icon(Icons.playlist_add_check_circle_outlined),
+                                      color: _statusColor(h.status),
+                                      onPressed: () => _quickToggleStatus(h),
                                     ),
-                                    child: Text(
-                                      _statusLabel(h.status),
-                                      style: TextStyle(color: _statusColor(h.status), fontWeight: FontWeight.w600),
+                                    IconButton(
+                                      tooltip: 'Edytuj',
+                                      icon: const Icon(Icons.edit, color: Colors.blueAccent),
+                                      onPressed: () => _editItem(h),
                                     ),
-                                  )),
-                                  DataCell(ConstrainedBox(
-                                    constraints: const BoxConstraints(maxWidth: 260),
-                                    child: Text(h.opis, maxLines: 2, overflow: TextOverflow.ellipsis),
-                                  )),
-                                  DataCell(Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      IconButton(
-                                        tooltip: 'Zmień status',
-                                        icon: const Icon(Icons.playlist_add_check_circle_outlined),
-                                        color: _statusColor(h.status),
-                                        onPressed: () => _quickToggleStatus(h),
-                                      ),
-                                      IconButton(
-                                        tooltip: 'Edytuj',
-                                        icon: const Icon(Icons.edit, color: Colors.blueAccent),
-                                        onPressed: () => _editItem(h),
-                                      ),
-                                      IconButton(
-                                        tooltip: 'Usuń',
-                                        icon: const Icon(Icons.delete, color: Colors.redAccent),
-                                        onPressed: () => _deleteItem(h),
-                                      ),
-                                    ],
-                                  )),
-                                ],
-                              );
-                            }).toList(),
-                          ),
+                                    IconButton(
+                                      tooltip: 'Usuń',
+                                      icon: const Icon(Icons.delete, color: Colors.redAccent),
+                                      onPressed: () => _deleteItem(h),
+                                    ),
+                                  ],
+                                )),
+                              ],
+                            );
+                          }).toList(),
                         ),
                       ),
                     ),

@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/models/raport.dart';
 import '../../widgets/status_chip.dart';
-import 'package:go_router/go_router.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../widgets/dialogs.dart';
 import '../../core/models/maszyna.dart';
 import '../../core/models/osoba.dart';
+import '../../widgets/centered_scroll_card.dart';
 
 class RaportyListScreen extends ConsumerStatefulWidget {
   const RaportyListScreen({super.key});
@@ -317,118 +318,97 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
           )
         ],
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 900),
-          child: ListView(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: TextField(
-                  decoration: const InputDecoration(
-                    labelText: 'Szukaj (maszyna / typ / status)',
-                    prefixIcon: Icon(Icons.search),
-                  ),
-                  onChanged: (v) => setState(() => _query = v),
-                ),
+      body: ListView(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: TextField(
+              decoration: const InputDecoration(
+                labelText: 'Szukaj (maszyna / typ / status)',
+                prefixIcon: Icon(Icons.search),
               ),
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Card(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTableTheme(
-                      data: const DataTableThemeData(
-                        headingRowHeight: 36,
-                        dataRowMinHeight: 30,
-                        dataRowMaxHeight: 34,
-                        horizontalMargin: 12,
-                      ),
-                      child: DataTable(
-                        sortColumnIndex: _sortColumnIndex,
-                        sortAscending: _sortAsc,
-                        columns: [
-                          DataColumn(
-                            label: const Text('Maszyna'),
-                            onSort: (i, asc) => setState(() {
-                              _sortColumnIndex = i;
-                              _sortAsc = asc;
-                            }),
-                          ),
-                          DataColumn(
-                            label: const Text('Typ'),
-                            onSort: (i, asc) => setState(() {
-                              _sortColumnIndex = i;
-                              _sortAsc = asc;
-                            }),
-                          ),
-                          DataColumn(
-                            label: const Text('Status'),
-                            onSort: (i, asc) => setState(() {
-                              _sortColumnIndex = i;
-                              _sortAsc = asc;
-                            }),
-                          ),
-                          DataColumn(
-                            numeric: true,
-                            label: const Text('Data'),
-                            onSort: (i, asc) => setState(() {
-                              _sortColumnIndex = i;
-                              _sortAsc = asc;
-                            }),
-                          ),
-                          const DataColumn(label: Text('Akcje')),
-                        ],
-                        rows: raporty.map((r) {
-                          return DataRow(
-                            cells: [
-                              DataCell(Text(r.maszyna?.nazwa ?? '-')),
-                              DataCell(Text(r.typNaprawy)),
-                              DataCell(StatusChip(status: r.status)),
-                              DataCell(Text(
-                                  '${r.dataNaprawy.year}-${r.dataNaprawy.month.toString().padLeft(2, '0')}-${r.dataNaprawy.day.toString().padLeft(2, '0')}')),
-                              DataCell(
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      tooltip: 'Edytuj',
-                                      icon: const Icon(Icons.edit, color: Colors.blueAccent),
-                                      onPressed: () => context.go('/raport/edytuj/${r.id}'),
-                                    ),
-                                    IconButton(
-                                      tooltip: 'Usuń',
-                                      icon: const Icon(Icons.delete, color: Colors.redAccent),
-                                      onPressed: () async {
-                                        final confirm = await showConfirmDialog(
-                                          context,
-                                          'Usuń raport',
-                                          'Czy na pewno usunąć?'
-                                        );
-                                        if (confirm == true) {
-                                          repo.deleteRaport(r.id);
-                                          setState(() {});
-                                          if (mounted) {
-                                            showSuccessDialog(context, 'OK', 'Raport usunięty');
-                                          }
-                                        }
-                                      },
-                                    ),
-                                  ],
-                                ),
+              onChanged: (v) => setState(() => _query = v),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: CenteredScrollableCard(
+              child: DataTableTheme(
+                data: const DataTableThemeData(
+                  headingRowHeight: 36,
+                  dataRowMinHeight: 30,
+                  dataRowMaxHeight: 34,
+                  horizontalMargin: 12,
+                ),
+                child: DataTable(
+                  sortColumnIndex: _sortColumnIndex,
+                  sortAscending: _sortAsc,
+                  columns: [
+                    DataColumn(
+                      label: const Text('Maszyna'),
+                      onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; }),
+                    ),
+                    DataColumn(
+                      label: const Text('Typ'),
+                      onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; }),
+                    ),
+                    DataColumn(
+                      label: const Text('Status'),
+                      onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; }),
+                    ),
+                    DataColumn(
+                      numeric: true,
+                      label: const Text('Data'),
+                      onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; }),
+                    ),
+                    const DataColumn(label: Text('Akcje')),
+                  ],
+                  rows: raporty.map((r) {
+                    return DataRow(
+                      cells: [
+                        DataCell(Text(r.maszyna?.nazwa ?? '-')),
+                        DataCell(Text(r.typNaprawy)),
+                        DataCell(StatusChip(status: r.status)),
+                        DataCell(Text('${r.dataNaprawy.year}-${r.dataNaprawy.month.toString().padLeft(2, '0')}-${r.dataNaprawy.day.toString().padLeft(2, '0')}')),
+                        DataCell(
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                tooltip: 'Edytuj',
+                                icon: const Icon(Icons.edit, color: Colors.blueAccent),
+                                onPressed: () => context.go('/raport/edytuj/${r.id}'),
+                              ),
+                              IconButton(
+                                tooltip: 'Usuń',
+                                icon: const Icon(Icons.delete, color: Colors.redAccent),
+                                onPressed: () async {
+                                  final confirm = await showConfirmDialog(
+                                    context,
+                                    'Usuń raport',
+                                    'Czy na pewno usunąć?'
+                                  );
+                                  if (confirm == true) {
+                                    repo.deleteRaport(r.id);
+                                    setState(() {});
+                                    if (mounted) {
+                                      showSuccessDialog(context, 'OK', 'Raport usunięty');
+                                    }
+                                  }
+                                },
                               ),
                             ],
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }).toList(),
                 ),
               ),
-              const SizedBox(height: 8),
-            ],
+            ),
           ),
-        ),
+          const SizedBox(height: 8),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _openAddRaportDialog,

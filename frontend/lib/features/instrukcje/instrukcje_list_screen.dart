@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/models/instruction.dart';
+import '../../widgets/centered_scroll_card.dart';
 
 class InstrukcjeListScreen extends ConsumerStatefulWidget {
   const InstrukcjeListScreen({super.key});
@@ -172,46 +173,43 @@ class _InstrukcjeListScreenState extends ConsumerState<InstrukcjeListScreen> {
                                     ),
                                     Padding(
                                       padding: const EdgeInsets.symmetric(horizontal: 12),
-                                      child: Card(
+                                      child: CenteredScrollableCard(
                                         child: parts.isEmpty
                                             ? const Padding(
                                                 padding: EdgeInsets.all(12),
                                                 child: Text('Brak części'),
                                               )
-                                            : SingleChildScrollView(
-                                                scrollDirection: Axis.horizontal,
-                                                child: DataTableTheme(
-                                                  data: const DataTableThemeData(
-                                                    headingRowHeight: 36,
-                                                    dataRowMinHeight: 30,
-                                                    dataRowMaxHeight: 34,
-                                                    horizontalMargin: 12,
-                                                  ),
-                                                  child: DataTable(
-                                                    sortColumnIndex: _partsSortColumn,
-                                                    sortAscending: _partsSortAsc,
-                                                    columns: [
-                                                      DataColumn(
-                                                        label: const Text('Nazwa'),
-                                                        onSort: (i, asc) => setState(() {
-                                                          _partsSortColumn = i;
-                                                          _partsSortAsc = asc;
-                                                        }),
-                                                      ),
-                                                      DataColumn(
-                                                        numeric: true,
-                                                        label: const Text('Ilość'),
-                                                        onSort: (i, asc) => setState(() {
-                                                          _partsSortColumn = i;
-                                                          _partsSortAsc = asc;
-                                                        }),
-                                                      ),
-                                                    ],
-                                                    rows: parts.map((p) => DataRow(cells: [
-                                                      DataCell(Text(p.partNazwa)),
-                                                      DataCell(Text((p.ilosc ?? 0).toString())),
-                                                    ])).toList(),
-                                                  ),
+                                            : DataTableTheme(
+                                                data: const DataTableThemeData(
+                                                  headingRowHeight: 36,
+                                                  dataRowMinHeight: 30,
+                                                  dataRowMaxHeight: 34,
+                                                  horizontalMargin: 12,
+                                                ),
+                                                child: DataTable(
+                                                  sortColumnIndex: _partsSortColumn,
+                                                  sortAscending: _partsSortAsc,
+                                                  columns: [
+                                                    DataColumn(
+                                                      label: const Text('Nazwa'),
+                                                      onSort: (i, asc) => setState(() {
+                                                        _partsSortColumn = i;
+                                                        _partsSortAsc = asc;
+                                                      }),
+                                                    ),
+                                                    DataColumn(
+                                                      numeric: true,
+                                                      label: const Text('Ilość'),
+                                                      onSort: (i, asc) => setState(() {
+                                                        _partsSortColumn = i;
+                                                        _partsSortAsc = asc;
+                                                      }),
+                                                    ),
+                                                  ],
+                                                  rows: parts.map((p) => DataRow(cells: [
+                                                    DataCell(Text(p.partNazwa)),
+                                                    DataCell(Text((p.ilosc ?? 0).toString())),
+                                                  ])).toList(),
                                                 ),
                                               ),
                                       ),
