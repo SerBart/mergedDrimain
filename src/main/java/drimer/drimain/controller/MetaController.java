@@ -12,6 +12,8 @@ import drimer.drimain.repository.MaszynaRepository;
 import drimer.drimain.repository.OsobaRepository;
 import drimer.drimain.api.dto.SimpleMaszynaDTO;
 import drimer.drimain.api.dto.SimpleOsobaDTO;
+import drimer.drimain.repository.DzialRepository;
+import drimer.drimain.api.dto.DzialDTO;
 
 @RestController
 @RequestMapping("/api/meta")
@@ -20,6 +22,7 @@ public class MetaController {
 
     private final MaszynaRepository maszynaRepository;
     private final OsobaRepository osobaRepository;
+    private final DzialRepository dzialRepository;
 
     @GetMapping("/statusy/raporty")
     public List<String> raportStatuses() {
@@ -48,6 +51,16 @@ public class MetaController {
             SimpleOsobaDTO dto = new SimpleOsobaDTO();
             dto.setId(o.getId());
             dto.setImieNazwisko(o.getImieNazwisko());
+            return dto;
+        }).toList();
+    }
+
+    @GetMapping("/dzialy-simple")
+    public List<DzialDTO> simpleDzialy() {
+        return dzialRepository.findAll().stream().map(d -> {
+            DzialDTO dto = new DzialDTO();
+            dto.setId(d.getId());
+            dto.setNazwa(d.getNazwa());
             return dto;
         }).toList();
     }

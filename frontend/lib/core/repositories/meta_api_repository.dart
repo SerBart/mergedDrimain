@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import '../models/maszyna.dart';
 import '../models/osoba.dart';
+import '../models/dzial.dart';
 import '../services/secure_storage_service.dart';
 
 class MetaApiRepository {
@@ -29,6 +30,17 @@ class MetaApiRepository {
     return list.map(Osoba.fromJson).toList();
   }
 
+  // New: fetch simple departments list for forms
+  Future<List<Dzial>> fetchDzialySimple() async {
+    final token = await _readToken();
+    final resp = await _dio.get(
+      '/api/meta/dzialy-simple',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    final list = (resp.data as List).cast<Map<String, dynamic>>();
+    return list.map(Dzial.fromJson).toList();
+  }
+
   Future<String> _readToken() async {
     final token = await _storage.readToken();
     if (token == null || token.isEmpty) {
@@ -37,4 +49,3 @@ class MetaApiRepository {
     return token;
   }
 }
-

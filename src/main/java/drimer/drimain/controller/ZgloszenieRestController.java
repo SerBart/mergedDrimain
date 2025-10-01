@@ -21,6 +21,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+// New imports
+import drimer.drimain.repository.UserRepository;
+import drimer.drimain.model.User;
+
 /**
  * REST controller for Zgloszenie CRUD.
  * - GET    /api/zgloszenia
@@ -40,18 +44,44 @@ public class ZgloszenieRestController {
 
     private final ZgloszenieRepository zgloszenieRepository;
     private final ZgloszenieCommandService commandService;
+    // New: to resolve current user's department
+    private final UserRepository userRepository;
 
     /**
      * List with simple filters.
      * Trzyma transakcję otwartą na czas mapowania do DTO, aby Lazy nie wywalił.
+     * Dodatkowo ogranicza widoczność do działu użytkownika (poza ADMIN).
      */
     @GetMapping
     @Transactional(readOnly = true)
     public List<ZgloszenieDTO> list(@RequestParam Optional<String> status,
                                     @RequestParam Optional<String> typ,
-                                    @RequestParam Optional<String> q) {
+                                    @RequestParam Optional<String> q,
+                                    Authentication authentication) {
 
-        return zgloszenieRepository.findAll().stream()
+        List<Zgloszenie> all = zgloszenieRepository.findAll();
+
+        // If not admin, restrict to user's department if assigned
+        if (authentication != null) {
+            boolean isAdmin = authentication.getAuthorities().stream()
+                    .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+            if (!isAdmin) {
+                User u = userRepository.findByUsername(authentication.getName()).orElse(null);
+                Long dzialId = (u != null && u.getDzial() != null) ? u.getDzial().getId() : null;
+                if (dzialId != null) {
+                    all = all.stream().filter(z -> z.getDzial() != null && dzialId.equals(z.getDzial().getId()))
+                            .collect(Collectors.toList());
+                } else {
+                    // Brak przypisanego działu -> nie pokazuj nic
+                    all = List.of();
+                }
+            }
+        } else {
+            // Not authenticated -> empty
+            all = List.of();
+        }
+
+        return all.stream()
                 .filter(z -> status
                         .map(s -> {
                             ZgloszenieStatus ms = ZgloszenieStatusMapper.map(s);

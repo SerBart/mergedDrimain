@@ -7,6 +7,7 @@ import drimer.drimain.events.ZgloszenieDomainEvent;
 import drimer.drimain.model.Dzial;
 import drimer.drimain.model.User;
 import drimer.drimain.model.Zgloszenie;
+import drimer.drimain.model.Maszyna;
 import drimer.drimain.model.enums.ZgloszenieStatus;
 import drimer.drimain.repository.DzialRepository;
 import drimer.drimain.repository.UserRepository;
@@ -23,6 +24,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import drimer.drimain.repository.MaszynaRepository;
+
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -33,6 +36,7 @@ public class ZgloszenieCommandService {
     private final DzialRepository dzialRepository;
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final MaszynaRepository maszynaRepository;
 
     public Zgloszenie create(ZgloszenieCreateRequest req, Authentication authentication) {
         Zgloszenie z = new Zgloszenie();
@@ -51,7 +55,14 @@ public class ZgloszenieCommandService {
             if (status != null) z.setStatus(status);
         }
 
-        // Set relations
+        // Set relations: maszyna
+        if (req.getMaszynaId() != null) {
+            Maszyna m = maszynaRepository.findById(req.getMaszynaId())
+                    .orElseThrow(() -> new IllegalArgumentException("Maszyna not found"));
+            z.setMaszyna(m);
+        }
+
+        // Set relations: dzial explicitly if provided
         if (req.getDzialId() != null) {
             Dzial dzial = dzialRepository.findById(req.getDzialId())
                     .orElseThrow(() -> new IllegalArgumentException("Dzial not found"));
@@ -59,10 +70,20 @@ public class ZgloszenieCommandService {
         }
 
         // Set author from authentication
+        User user = null;
         if (authentication != null && authentication.getName() != null) {
-            User user = userRepository.findByUsername(authentication.getName()).orElse(null);
+            user = userRepository.findByUsername(authentication.getName()).orElse(null);
             if (user != null) {
                 z.setAutor(user);
+            }
+        }
+
+        // If no dzial yet, try infer from maszyna or user's department
+        if (z.getDzial() == null) {
+            if (z.getMaszyna() != null && z.getMaszyna().getDzial() != null) {
+                z.setDzial(z.getMaszyna().getDzial());
+            } else if (user != null && user.getDzial() != null) {
+                z.setDzial(user.getDzial());
             }
         }
 
@@ -132,10 +153,6 @@ public class ZgloszenieCommandService {
             }
         }
 
-        // Validate if any changes were made
-        if (!changedFields.isEmpty()) {
-            z.validate();
-        }
 
         // Save
         Zgloszenie saved = zgloszenieRepository.save(z);

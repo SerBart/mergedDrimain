@@ -175,8 +175,9 @@ public class AdminRestController {
         User user = new User();
         user.setUsername(req.getUsername());
         user.setPassword(passwordEncoder.encode(req.getPassword()));
-        
-        // TODO: Implement role assignment - need to look up Role entities by name
+        user.setEmail(req.getEmail());
+
+        // Role assignment
         if (req.getRoles() != null && !req.getRoles().isEmpty()) {
             Set<Role> roles = req.getRoles().stream()
                     .map(roleName -> roleRepository.findByName(roleName)
@@ -184,7 +185,19 @@ public class AdminRestController {
                     .collect(Collectors.toSet());
             user.setRoles(roles);
         }
-        
+
+        // Department assignment
+        if (req.getDzialId() != null) {
+            Dzial dzial = dzialRepository.findById(req.getDzialId())
+                    .orElseThrow(() -> new IllegalArgumentException("Dzial not found"));
+            user.setDzial(dzial);
+        }
+
+        // Modules
+        if (req.getModules() != null) {
+            user.setModules(req.getModules());
+        }
+
         userRepository.save(user);
         return toUserDto(user);
     }
@@ -195,13 +208,14 @@ public class AdminRestController {
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
         
         user.setUsername(req.getUsername());
-        
+        user.setEmail(req.getEmail());
+
         // Only update password if provided
         if (req.getPassword() != null && !req.getPassword().trim().isEmpty()) {
             user.setPassword(passwordEncoder.encode(req.getPassword()));
         }
         
-        // TODO: Implement role assignment update
+        // Role assignment update
         if (req.getRoles() != null) {
             Set<Role> roles = req.getRoles().stream()
                     .map(roleName -> roleRepository.findByName(roleName)
@@ -209,7 +223,23 @@ public class AdminRestController {
                     .collect(Collectors.toSet());
             user.setRoles(roles);
         }
-        
+
+        // Department assignment update
+        if (req.getDzialId() != null) {
+            Dzial dzial = dzialRepository.findById(req.getDzialId())
+                    .orElseThrow(() -> new IllegalArgumentException("Dzial not found"));
+            user.setDzial(dzial);
+        } else {
+            user.setDzial(null);
+        }
+
+        // Modules update
+        if (req.getModules() != null) {
+            user.setModules(req.getModules());
+        } else {
+            user.setModules(Set.of());
+        }
+
         userRepository.save(user);
         return toUserDto(user);
     }
@@ -258,7 +288,7 @@ public class AdminRestController {
         dto.setRoles(user.getRoles().stream()
                 .map(Role::getName)
                 .collect(Collectors.toSet()));
-        // Password intentionally excluded
+        // Optional: department and modules can be added to DTO in future if needed by UI
         return dto;
     }
 }

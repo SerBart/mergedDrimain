@@ -39,7 +39,14 @@ public class UserController {
             userInfo.put("roles", userDetails.getAuthorities()
                     .stream().map(a -> a.getAuthority()).toList());
             userRepository.findByUsername(userDetails.getUsername())
-                    .ifPresent(u -> userInfo.put("email", u.getEmail()));
+                    .ifPresent(u -> {
+                        userInfo.put("email", u.getEmail());
+                        if (u.getDzial() != null) {
+                            userInfo.put("dzialId", u.getDzial().getId());
+                            userInfo.put("dzialNazwa", u.getDzial().getNazwa());
+                        }
+                        userInfo.put("modules", u.getModules());
+                    });
 
             log.debug("User info requested for: {}", userDetails.getUsername());
             return ResponseEntity.ok(userInfo);

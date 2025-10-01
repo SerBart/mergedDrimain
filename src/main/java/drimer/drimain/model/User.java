@@ -26,6 +26,17 @@ public class User implements UserDetails {
             inverseJoinColumns = @JoinColumn(name = "role_id"))
     private Set<Role> roles = new HashSet<>();
 
+    // New: department assignment
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "dzial_id")
+    private Dzial dzial;
+
+    // New: per-user modules access (simple string set)
+    @ElementCollection
+    @CollectionTable(name = "user_modules", joinColumns = @JoinColumn(name = "user_id"))
+    @Column(name = "module")
+    private Set<String> modules = new HashSet<>();
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -43,6 +54,13 @@ public class User implements UserDetails {
 
     public void addRole(Role role) { if (role != null) roles.add(role); }
     public void clearRoles() { roles.clear(); }
+
+    // New getters/setters
+    public Dzial getDzial() { return dzial; }
+    public void setDzial(Dzial dzial) { this.dzial = dzial; }
+
+    public Set<String> getModules() { return modules; }
+    public void setModules(Set<String> modules) { this.modules = modules != null ? modules : new HashSet<>(); }
 
     // UserDetails
     @Override

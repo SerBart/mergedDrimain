@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/models/zgloszenie.dart';
 import '../../core/models/maszyna.dart';
+import '../../core/models/dzial.dart';
 import '../../widgets/photo_picker_field.dart';
 import '../../widgets/centered_scroll_card.dart';
 
@@ -30,6 +31,7 @@ class _ZgloszeniaScreenModernState
   String _status = 'NOWE';
   String _typSelected = 'Usterka';
   Maszyna? _selectedMaszyna;
+  Dzial? _selectedDzial; // New: selected department
 
   // Wyszukiwanie / filtrowanie / sortowanie
   final _search = TextEditingController();
@@ -159,6 +161,7 @@ class _ZgloszeniaScreenModernState
     _typSelected = 'Usterka';
     _photoBase64 = null;
     _selectedMaszyna = null;
+    _selectedDzial = null;
   }
 
   Future<void> _add() async {
@@ -173,6 +176,8 @@ class _ZgloszeniaScreenModernState
         opis: _opisCtrl.text.trim(),
         statusUi: _status,
         dataGodzina: DateTime.now(),
+        dzialId: _selectedDzial?.id,
+        maszynaId: _selectedMaszyna?.id,
       );
 
       // Zachowaj zdjęcie lokalnie w mock repo; backend nie obsługuje jeszcze zdjęć w DTO
@@ -596,6 +601,7 @@ class _ZgloszeniaScreenModernState
   // Nowy helper: otwiera dialog dodawania zgłoszenia (wydzielone by uniknąć zamieszania w nawiasach)
   void _openAddDialog() {
     final maszyny = ref.read(mockRepoProvider).getMaszyny();
+    final dzialy = ref.read(mockRepoProvider).getDzialy();
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -633,7 +639,26 @@ class _ZgloszeniaScreenModernState
                                 child: Text('${m.nazwa}${m.dzial != null ? ' (${m.dzial!.nazwa})' : ''}'),
                               ))
                           .toList(),
-                      onChanged: (v) => setState(() => _selectedMaszyna = v),
+                      onChanged: (v) => setState(() {
+                        _selectedMaszyna = v;
+                        // Auto-select department based on machine
+                        _selectedDzial = v?.dzial ?? _selectedDzial;
+                      }),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<Dzial>(
+                      value: _selectedDzial,
+                      decoration: const InputDecoration(
+                        labelText: 'Dział',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: dzialy
+                          .map((d) => DropdownMenuItem(
+                                value: d,
+                                child: Text(d.nazwa),
+                              ))
+                          .toList(),
+                      onChanged: (v) => setState(() => _selectedDzial = v),
                     ),
                     const SizedBox(height: 12),
                     Row(

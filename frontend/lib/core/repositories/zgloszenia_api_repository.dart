@@ -25,6 +25,8 @@ class ZgloszeniaApiRepository {
     required String opis,
     required String statusUi,
     DateTime? dataGodzina,
+    int? dzialId,
+    int? maszynaId,
   }) async {
     final token = await _readToken();
     final dto = {
@@ -35,7 +37,8 @@ class ZgloszeniaApiRepository {
       'priorytet': 'NORMALNY', // zgodnie z DTO backendu
       'opis': opis,
       'dataGodzina': (dataGodzina ?? DateTime.now()).toIso8601String(),
-      // 'tytul': 'Zgłoszenie', // opcjonalnie
+      if (dzialId != null) 'dzialId': dzialId,
+      if (maszynaId != null) 'maszynaId': maszynaId,
     };
 
     final resp = await _dio.post(
