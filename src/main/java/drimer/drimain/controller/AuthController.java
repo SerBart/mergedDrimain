@@ -26,6 +26,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.time.Duration;
 import org.springframework.http.ResponseCookie;
 
@@ -61,10 +62,20 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody AuthRequest request, HttpServletResponse response, HttpServletRequest httpRequest) {
         try {
+            // Allow login via email as identifier as well
+            String identifier = request.getUsername();
+            String resolvedUsername = identifier;
+            if (identifier != null && identifier.contains("@")) {
+                String email = identifier.trim().toLowerCase();
+                var byEmail = userRepository.findByEmail(email);
+                if (byEmail.isPresent()) {
+                    resolvedUsername = byEmail.get().getUsername();
+                }
+            }
             Authentication auth = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
+                    new UsernamePasswordAuthenticationToken(resolvedUsername, request.getPassword())
             );
-            var userDetails = userDetailsService.loadUserByUsername(request.getUsername());
+            var userDetails = userDetailsService.loadUserByUsername(resolvedUsername);
             Map<String, Object> claims = new HashMap<>();
             claims.put("roles", userDetails.getAuthorities()
                     .stream().map(a -> a.getAuthority()).toList());
@@ -73,7 +84,7 @@ public class AuthController {
             String accessToken = jwtService.generateAccessToken(userDetails.getUsername(), claims);
             
             // NOTE: Create refresh token
-            User user = userRepository.findByUsername(request.getUsername())
+            User user = userRepository.findByUsername(userDetails.getUsername())
                     .orElseThrow(() -> new RuntimeException("User not found"));
             RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
 
@@ -90,7 +101,7 @@ public class AuthController {
                     .build();
             response.addHeader("Set-Cookie", jwtCookie.toString());
 
-            log.info("User {} logged in successfully", request.getUsername());
+            log.info("User {} logged in successfully", userDetails.getUsername());
             return ResponseEntity.ok(new AuthResponse(accessToken, refreshToken.getToken()));
         } catch (AuthenticationException e) {
             return ResponseEntity.status(401).body("Bad credentials");
@@ -137,21 +148,38 @@ public class AuthController {
     public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
         try {
             // Validate input
-            if (request.getUsername() == null || request.getUsername().trim().isEmpty()) {
-                return ResponseEntity.badRequest().body("Username is required");
+            if (request.getEmail() == null || request.getEmail().trim().isEmpty()) {
+                return ResponseEntity.badRequest().body("Email is required");
+            }
+            String email = request.getEmail().trim().toLowerCase();
+            if (!isValidEmail(email)) {
+                return ResponseEntity.badRequest().body("Invalid email format");
             }
             if (request.getPassword() == null || request.getPassword().trim().isEmpty()) {
                 return ResponseEntity.badRequest().body("Password is required");
             }
 
-            // Check if username already exists
-            if (userRepository.findByUsername(request.getUsername()).isPresent()) {
-                return ResponseEntity.status(HttpStatus.CONFLICT).body("Username already exists");
+            // Derive or validate username
+            String username = request.getUsername();
+            if (username == null || username.trim().isEmpty()) {
+                username = deriveUsernameFromEmail(email);
+            } else {
+                username = username.trim();
+            }
+
+            // Check uniqueness
+            if (userRepository.findByUsername(username).isPresent()) {
+                // Try to make username unique by appending a number
+                username = makeUsernameUnique(username);
+            }
+            if (userRepository.existsByEmail(email)) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body("Email already registered");
             }
 
             // Create new user
             User user = new User();
-            user.setUsername(request.getUsername().trim());
+            user.setUsername(username);
+            user.setEmail(email);
             user.setPassword(passwordEncoder.encode(request.getPassword()));
             
             // Assign default ROLE_USER
@@ -170,7 +198,7 @@ public class AuthController {
             String accessToken = jwtService.generateAccessToken(user.getUsername(), claims);
             RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
 
-            log.info("User {} registered successfully", user.getUsername());
+            log.info("User {} registered successfully (email: {})", user.getUsername(), user.getEmail());
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(new AuthResponse(accessToken, refreshToken.getToken()));
 
@@ -178,6 +206,31 @@ public class AuthController {
             log.error("Failed to register user: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Registration failed");
         }
+    }
+
+    private boolean isValidEmail(String email) {
+        // Simple RFC 5322 compliant-ish regex (kept simple for server-side)
+        Pattern p = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
+        return p.matcher(email).matches();
+    }
+
+    private String deriveUsernameFromEmail(String email) {
+        String base = email.split("@")[0];
+        if (base.isBlank()) base = "user";
+        return makeUsernameUnique(base);
+    }
+
+    private String makeUsernameUnique(String base) {
+        String candidate = base;
+        int suffix = 1;
+        while (userRepository.findByUsername(candidate).isPresent()) {
+            candidate = base + suffix;
+            suffix++;
+            if (suffix > 1000) {
+                throw new IllegalStateException("Unable to generate unique username");
+            }
+        }
+        return candidate;
     }
 
     @GetMapping("/me")
@@ -208,7 +261,9 @@ public class AuthController {
             userInfo.put("username", username);
             userInfo.put("roles", userDetails.getAuthorities()
                     .stream().map(a -> a.getAuthority()).toList());
-            
+            // Add email if available
+            userRepository.findByUsername(username).ifPresent(u -> userInfo.put("email", u.getEmail()));
+
             return ResponseEntity.ok(userInfo);
         } catch (Exception ex) {
             return ResponseEntity.status(401).body("Invalid token");
@@ -228,14 +283,15 @@ public class AuthController {
 
     @Data
     public static class AuthRequest {
-        private String username;
+        private String username; // can be email as well
         private String password;
     }
 
     @Data
     public static class RegisterRequest {
-        private String username;
-        private String password;
+        private String username; // optional; derived from email if missing
+        private String email;    // required
+        private String password; // required
     }
 
     @Data

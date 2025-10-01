@@ -43,6 +43,7 @@ public class TestDataInitializer implements ApplicationRunner {
         userRepository.findByUsername("admin").orElseGet(() -> {
             User u = new User();
             u.setUsername("admin");
+            u.setEmail("admin@test.local");
             u.setPassword(passwordEncoder.encode("admin123")); // zmień po dev
             u.setRoles(Set.of(adminRole, userRole));
             return userRepository.save(u);
@@ -52,6 +53,7 @@ public class TestDataInitializer implements ApplicationRunner {
         userRepository.findByUsername("user").orElseGet(() -> {
             User u = new User();
             u.setUsername("user");
+            u.setEmail("user@test.local");
             u.setPassword(passwordEncoder.encode("user123"));
             u.setRoles(Set.of(userRole));
             return userRepository.save(u);

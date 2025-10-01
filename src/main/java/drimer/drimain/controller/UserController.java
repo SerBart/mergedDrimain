@@ -1,6 +1,7 @@
 package drimer.drimain.controller;
 
 import drimer.drimain.service.CustomUserDetailsService;
+import drimer.drimain.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +21,7 @@ import java.util.Map;
 public class UserController {
 
     private final CustomUserDetailsService userDetailsService;
+    private final UserRepository userRepository;
 
     /**
      * NOTE: Endpoint for getting current user information with roles
@@ -36,6 +38,8 @@ public class UserController {
             userInfo.put("username", userDetails.getUsername());
             userInfo.put("roles", userDetails.getAuthorities()
                     .stream().map(a -> a.getAuthority()).toList());
+            userRepository.findByUsername(userDetails.getUsername())
+                    .ifPresent(u -> userInfo.put("email", u.getEmail()));
 
             log.debug("User info requested for: {}", userDetails.getUsername());
             return ResponseEntity.ok(userInfo);
