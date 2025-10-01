@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:dio/browser_http_client_adapter.dart';
+import 'package:dio/browser.dart';
 import '../util/platform_origin.dart';
 
 class ApiClient {
