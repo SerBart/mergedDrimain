@@ -82,6 +82,7 @@ class AuthRestControllerTest {
 
         testUser = new User();
         testUser.setUsername(testUsername);
+        testUser.setEmail(testUsername + "@local");
         testUser.setPassword(passwordEncoder.encode(testPassword));
         testUser.setRoles(Set.of(userRole));
         userRepository.save(testUser);

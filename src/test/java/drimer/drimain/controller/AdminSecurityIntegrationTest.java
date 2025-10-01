@@ -88,6 +88,7 @@ class AdminSecurityIntegrationTest {
         // Create admin user
         adminUser = new User();
         adminUser.setUsername("testadmin");
+        adminUser.setEmail("testadmin@local");
         adminUser.setPassword(passwordEncoder.encode("testpass123"));
         adminUser.setRoles(Set.of(adminRole, userRole));
         userRepository.save(adminUser);
@@ -95,6 +96,7 @@ class AdminSecurityIntegrationTest {
         // Create regular user
         regularUser = new User();
         regularUser.setUsername("testuser");
+        regularUser.setEmail("testuser@local");
         regularUser.setPassword(passwordEncoder.encode("testpass123"));
         regularUser.setRoles(Set.of(userRole));
         userRepository.save(regularUser);
