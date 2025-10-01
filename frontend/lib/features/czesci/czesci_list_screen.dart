@@ -450,144 +450,139 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
       ),
       body: _loading && _items.isEmpty
           ? const Center(child: CircularProgressIndicator())
-          : Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 900),
-                child: ListView(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _searchCtrl,
-                              decoration: InputDecoration(
-                                labelText: 'Szukaj (nazwa / kod / kategoria / maszyna)',
-                                prefixIcon: const Icon(Icons.search),
-                                suffixIcon: _query.isNotEmpty
-                                    ? IconButton(
-                                        icon: const Icon(Icons.clear),
-                                        onPressed: () {
-                                          _searchCtrl.clear();
-                                          setState(() => _query = '');
-                                        },
-                                      )
-                                    : null,
-                              ),
-                              onChanged: (v) => setState(() => _query = v),
-                            ),
+          : ListView(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _searchCtrl,
+                          decoration: InputDecoration(
+                            labelText: 'Szukaj (nazwa / kod / kategoria / maszyna)',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: _query.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear),
+                                    onPressed: () {
+                                      _searchCtrl.clear();
+                                      setState(() => _query = '');
+                                    },
+                                  )
+                                : null,
                           ),
-                          const SizedBox(width: 12),
-                          SizedBox(
-                            width: 260,
-                            child: DropdownButtonFormField<int?>(
-                              value: _filterMaszynaId,
-                              isExpanded: true,
-                              decoration: const InputDecoration(
-                                labelText: 'Maszyna', border: OutlineInputBorder(),
-                              ),
-                              items: [
-                                const DropdownMenuItem<int?>(value: null, child: Text('Wszystkie')),
-                                const DropdownMenuItem<int?>(value: 0, child: Text('Inne')),
-                                ..._maszyny.map((m) => DropdownMenuItem<int?>(value: m.id, child: Text(m.nazwa))),
-                              ],
-                              onChanged: (v) => setState(() => _filterMaszynaId = v),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Divider(height: 1),
-                    Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Card(
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: DataTable(
-                            sortColumnIndex: _sortColumn,
-                            sortAscending: _sortAsc,
-                            columns: [
-                              DataColumn(
-                                label: const Text('Nazwa'),
-                                onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
-                              ),
-                              DataColumn(
-                                label: const Text('Kod'),
-                                onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
-                              ),
-                              DataColumn(
-                                label: const Text('Kategoria'),
-                                onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
-                              ),
-                              DataColumn(
-                                label: const Text('Maszyna'),
-                                onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
-                              ),
-                              DataColumn(
-                                numeric: true,
-                                label: const Text('Stan'),
-                                onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
-                              ),
-                              DataColumn(
-                                numeric: true,
-                                label: const Text('Min'),
-                                onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
-                              ),
-                              const DataColumn(label: Text('Jedn.')),
-                              const DataColumn(label: Text('Akcje')),
-                            ],
-                            rows: parts.map((p) {
-                              return DataRow(
-                                color: p.belowMin
-                                    ? WidgetStatePropertyAll(Colors.red.withOpacity(.08))
-                                    : null,
-                                cells: [
-                                  DataCell(Text(p.nazwa)),
-                                  DataCell(Text(p.kod)),
-                                  DataCell(Text(p.kategoria ?? '-')),
-                                  DataCell(Text(p.maszynaNazwa ?? 'Inne')),
-                                  DataCell(Text(p.iloscMagazyn.toString())),
-                                  DataCell(Text(p.minIlosc.toString())),
-                                  DataCell(Text(p.jednostka)),
-                                  DataCell(
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        IconButton(
-                                          tooltip: 'Zwiększ',
-                                          icon: const Icon(Icons.add_circle_outline, color: Colors.green),
-                                          onPressed: () => _adjustQty(p, 1),
-                                        ),
-                                        IconButton(
-                                          tooltip: 'Zmniejsz',
-                                          icon: const Icon(Icons.remove_circle_outline, color: Colors.orange),
-                                          onPressed: () => _adjustQty(p, -1),
-                                        ),
-                                        IconButton(
-                                          tooltip: 'Edytuj',
-                                          icon: const Icon(Icons.edit, color: Colors.blue),
-                                          onPressed: () => _editPartDialog(p),
-                                        ),
-                                        IconButton(
-                                          tooltip: 'Przypisz do maszyny / Inne',
-                                          icon: const Icon(Icons.link, color: Colors.purple),
-                                          onPressed: () => _assignPartDialog(p),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              );
-                            }).toList(),
-                          ),
+                          onChanged: (v) => setState(() => _query = v),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
+                      const SizedBox(width: 12),
+                      SizedBox(
+                        width: 260,
+                        child: DropdownButtonFormField<int?>(
+                          value: _filterMaszynaId,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Maszyna', border: OutlineInputBorder(),
+                          ),
+                          items: [
+                            const DropdownMenuItem<int?>(value: null, child: Text('Wszystkie')),
+                            const DropdownMenuItem<int?>(value: 0, child: Text('Inne')),
+                            ..._maszyny.map((m) => DropdownMenuItem<int?>(value: m.id, child: Text(m.nazwa))),
+                          ],
+                          onChanged: (v) => setState(() => _filterMaszynaId = v),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Card(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: DataTable(
+                        sortColumnIndex: _sortColumn,
+                        sortAscending: _sortAsc,
+                        columns: [
+                          DataColumn(
+                            label: const Text('Nazwa'),
+                            onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
+                          ),
+                          DataColumn(
+                            label: const Text('Kod'),
+                            onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
+                          ),
+                          DataColumn(
+                            label: const Text('Kategoria'),
+                            onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
+                          ),
+                          DataColumn(
+                            label: const Text('Maszyna'),
+                            onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
+                          ),
+                          DataColumn(
+                            numeric: true,
+                            label: const Text('Stan'),
+                            onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
+                          ),
+                          DataColumn(
+                            numeric: true,
+                            label: const Text('Min'),
+                            onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
+                          ),
+                          const DataColumn(label: Text('Jedn.')),
+                          const DataColumn(label: Text('Akcje')),
+                        ],
+                        rows: parts.map((p) {
+                          return DataRow(
+                            color: p.belowMin
+                                ? WidgetStatePropertyAll(Colors.red.withOpacity(.08))
+                                : null,
+                            cells: [
+                              DataCell(Text(p.nazwa)),
+                              DataCell(Text(p.kod)),
+                              DataCell(Text(p.kategoria ?? '-')),
+                              DataCell(Text(p.maszynaNazwa ?? 'Inne')),
+                              DataCell(Text(p.iloscMagazyn.toString())),
+                              DataCell(Text(p.minIlosc.toString())),
+                              DataCell(Text(p.jednostka)),
+                              DataCell(
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      tooltip: 'Zwiększ',
+                                      icon: const Icon(Icons.add_circle_outline, color: Colors.green),
+                                      onPressed: () => _adjustQty(p, 1),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Zmniejsz',
+                                      icon: const Icon(Icons.remove_circle_outline, color: Colors.orange),
+                                      onPressed: () => _adjustQty(p, -1),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Edytuj',
+                                      icon: const Icon(Icons.edit, color: Colors.blue),
+                                      onPressed: () => _editPartDialog(p),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Przypisz do maszyny / Inne',
+                                      icon: const Icon(Icons.link, color: Colors.purple),
+                                      onPressed: () => _assignPartDialog(p),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
             ),
     );
   }

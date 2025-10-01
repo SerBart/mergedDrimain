@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import org.springframework.http.ResponseCookie;
 
 @RestController
@@ -80,28 +81,50 @@ public class AuthController {
             claims.put("roles", userDetails.getAuthorities()
                     .stream().map(a -> a.getAuthority()).toList());
 
-            // NOTE: Use new access token generation method
             String accessToken = jwtService.generateAccessToken(userDetails.getUsername(), claims);
             
-            // NOTE: Create refresh token
             User user = userRepository.findByUsername(userDetails.getUsername())
                     .orElseThrow(() -> new RuntimeException("User not found"));
             RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
 
-            // Detect if request is over HTTPS (behind proxy on Railway)
             boolean isHttps = httpRequest.isSecure() || "https".equalsIgnoreCase(httpRequest.getHeader("X-Forwarded-Proto"));
+            String sameSite = isHttps ? "None" : "Lax";
 
-            // Set HttpOnly JWT cookie in a browser-friendly way (SameSite=None requires Secure)
+            // Access token cookie (short-lived)
             ResponseCookie jwtCookie = ResponseCookie.from("JWT", accessToken)
                     .httpOnly(true)
                     .secure(isHttps)
                     .path("/")
                     .maxAge(Duration.ofHours(1))
-                    .sameSite("None")
+                    .sameSite(sameSite)
                     .build();
             response.addHeader("Set-Cookie", jwtCookie.toString());
 
-            log.info("User {} logged in successfully", userDetails.getUsername());
+            // Remember-me: set persistent refresh token cookie
+            if (request.isRememberMe()) {
+                Duration ttl = Duration.between(LocalDateTime.now(), refreshToken.getExpiry());
+                if (ttl.isNegative()) ttl = Duration.ofDays(7); // fallback
+                ResponseCookie refreshCookie = ResponseCookie.from("REFRESH_TOKEN", refreshToken.getToken())
+                        .httpOnly(true)
+                        .secure(isHttps)
+                        .path("/")
+                        .maxAge(ttl)
+                        .sameSite(sameSite)
+                        .build();
+                response.addHeader("Set-Cookie", refreshCookie.toString());
+            } else {
+                // Clear any existing refresh cookie from previous sessions
+                ResponseCookie clearRefresh = ResponseCookie.from("REFRESH_TOKEN", "")
+                        .httpOnly(true)
+                        .secure(isHttps)
+                        .path("/")
+                        .maxAge(Duration.ZERO)
+                        .sameSite(sameSite)
+                        .build();
+                response.addHeader("Set-Cookie", clearRefresh.toString());
+            }
+
+            log.info("User {} logged in successfully (rememberMe={})", userDetails.getUsername(), request.isRememberMe());
             return ResponseEntity.ok(new AuthResponse(accessToken, refreshToken.getToken()));
         } catch (AuthenticationException e) {
             return ResponseEntity.status(401).body("Bad credentials");
@@ -110,9 +133,22 @@ public class AuthController {
 
     // NOTE: Refresh token endpoint for JWT token refresh flow
     @PostMapping("/refresh")
-    public ResponseEntity<?> refresh(@RequestBody RefreshRequest request) {
+    public ResponseEntity<?> refresh(@RequestBody(required = false) RefreshRequest request,
+                                     HttpServletRequest httpRequest,
+                                     HttpServletResponse httpResponse) {
         try {
-            String refreshTokenValue = request.getRefreshToken();
+            String refreshTokenValue = (request != null ? request.getRefreshToken() : null);
+            if (refreshTokenValue == null || refreshTokenValue.trim().isEmpty()) {
+                // Try cookie
+                if (httpRequest.getCookies() != null) {
+                    for (Cookie cookie : httpRequest.getCookies()) {
+                        if ("REFRESH_TOKEN".equals(cookie.getName())) {
+                            refreshTokenValue = cookie.getValue();
+                            break;
+                        }
+                    }
+                }
+            }
             if (refreshTokenValue == null || refreshTokenValue.trim().isEmpty()) {
                 return ResponseEntity.status(400).body("Refresh token is required");
             }
@@ -123,6 +159,12 @@ public class AuthController {
 
             if (!refreshToken.isValid()) {
                 refreshTokenService.revokeByToken(refreshTokenValue);
+                // Clear cookies if invalid
+                boolean isHttps = httpRequest.isSecure() || "https".equalsIgnoreCase(httpRequest.getHeader("X-Forwarded-Proto"));
+                ResponseCookie clearJwt = ResponseCookie.from("JWT", "").httpOnly(true).secure(isHttps).path("/").maxAge(Duration.ZERO).sameSite("None").build();
+                ResponseCookie clearRefresh = ResponseCookie.from("REFRESH_TOKEN", "").httpOnly(true).secure(isHttps).path("/").maxAge(Duration.ZERO).sameSite("None").build();
+                httpResponse.addHeader("Set-Cookie", clearJwt.toString());
+                httpResponse.addHeader("Set-Cookie", clearRefresh.toString());
                 return ResponseEntity.status(401).body("Refresh token expired or revoked");
             }
 
@@ -135,12 +177,44 @@ public class AuthController {
 
             String newAccessToken = jwtService.generateAccessToken(user.getUsername(), claims);
 
+            // Update JWT cookie
+            boolean isHttps = httpRequest.isSecure() || "https".equalsIgnoreCase(httpRequest.getHeader("X-Forwarded-Proto"));
+            String sameSite = isHttps ? "None" : "Lax";
+            ResponseCookie jwtCookie = ResponseCookie.from("JWT", newAccessToken)
+                    .httpOnly(true)
+                    .secure(isHttps)
+                    .path("/")
+                    .maxAge(Duration.ofHours(1))
+                    .sameSite(sameSite)
+                    .build();
+            httpResponse.addHeader("Set-Cookie", jwtCookie.toString());
+
             log.info("Access token refreshed for user: {}", user.getUsername());
             return ResponseEntity.ok(new AuthResponse(newAccessToken, refreshTokenValue));
         } catch (Exception e) {
             log.warn("Failed to refresh token: {}", e.getMessage());
             return ResponseEntity.status(401).body("Invalid refresh token");
         }
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(HttpServletRequest request, HttpServletResponse response) {
+        boolean isHttps = request.isSecure() || "https".equalsIgnoreCase(request.getHeader("X-Forwarded-Proto"));
+        String sameSite = isHttps ? "None" : "Lax";
+        // Try revoke refresh token from cookie
+        if (request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                if ("REFRESH_TOKEN".equals(cookie.getName()) && cookie.getValue() != null && !cookie.getValue().isBlank()) {
+                    try { refreshTokenService.revokeByToken(cookie.getValue()); } catch (Exception ignored) {}
+                }
+            }
+        }
+        // Clear cookies
+        ResponseCookie clearJwt = ResponseCookie.from("JWT", "").httpOnly(true).secure(isHttps).path("/").maxAge(Duration.ZERO).sameSite(sameSite).build();
+        ResponseCookie clearRefresh = ResponseCookie.from("REFRESH_TOKEN", "").httpOnly(true).secure(isHttps).path("/").maxAge(Duration.ZERO).sameSite(sameSite).build();
+        response.addHeader("Set-Cookie", clearJwt.toString());
+        response.addHeader("Set-Cookie", clearRefresh.toString());
+        return ResponseEntity.noContent().build();
     }
 
     // NOTE: User registration endpoint
@@ -210,7 +284,7 @@ public class AuthController {
 
     private boolean isValidEmail(String email) {
         // Simple RFC 5322 compliant-ish regex (kept simple for server-side)
-        Pattern p = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
+        Pattern p = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-ZaZ0-9.-]+$");
         return p.matcher(email).matches();
     }
 
@@ -285,6 +359,8 @@ public class AuthController {
     public static class AuthRequest {
         private String username; // can be email as well
         private String password;
+        private boolean rememberMe; // new flag
+        public boolean isRememberMe() { return rememberMe; }
     }
 
     @Data

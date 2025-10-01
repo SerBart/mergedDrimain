@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:dio/browser_http_client_adapter.dart';
 import '../util/platform_origin.dart';
 
 class ApiClient {
@@ -26,6 +27,12 @@ class ApiClient {
         headers: {'Content-Type': 'application/json'},
       ),
     );
+
+    if (kIsWeb) {
+      final adapter = BrowserHttpClientAdapter()..withCredentials = true;
+      dio.httpClientAdapter = adapter;
+    }
+
     return ApiClient._(dio);
   }
 

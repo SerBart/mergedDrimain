@@ -16,6 +16,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _passCtrl = TextEditingController();
   bool _loading = false;
   String? _error;
+  bool _rememberMe = false;
 
   @override
   void dispose() {
@@ -31,6 +32,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       await ref.read(authStateProvider.notifier).login(
             _userCtrl.text.trim(),
             _passCtrl.text.trim(),
+            rememberMe: _rememberMe,
           );
       if (mounted) context.go('/dashboard');
     } catch (e) {
@@ -63,8 +65,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const SizedBox(height: 24),
                     TextFormField(
                       controller: _userCtrl,
-                      decoration: const InputDecoration(labelText: 'Login'),
-                      validator: (v) => (v == null || v.isEmpty) ? 'Podaj login' : null,
+                      decoration: const InputDecoration(labelText: 'Login lub e‑mail'),
+                      validator: (v) => (v == null || v.isEmpty) ? 'Podaj login lub e‑mail' : null,
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
@@ -73,7 +75,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       decoration: const InputDecoration(labelText: 'Hasło'),
                       validator: (v) => (v == null || v.isEmpty) ? 'Podaj hasło' : null,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: _rememberMe,
+                          onChanged: (v) => setState(() => _rememberMe = v ?? false),
+                        ),
+                        const Text('Zapamiętaj mnie'),
+                      ],
+                    ),
                     if (_error != null)
                       Text(_error!, style: const TextStyle(color: Colors.red)),
                     const SizedBox(height: 8),
@@ -87,7 +98,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const Text('admin/admin lub user/user (mock)'),
                   ],
                 ),
               ),

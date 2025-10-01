@@ -79,10 +79,43 @@ final authStateProvider = StateNotifierProvider<AuthController, User?>(
 
 class AuthController extends StateNotifier<User?> {
   final Ref _ref;
-  AuthController(this._ref) : super(null);
+  AuthController(this._ref) : super(null) {
+    // Spróbuj przywrócić sesję na starcie
+    _restore();
+  }
 
-  Future<void> login(String username, String password) async {
-    final user = await _ref.read(authServiceProvider).login(username, password);
+  Future<void> _restore() async {
+    final storage = _ref.read(secureStorageProvider);
+    final auth = _ref.read(authServiceProvider);
+    final remember = await storage.readRememberMe();
+    if (!remember) return;
+
+    String? token = await storage.readToken();
+    Map<String, dynamic>? me;
+
+    if (token != null && token.isNotEmpty) {
+      me = await auth.me(token);
+    }
+    if (me == null) {
+      token = await auth.refresh();
+      if (token != null) {
+        me = await auth.me(token);
+      }
+    }
+    if (me != null && token != null) {
+      final roles = (me['roles'] as List<dynamic>? ?? const []).cast<String>();
+      final role = roles.contains('ROLE_ADMIN') ? 'ADMIN' : 'USER';
+      state = User(
+        id: 0,
+        username: (me['username'] as String?) ?? '',
+        role: role,
+        token: token,
+      );
+    }
+  }
+
+  Future<void> login(String username, String password, {bool rememberMe = false}) async {
+    final user = await _ref.read(authServiceProvider).login(username, password, rememberMe: rememberMe);
     state = user;
     if (user.token != null) {
       await _ref.read(secureStorageProvider).saveToken(user.token!);
