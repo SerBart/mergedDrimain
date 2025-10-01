@@ -1,11 +1,7 @@
 spring:
-  datasource:
-    url: jdbc:postgresql://${PGHOST}:${PGPORT}/${PGDATABASE}?sslmode=require
-    username: ${PGUSER}
-    password: ${PGPASSWORD}
+  # Removed spring.datasource defaults to avoid forcing Postgres when env vars are missing
   jpa:
-    hibernate:
-      ddl-auto: update
+    # Do not override global ddl-auto=validate from application.properties
     properties:
       hibernate.jdbc.lob.non_contextual_creation: true
       hibernate.format_sql: true
