@@ -46,17 +46,41 @@ public class RaportRestController {
                                 @RequestParam(required = false) String q,
                                 @RequestParam(defaultValue = "0") int page,
                                 @RequestParam(defaultValue = "25") int size,
-                                @RequestParam(defaultValue = "dataNaprawy,desc") String sort) {
+                                @RequestParam(defaultValue = "dataNaprawy:desc") String sort) {
 
-        Sort sortObj = Sort.by(
-            java.util.Arrays.stream(sort.split(","))
-                .map(s -> {
-                    String[] p = s.split(":");
-                    String field = p[0];
-                    Sort.Direction dir = p.length > 1 && p[1].equalsIgnoreCase("asc") ? Sort.Direction.ASC : Sort.Direction.DESC;
-                    return new Sort.Order(dir, field);
-                }).collect(Collectors.toList())
-        );
+        // Support both formats: "field:dir,field2:dir2" and legacy "field,desc"
+        String[] tokens = sort.split(",");
+        java.util.List<Sort.Order> orders = new java.util.ArrayList<>();
+        for (int i = 0; i < tokens.length; i++) {
+            String token = tokens[i].trim();
+            if (token.isEmpty()) continue;
+            String field;
+            Sort.Direction dir = Sort.Direction.DESC; // default
+            if (token.contains(":")) {
+                String[] p = token.split(":", 2);
+                field = p[0].trim();
+                if (p.length > 1 && !p[1].isBlank()) {
+                    dir = p[1].equalsIgnoreCase("asc") ? Sort.Direction.ASC : Sort.Direction.DESC;
+                }
+            } else {
+                field = token;
+                // legacy format: next token equals asc/desc
+                if (i + 1 < tokens.length) {
+                    String next = tokens[i + 1].trim();
+                    if ("asc".equalsIgnoreCase(next) || "desc".equalsIgnoreCase(next)) {
+                        dir = "asc".equalsIgnoreCase(next) ? Sort.Direction.ASC : Sort.Direction.DESC;
+                        i++; // consume next
+                    }
+                }
+            }
+            if (!field.isBlank()) {
+                orders.add(new Sort.Order(dir, field));
+            }
+        }
+        if (orders.isEmpty()) {
+            orders.add(new Sort.Order(Sort.Direction.DESC, "dataNaprawy"));
+        }
+        Sort sortObj = Sort.by(orders);
 
         Pageable pageable = PageRequest.of(page, size, sortObj);
 
