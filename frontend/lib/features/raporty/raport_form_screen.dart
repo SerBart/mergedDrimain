@@ -6,6 +6,7 @@ import '../../core/models/maszyna.dart';
 import '../../core/models/osoba.dart';
 import '../../core/models/raport.dart';
 import '../../core/providers/app_providers.dart';
+import '../../core/repositories/meta_api_repository.dart';
 import '../../widgets/photo_picker_field.dart';
 
 /// Formularz tworzenia / edycji raportu.
@@ -50,6 +51,32 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
   void initState() {
     super.initState();
     _hydrate();
+    // Po zbudowaniu kontekstu pobierz meta dane (maszyny, osoby) z API i zsynchronizuj mock repo
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _syncMetaFromApi();
+    });
+  }
+
+  Future<void> _syncMetaFromApi() async {
+    try {
+      final meta = ref.read(metaApiRepositoryProvider);
+      final fetchedMaszyny = await meta.fetchMaszynySimple();
+      final fetchedOsoby = await meta.fetchOsobySimple();
+      final mock = ref.read(mockRepoProvider);
+      // Podmień zawartość list w mock repo na dane z backendu
+      mock.maszyny
+        ..clear()
+        ..addAll(fetchedMaszyny);
+      mock.osoby
+        ..clear()
+        ..addAll(fetchedOsoby);
+      if (mounted) setState(() {});
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Nie udało się pobrać listy maszyn/osób: $e')),
+      );
+    }
   }
 
   void _hydrate() {
