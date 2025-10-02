@@ -14,6 +14,7 @@ import drimer.drimain.api.dto.SimpleMaszynaDTO;
 import drimer.drimain.api.dto.SimpleOsobaDTO;
 import drimer.drimain.repository.DzialRepository;
 import drimer.drimain.api.dto.DzialDTO;
+import drimer.drimain.api.dto.MaszynaSelectDTO;
 
 @RestController
 @RequestMapping("/api/meta")
@@ -61,6 +62,19 @@ public class MetaController {
             DzialDTO dto = new DzialDTO();
             dto.setId(d.getId());
             dto.setNazwa(d.getNazwa());
+            return dto;
+        }).toList();
+    }
+
+    // Alias: lista maszyn w formacie kompatybilnym z UI select (id, name, label, nazwa)
+    @GetMapping("/maszyny")
+    public java.util.List<MaszynaSelectDTO> maszyny() {
+        return maszynaRepository.findAll().stream().map(m -> {
+            MaszynaSelectDTO dto = new MaszynaSelectDTO();
+            dto.setId(m.getId());
+            dto.setNazwa(m.getNazwa());
+            dto.setName(m.getNazwa());
+            dto.setLabel(m.getNazwa());
             return dto;
         }).toList();
     }

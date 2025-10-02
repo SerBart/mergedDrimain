@@ -68,12 +68,17 @@ public class SecurityConfig {
                         // Swagger
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 
-                        // API wymaga auth
+                        // Public GET endpoints for machine lists used by forms
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/meta/maszyny",
+                                "/api/meta/maszyny-simple",
+                                "/api/maszyny",
+                                "/api/maszyny/select"
+                        ).permitAll()
+
+                        // API wymaga auth (pozostałe)
                         .requestMatchers("/api/**").authenticated()
 
-
-                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        .requestMatchers("/api/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(e -> e
