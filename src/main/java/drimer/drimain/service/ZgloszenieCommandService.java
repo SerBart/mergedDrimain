@@ -20,6 +20,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -49,10 +50,18 @@ public class ZgloszenieCommandService {
         if (req.getOpis() != null) z.setOpis(req.getOpis());
         if (req.getDataGodzina() != null) z.setDataGodzina(req.getDataGodzina());
         
-        // Set status
+        // Set status (default to NOWE if not provided)
         if (req.getStatus() != null) {
             ZgloszenieStatus status = ZgloszenieStatusMapper.map(req.getStatus());
             if (status != null) z.setStatus(status);
+        }
+        if (z.getStatus() == null) {
+            z.setStatus(ZgloszenieStatus.NOWE);
+        }
+
+        // Ensure dataGodzina before validation
+        if (z.getDataGodzina() == null) {
+            z.setDataGodzina(LocalDateTime.now());
         }
 
         // Set relations: maszyna

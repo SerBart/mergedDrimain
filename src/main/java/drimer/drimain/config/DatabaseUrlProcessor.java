@@ -15,9 +15,10 @@ public class DatabaseUrlProcessor implements EnvironmentPostProcessor, Ordered {
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
-        // If datasource URL already set, honor it
-        if (StringUtils.hasText(environment.getProperty("spring.datasource.url"))) {
-            System.out.println("[DB-AUTO] Using existing spring.datasource.url: " + environment.getProperty("spring.datasource.url"));
+        // If datasource URL already set, honor it only if it's not the H2 fallback
+        String existing = environment.getProperty("spring.datasource.url");
+        if (StringUtils.hasText(existing) && !existing.startsWith("jdbc:h2:")) {
+            System.out.println("[DB-AUTO] Using existing spring.datasource.url: " + existing);
             return;
         }
 
