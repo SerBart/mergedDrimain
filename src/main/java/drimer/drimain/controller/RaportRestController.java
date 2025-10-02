@@ -21,6 +21,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -124,8 +125,12 @@ public class RaportRestController {
         
         raportMapper.applyCreateDefaults(r, req);
         r.setDataNaprawy(req.getDataNaprawy());
-        if (req.getCzasOd() != null) r.setCzasOd(LocalTime.parse(req.getCzasOd()));
-        if (req.getCzasDo() != null) r.setCzasDo(LocalTime.parse(req.getCzasDo()));
+        try {
+            if (req.getCzasOd() != null) r.setCzasOd(raportMapper.parseTime(req.getCzasOd()));
+            if (req.getCzasDo() != null) r.setCzasDo(raportMapper.parseTime(req.getCzasDo()));
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage());
+        }
         if (req.getMaszynaId() != null)
             r.setMaszyna(maszynaRepository.findById(req.getMaszynaId()).orElse(null));
         if (req.getOsobaId() != null)

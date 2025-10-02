@@ -13,6 +13,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Collections;
 import java.util.stream.Collectors;
 
@@ -77,8 +79,8 @@ public class RaportMapper {
             if (mapped != null) r.setStatus(mapped);
         }
         if (req.getDataNaprawy() != null) r.setDataNaprawy(req.getDataNaprawy());
-        if (req.getCzasOd() != null) r.setCzasOd(LocalTime.parse(req.getCzasOd()));
-        if (req.getCzasDo() != null) r.setCzasDo(LocalTime.parse(req.getCzasDo()));
+        if (req.getCzasOd() != null) r.setCzasOd(parseTime(req.getCzasOd()));
+        if (req.getCzasDo() != null) r.setCzasDo(parseTime(req.getCzasDo()));
         if (req.getMaszynaId() != null)
             r.setMaszyna(maszynaRepository.findById(req.getMaszynaId()).orElse(null));
         if (req.getOsobaId() != null)
@@ -93,5 +95,22 @@ public class RaportMapper {
         } else {
             r.setStatus(RaportStatus.NOWY);
         }
+    }
+
+    // Elastyczne parsowanie czasu: akceptuj "8:00", "08:00", opcjonalne sekundy
+    public LocalTime parseTime(String raw) {
+        if (raw == null) return null;
+        String s = raw.trim();
+        if (s.isEmpty()) return null;
+        DateTimeFormatter[] patterns = new DateTimeFormatter[] {
+                DateTimeFormatter.ofPattern("H:mm"),
+                DateTimeFormatter.ofPattern("HH:mm"),
+                DateTimeFormatter.ofPattern("H:mm:ss"),
+                DateTimeFormatter.ofPattern("HH:mm:ss")
+        };
+        for (DateTimeFormatter f : patterns) {
+            try { return LocalTime.parse(s, f); } catch (DateTimeParseException ignored) {}
+        }
+        throw new IllegalArgumentException("Invalid time format: '" + raw + "'. Expected HH:mm or HH:mm:ss");
     }
 }

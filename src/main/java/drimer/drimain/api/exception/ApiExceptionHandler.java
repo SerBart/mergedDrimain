@@ -5,6 +5,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.List;
@@ -22,6 +23,19 @@ public class ApiExceptionHandler {
                 HttpStatus.BAD_REQUEST.value()
         );
         return ResponseEntity.badRequest().body(resp);
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiErrorResponse> handleResponseStatus(ResponseStatusException ex) {
+        HttpStatus status = HttpStatus.resolve(ex.getStatusCode().value());
+        if (status == null) status = HttpStatus.BAD_REQUEST;
+        ApiErrorResponse resp = new ApiErrorResponse(
+                status.is4xxClientError() ? "BadRequest" : "Error",
+                ex.getReason() != null ? ex.getReason() : ex.getMessage(),
+                Instant.now(),
+                status.value()
+        );
+        return ResponseEntity.status(status).body(resp);
     }
 
     // NOTE: Handle validation errors with detailed field error information
@@ -57,6 +71,9 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleOther(Exception ex) {
+        if (ex instanceof ResponseStatusException rse) {
+            return handleResponseStatus(rse);
+        }
         ApiErrorResponse resp = new ApiErrorResponse(
                 "InternalError",
                 ex.getMessage(),
