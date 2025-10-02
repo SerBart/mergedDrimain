@@ -10,6 +10,7 @@ import '../repositories/meta_api_repository.dart';
 import '../repositories/admin_api_repository.dart';
 import '../repositories/instructions_api_repository.dart';
 import '../repositories/parts_api_repository.dart';
+import '../repositories/raporty_api_repository.dart';
 
 // Globalny klient HTTP (adres z --dart-define=API_BASE)
 final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
@@ -70,6 +71,13 @@ final partsApiRepositoryProvider = Provider<PartsApiRepository>((ref) {
   final api = ref.watch(apiClientProvider);
   final storage = ref.watch(secureStorageProvider);
   return PartsApiRepository(api.dio, storage);
+});
+
+// Repozytorium API dla raportów (pobieranie/zapisywanie do backendu)
+final raportyApiRepositoryProvider = Provider<RaportyApiRepository>((ref) {
+  final api = ref.watch(apiClientProvider);
+  final storage = ref.watch(secureStorageProvider);
+  return RaportyApiRepository(api.dio, storage);
 });
 
 // Stan/logika autoryzacji w aplikacji
