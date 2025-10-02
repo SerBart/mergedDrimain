@@ -5,6 +5,7 @@ import drimer.drimain.api.dto.ZgloszenieUpdateRequest;
 import drimer.drimain.model.Zgloszenie;
 import drimer.drimain.model.enums.ZgloszenieStatus;
 import drimer.drimain.repository.ZgloszenieRepository;
+import drimer.drimain.util.ZgloszenieStatusMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -23,7 +24,9 @@ public class ZgloszenieService {
         z.setTyp(req.getTyp());
         z.setImie(req.getImie());
         z.setNazwisko(req.getNazwisko());
-        z.setStatus(ZgloszenieStatus.valueOf(req.getStatus()));
+        // Mapuj status bezpiecznie; domyślnie OPEN
+        ZgloszenieStatus st = ZgloszenieStatusMapper.map(req.getStatus());
+        z.setStatus(st != null ? st : ZgloszenieStatus.OPEN);
         z.setOpis(req.getOpis());
         z.setDataGodzina(LocalDateTime.now());
         // TODO: photoBase64 -> z.setPhoto(Base64.getDecoder().decode(req.getPhotoBase64()))
@@ -33,7 +36,10 @@ public class ZgloszenieService {
     public Zgloszenie update(Long id, ZgloszenieUpdateRequest req) {
         Zgloszenie z = repo.findById(id).orElseThrow(() -> new IllegalArgumentException("Not found"));
         if (req.getTyp() != null) z.setTyp(req.getTyp());
-        if (req.getStatus() != null) z.setStatus(ZgloszenieStatus.valueOf(req.getStatus()));
+        if (req.getStatus() != null) {
+            ZgloszenieStatus st = ZgloszenieStatusMapper.map(req.getStatus());
+            if (st != null) z.setStatus(st);
+        }
         if (req.getOpis() != null) z.setOpis(req.getOpis());
         return repo.save(z);
     }

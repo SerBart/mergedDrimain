@@ -36,9 +36,14 @@ if (!window._flutter) {
 }
 _flutter.buildConfig = {"engineRevision":"ef0cd000916d64fa0c5d09cc809fa7ad244a5767","builds":[{"compileTarget":"dart2js","renderer":"canvaskit","mainJsPath":"main.dart.js"}]};
 
-
+// Wyłączamy Service Workera – powodował 502 na Railway
+/*
 _flutter.loader.load({
   serviceWorkerSettings: {
     serviceWorkerVersion: "407589297"
   }
 });
+*/
+
+// Ładowanie bez Service Workera
+_flutter.loader.load({ serviceWorkerSettings: null });

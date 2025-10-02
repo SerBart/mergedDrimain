@@ -51,6 +51,11 @@ class _ZgloszeniaScreenModernState
   void initState() {
     super.initState();
     _loadFromApi();
+    // Po zbudowaniu kontekstu dociągnij metadane (maszyny/działy) z backendu,
+    // żeby dropdown nie korzystał z hardcodów w MockRepository
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _syncMetaFromApi();
+    });
   }
 
   @override
@@ -92,6 +97,28 @@ class _ZgloszeniaScreenModernState
       );
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  // NOWE: Synchronizacja list maszyn i działów z backendu (meta API)
+  Future<void> _syncMetaFromApi() async {
+    try {
+      final meta = ref.read(metaApiRepositoryProvider);
+      final fetchedMaszyny = await meta.fetchMaszynySimple();
+      final fetchedDzialy = await meta.fetchDzialySimple();
+      final mock = ref.read(mockRepoProvider);
+      mock.maszyny
+        ..clear()
+        ..addAll(fetchedMaszyny);
+      mock.dzialy
+        ..clear()
+        ..addAll(fetchedDzialy);
+      if (mounted) setState(() {});
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Nie udało się pobrać listy maszyn/działów: $e')),
+      );
     }
   }
 
@@ -625,7 +652,7 @@ class _ZgloszeniaScreenModernState
                           color: Colors.orange.withOpacity(.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Text('Brak maszyn – dodaj w Panelu Admina, aby powiązać zgłoszenie.'),
+                        child: const Text('Brak maszyn – kliknij Odśwież lub dodaj w Panelu Admina.'),
                       ),
                     DropdownButtonFormField<Maszyna>(
                       value: _selectedMaszyna,
@@ -782,7 +809,10 @@ class _ZgloszeniaScreenModernState
           IconButton(
             tooltip: 'Odśwież z API',
             icon: const Icon(Icons.refresh),
-            onPressed: _busy ? null : _loadFromApi,
+            onPressed: _busy ? null : () async {
+              await _syncMetaFromApi();
+              await _loadFromApi();
+            },
           ),
         ],
       ),

@@ -22,6 +22,36 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
   int _sortColumnIndex = 0;
   bool _sortAsc = true;
 
+  @override
+  void initState() {
+    super.initState();
+    // Po starcie dociągnij metadane (maszyny i osoby), aby mock miał aktualne dane z backendu
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _syncMetaFromApi();
+      setState(() {});
+    });
+  }
+
+  Future<void> _syncMetaFromApi() async {
+    try {
+      final meta = ref.read(metaApiRepositoryProvider);
+      final fetchedMaszyny = await meta.fetchMaszynySimple();
+      final fetchedOsoby = await meta.fetchOsobySimple();
+      final mock = ref.read(mockRepoProvider);
+      mock.maszyny
+        ..clear()
+        ..addAll(fetchedMaszyny);
+      mock.osoby
+        ..clear()
+        ..addAll(fetchedOsoby);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Nie udało się pobrać listy maszyn/osób: $e')),
+      );
+    }
+  }
+
   List<Raport> _apply(List<Raport> source) {
     var list = source.where((r) {
       final q = _query.toLowerCase();
@@ -311,6 +341,11 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
           onPressed: () => context.go('/dashboard'),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Odśwież listy maszyn/osób',
+            icon: const Icon(Icons.refresh),
+            onPressed: () async { await _syncMetaFromApi(); setState(() {}); },
+          ),
           IconButton(
             tooltip: 'Dodaj raport',
             icon: const Icon(Icons.add),
