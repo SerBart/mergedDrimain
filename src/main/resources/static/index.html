@@ -20,6 +20,24 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+<!-- Jednorazowe wyrejestrowanie wszystkich Service Workerów -->
+<script>
+  (function() {
+    try {
+      const KEY = 'sw-cleanup-done';
+      if ('serviceWorker' in navigator && !localStorage.getItem(KEY)) {
+        navigator.serviceWorker.getRegistrations().then(regs => {
+          Promise.all(regs.map(r => r.unregister())).then(() => {
+            localStorage.setItem(KEY, '1');
+            // Po wyrejestrowaniu odśwież stronę raz, żeby wejść bez SW
+            location.reload();
+          });
+        }).catch(() => { /* ignore */ });
+      }
+    } catch (e) { /* ignore */ }
+  })();
+</script>
+
 <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

@@ -10,36 +10,26 @@ import '../models/part.dart';
 import '../models/part_usage.dart';
 
 class MockRepository {
-  int _raportId = 3;
-  int _zgloszenieId = 3;
-  int _dzialId = 3;
-  int _maszynaId = 3;
-  int _osobaId = 3;
-  int _userId = 3;
-  int _partId = 3;
+  int _raportId = 0;
+  int _zgloszenieId = 0;
+  int _dzialId = 0;
+  int _maszynaId = 0;
+  int _osobaId = 0;
+  int _userId = 0;
+  int _partId = 0;
 
-  final List<Dzial> dzialy = [
-    Dzial(id: 1, nazwa: 'Produkcja'),
-    Dzial(id: 2, nazwa: 'Utrzymanie Ruchu'),
-  ];
+  // Puste listy – będą zasilane z backendu (meta/admin API)
+  final List<Dzial> dzialy = [];
+  final List<Maszyna> maszyny = [];
+  final List<Osoba> osoby = [];
 
-  late final List<Maszyna> maszyny = [
-    Maszyna(id: 1, nazwa: 'Prasa 1', dzial: dzialy[0]),
-    Maszyna(id: 2, nazwa: 'Tokarka 2', dzial: dzialy[1]),
-  ];
-
-  final List<Osoba> osoby = [
-    Osoba(id: 1, imieNazwisko: 'Jan Kowalski'),
-    Osoba(id: 2, imieNazwisko: 'Anna Nowak'),
-  ];
-
+  // Użytkownicy i części mogą pozostać jako lokalne struktury pomocnicze
   final List<User> users = [
     User(id: 1, username: 'admin', role: 'ADMIN', token: null),
     User(id: 2, username: 'user', role: 'USER', token: null),
   ];
 
-   final List<Zgloszenie> zgloszenia = [];
-
+  final List<Zgloszenie> zgloszenia = [];
 
   final List<Part> parts = [
     Part(id: 1, nazwa: 'Łożysko 6204', kod: 'BRG-6204', iloscMagazyn: 12, minIlosc: 5, jednostka: 'szt', kategoria: 'Łożyska'),
@@ -49,53 +39,7 @@ class MockRepository {
 
   final List<Raport> raporty = [];
 
-  MockRepository() {
-    raporty.addAll([
-      Raport(
-        id: 1,
-        maszyna: maszyny[0],
-        typNaprawy: 'Serwis',
-        opis: 'Wymiana łożyska',
-        osoba: osoby[0],
-        status: 'ZAKOŃCZONY',
-        dataNaprawy: DateTime.now().subtract(const Duration(days: 1)),
-        czasOd: DateTime.now().subtract(const Duration(days: 1, hours: 2)),
-        czasDo: DateTime.now().subtract(const Duration(days: 1, hours: 1)),
-        partUsages: [PartUsage(part: parts[0], ilosc: 1)],
-      ),
-      Raport(
-        id: 2,
-        maszyna: maszyny[1],
-        typNaprawy: 'Awarie',
-        opis: 'Zacięcie narzędzia',
-        osoba: osoby[1],
-        status: 'W TOKU',
-        dataNaprawy: DateTime.now(),
-        czasOd: DateTime.now().subtract(const Duration(hours: 3)),
-        czasDo: DateTime.now().subtract(const Duration(hours: 2)),
-        partUsages: [],
-      ),
-    ]);
-
-    zgloszenia.addAll([
-      Zgloszenie(
-        id: 1,
-        imie: 'Piotr',
-        nazwisko: 'Lis',
-        typ: 'AWARIA',
-        dataGodzina: DateTime.now().subtract(const Duration(hours: 5)),
-        opis: 'Maszyna głośno pracuje',
-      ),
-      Zgloszenie(
-        id: 2,
-        imie: 'Ewa',
-        nazwisko: 'Zalewska',
-        typ: 'SERWIS',
-        dataGodzina: DateTime.now(),
-        opis: 'Regularny przegląd wymagany',
-      ),
-    ]);
-  }
+  MockRepository();
 
   // GET
   List<Raport> getRaporty() => List.unmodifiable(raporty);
@@ -146,7 +90,7 @@ class MockRepository {
     upsertRaport(updated);
   }
 
-    Zgloszenie addZgloszenie(Zgloszenie z) {
+  Zgloszenie addZgloszenie(Zgloszenie z) {
     _zgloszenieId++;
     final newZ = z.copyWith(id: _zgloszenieId);
     zgloszenia.add(newZ);
