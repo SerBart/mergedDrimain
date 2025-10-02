@@ -1,0 +1,2 @@
+org.springframework.boot.env.EnvironmentPostProcessor=drimer.drimain.config.DatabaseUrlProcessor
+
