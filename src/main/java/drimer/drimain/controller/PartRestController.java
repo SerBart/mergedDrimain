@@ -14,7 +14,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/czesci")
+@RequestMapping({"/api/czesci", "/api/parts"})
 @RequiredArgsConstructor
 public class PartRestController {
 
@@ -50,8 +50,13 @@ public class PartRestController {
         p.setNazwa(req.getNazwa());
         p.setKod(req.getKod());
         p.setKategoria(req.getKategoria());
-        p.setIlosc(req.getIlosc());
-        p.setMinIlosc(req.getMinIlosc());
+        // normalizacja: ilości nie mogą być ujemne
+        Integer startIlosc = req.getIlosc() != null ? req.getIlosc() : 0;
+        if (startIlosc < 0) startIlosc = 0;
+        p.setIlosc(startIlosc);
+        Integer min = req.getMinIlosc() != null ? req.getMinIlosc() : 0;
+        if (min < 0) min = 0;
+        p.setMinIlosc(min);
         p.setJednostka(req.getJednostka());
         partRepository.save(p);
         return toDto(p);
@@ -63,7 +68,11 @@ public class PartRestController {
         if (req.getNazwa() != null) p.setNazwa(req.getNazwa());
         if (req.getKod() != null) p.setKod(req.getKod());
         if (req.getKategoria() != null) p.setKategoria(req.getKategoria());
-        if (req.getMinIlosc() != null) p.setMinIlosc(req.getMinIlosc());
+        if (req.getMinIlosc() != null) {
+            int min = req.getMinIlosc();
+            if (min < 0) min = 0;
+            p.setMinIlosc(min);
+        }
         if (req.getJednostka() != null) p.setJednostka(req.getJednostka());
         if (req.getMaszynaId() != null) {
             if (req.getMaszynaId() <= 0) {
@@ -80,7 +89,11 @@ public class PartRestController {
     @PatchMapping("/{id}/ilosc")
     public PartDTO adjust(@PathVariable Long id, @RequestBody PartQuantityPatch patch) {
         Part p = partRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Part not found"));
-        p.setIlosc(p.getIlosc() + patch.getDelta());
+        int current = p.getIlosc() != null ? p.getIlosc() : 0;
+        int delta = patch.getDelta() != null ? patch.getDelta() : 0;
+        int updated = current + delta;
+        if (updated < 0) updated = 0; // nie schodzimy poniżej zera
+        p.setIlosc(updated);
         partRepository.save(p);
         return toDto(p);
     }
