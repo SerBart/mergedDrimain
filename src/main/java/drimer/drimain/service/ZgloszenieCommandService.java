@@ -50,13 +50,13 @@ public class ZgloszenieCommandService {
         if (req.getOpis() != null) z.setOpis(req.getOpis());
         if (req.getDataGodzina() != null) z.setDataGodzina(req.getDataGodzina());
         
-        // Set status (default to NOWE if not provided)
+        // Set status (default to OPEN if not provided)
         if (req.getStatus() != null) {
             ZgloszenieStatus status = ZgloszenieStatusMapper.map(req.getStatus());
             if (status != null) z.setStatus(status);
         }
         if (z.getStatus() == null) {
-            z.setStatus(ZgloszenieStatus.NOWE);
+            z.setStatus(ZgloszenieStatus.OPEN);
         }
 
         // Ensure dataGodzina before validation
