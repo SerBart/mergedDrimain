@@ -141,6 +141,7 @@ class ZgloszeniaApiRepository {
     if (v == 'SERWIS') return 'Serwis';
     if (v == 'PRZEZBROJENIE' || v == 'PRZEZBROJENIA') return 'Przezbrojenie';
     if (v == 'USTERKA') return 'Usterka';
+    if (v == 'MODERNIZACJA') return 'Modernizacja';
     return t;
   }
 
@@ -150,6 +151,7 @@ class ZgloszeniaApiRepository {
     if (v == 'SERWIS') return 'SERWIS';
     if (v == 'PRZEZBROJENIE' || v == 'PRZEZBROJENIA') return 'PRZEZBROJENIE';
     if (v == 'USTERKA') return 'USTERKA';
+    if (v == 'MODERNIZACJA') return 'MODERNIZACJA';
     return v; // fallback
   }
 

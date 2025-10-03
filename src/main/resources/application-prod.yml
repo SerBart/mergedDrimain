@@ -54,4 +54,8 @@ app:
     refresh-expiration: ${JWT_REFRESH_TTL_MS:604800000}
   cors:
     allowed-origins: "https://app.drimain.com,https://mergeddrimain-production.up.railway.app"
-  }
+
+server:
+  forward-headers-strategy: framework
+  port: ${PORT:8080}
+  address: 0.0.0.0

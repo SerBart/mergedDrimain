@@ -43,7 +43,7 @@ class _ZgloszeniaScreenModernState
 
   bool _busy = false;
 
-  static const types = ['Usterka', 'Awaria', 'Przezbrojenie'];
+  static const types = ['Usterka', 'Awaria', 'Przezbrojenie', 'Modernizacja'];
   static const statusy = ['NOWE', 'W TOKU', 'WERYFIKACJA', 'ZAMKNIĘTE'];
   static const double _dialogWidth = 480; // jednolita szerokość dialogów
 
@@ -144,22 +144,22 @@ class _ZgloszeniaScreenModernState
     list.sort((a, b) {
       int cmp;
       switch (_sortCol) {
-        case 0: // Data
+        case 0: // Data zgłoszenia
           cmp = a.dataGodzina.compareTo(b.dataGodzina);
           break;
-        case 1: // Start
+        case 1: // Typ zgłoszenia
+          cmp = a.typ.compareTo(b.typ);
+          break;
+        case 2: // Status
+          cmp = a.status.compareTo(b.status);
+          break;
+        case 3: // Start
           cmp = (a.acceptedAt ?? DateTime.fromMillisecondsSinceEpoch(0))
               .compareTo(b.acceptedAt ?? DateTime.fromMillisecondsSinceEpoch(0));
           break;
-        case 2: // Koniec
+        case 4: // Koniec
           cmp = (a.completedAt ?? DateTime.fromMillisecondsSinceEpoch(0))
               .compareTo(b.completedAt ?? DateTime.fromMillisecondsSinceEpoch(0));
-          break;
-        case 3: // Typ
-          cmp = a.typ.compareTo(b.typ);
-          break;
-        case 4: // Status
-          cmp = a.status.compareTo(b.status);
           break;
         case 5: // Osoba (nazwisko potem imię)
           cmp = (a.nazwisko + a.imie).compareTo(b.nazwisko + b.imie);
@@ -888,19 +888,19 @@ class _ZgloszeniaScreenModernState
                             onSort: (i, asc) => _onSort(i, asc),
                           ),
                           DataColumn(
-                            label: const Text('Start'),
-                            onSort: (i, asc) => _onSort(i, asc),
-                          ),
-                          DataColumn(
-                            label: const Text('Koniec'),
-                            onSort: (i, asc) => _onSort(i, asc),
-                          ),
-                          DataColumn(
                             label: const Text('Typ'),
                             onSort: (i, asc) => _onSort(i, asc),
                           ),
                           DataColumn(
                             label: const Text('Status'),
+                            onSort: (i, asc) => _onSort(i, asc),
+                          ),
+                          DataColumn(
+                            label: const Text('Start'),
+                            onSort: (i, asc) => _onSort(i, asc),
+                          ),
+                          DataColumn(
+                            label: const Text('Koniec'),
                             onSort: (i, asc) => _onSort(i, asc),
                           ),
                           DataColumn(
@@ -910,17 +910,15 @@ class _ZgloszeniaScreenModernState
                         ],
                         rows: data.map((z) {
                           String fmt(DateTime? d) => d == null ? '-' : _dtf.format(d);
-                          final canStart = z.status == 'NOWE' || (z.acceptedAt == null && z.status != 'ZAMKNIĘTE');
-                          final canFinish = z.status != 'ZAMKNIĘTE';
                           return DataRow(
                             onSelectChanged: (_) => _showDetails(z),
                             cells: [
-                              DataCell(Text(_dtf.format(z.dataGodzina))),
-                              DataCell(Text(fmt(z.acceptedAt))),
-                              DataCell(Text(fmt(z.completedAt))),
-                              DataCell(Text(z.typ)),
-                              DataCell(_statusChip(z.status)),
-                              DataCell(Text('${z.imie} ${z.nazwisko}')),
+                              DataCell(Text(_dtf.format(z.dataGodzina))), // Data
+                              DataCell(Text(z.typ)),                       // Typ
+                              DataCell(_statusChip(z.status)),             // Status
+                              DataCell(Text(fmt(z.acceptedAt))),           // Start
+                              DataCell(Text(fmt(z.completedAt))),          // Koniec
+                              DataCell(Text('${z.imie} ${z.nazwisko}')),   // Osoba
                             ],
                           );
                         }).toList(),
