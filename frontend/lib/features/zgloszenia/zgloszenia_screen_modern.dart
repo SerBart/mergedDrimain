@@ -481,15 +481,127 @@ class _ZgloszeniaScreenModernState
     }
   }
 
+  Color _typeColor(String typ) {
+    final v = typ.trim().toUpperCase();
+    if (v == 'AWARIA') return Colors.red;
+    if (v == 'MODERNIZACJA') return Colors.blue;
+    if (v == 'USTERKA') return Colors.purple;
+    if (v == 'PRZEZBROJENIE' || v == 'PRZEZBROJENIA') return Colors.orange;
+    return Colors.grey;
+  }
+
+  Future<void> _setOnHold(Zgloszenie z) async {
+    final noteCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Przerwać zgłoszenie?'),
+        content: SizedBox(
+          width: 460,
+          child: TextField(
+            controller: noteCtrl,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'Notatka (opcjonalnie)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Anuluj')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Przerwij')),
+        ],
+      ),
+    );
+    if (ok == true) {
+      setState(() => _busy = true);
+      try {
+        final extra = noteCtrl.text.trim();
+        final appended = extra.isEmpty
+            ? z.opis
+            : (z.opis + '\n\n[Przerwane]\n' + extra);
+        final api = ref.read(zgloszeniaApiRepositoryProvider);
+        final saved = await api.update(
+          z.copyWith(status: 'PRZERWANE', opis: appended),
+        );
+        ref.read(mockRepoProvider).updateZgloszenie(saved);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Status zmieniony na PRZERWANE')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Błąd zmiany statusu: $e')),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
+    }
+  }
+
   Future<void> _finishWork(Zgloszenie z) async {
     if (_busy || z.id <= 0) return;
+    final uszkCtrl = TextEditingController();
+    final zrobCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Zakończ naprawę'),
+        content: SizedBox(
+          width: 520,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: uszkCtrl,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  labelText: 'Co było uszkodzone?',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: zrobCtrl,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Co zostało zrobione?',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Anuluj')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Zakończ')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
     setState(() => _busy = true);
     try {
-      if (z.status == 'ZAMKNIĘTE') return; // nic do zrobienia
-      final updated = z.copyWith(status: 'ZAMKNIĘTE');
-      final api = ref.read(zgloszeniaApiRepositoryProvider);
-      final saved = await api.update(updated);
       final now = DateTime.now();
+      final extraBlock = [
+        if (uszkCtrl.text.trim().isNotEmpty) 'Uszkodzone: ${uszkCtrl.text.trim()}',
+        if (zrobCtrl.text.trim().isNotEmpty) 'Wykonano: ${zrobCtrl.text.trim()}',
+      ].join('\n');
+      final newOpis = extraBlock.isEmpty
+          ? z.opis
+          : (z.opis + '\n\n[Zakończenie]\n' + extraBlock);
+
+      final api = ref.read(zgloszeniaApiRepositoryProvider);
+      final saved = await api.update(
+        z.copyWith(
+          status: 'ZAMKNIĘTE',
+          opis: newOpis,
+        ),
+      );
       ref.read(mockRepoProvider).updateZgloszenie(
         saved.copyWith(
           acceptedAt: z.acceptedAt ?? now,
@@ -498,7 +610,8 @@ class _ZgloszeniaScreenModernState
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Zgłoszenie oznaczone jako gotowe')),);
+          const SnackBar(content: Text('Naprawa zakończona')),
+        );
       }
       if (mounted) setState(() {});
     } catch (e) {
@@ -579,6 +692,15 @@ class _ZgloszeniaScreenModernState
                     await _startWork(z);
                   },
                   child: const Text('Rozpoczęcie naprawy'),
+                ),
+              if (canFinish)
+                FilledButton.tonal(
+                  onPressed: () async {
+                    Navigator.of(ctx).pop();
+                    await _setOnHold(z);
+                  },
+                  style: FilledButton.styleFrom(foregroundColor: Colors.orange),
+                  child: const Text('Przerwane'),
                 ),
               if (canFinish)
                 FilledButton(
@@ -910,11 +1032,28 @@ class _ZgloszeniaScreenModernState
                         ],
                         rows: data.map((z) {
                           String fmt(DateTime? d) => d == null ? '-' : _dtf.format(d);
+                          final typeColor = _typeColor(z.typ);
                           return DataRow(
                             onSelectChanged: (_) => _showDetails(z),
                             cells: [
                               DataCell(Text(_dtf.format(z.dataGodzina))), // Data
-                              DataCell(Text(z.typ)),                       // Typ
+                              DataCell(
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: typeColor.withOpacity(.12),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: typeColor.withOpacity(.5)),
+                                    ),
+                                    child: Text(
+                                      z.typ,
+                                      style: TextStyle(color: typeColor, fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                                ),
+                              ), // Typ (colored)
                               DataCell(_statusChip(z.status)),             // Status
                               DataCell(Text(fmt(z.acceptedAt))),           // Start
                               DataCell(Text(fmt(z.completedAt))),          // Koniec

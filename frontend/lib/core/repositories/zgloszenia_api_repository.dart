@@ -111,7 +111,7 @@ class ZgloszeniaApiRepository {
       case 'IN_PROGRESS':
         return 'W TOKU';
       case 'ON_HOLD':
-        return 'WERYFIKACJA';
+        return 'PRZERWANE';
       case 'DONE':
       case 'REJECTED':
         return 'ZAMKNIĘTE';
@@ -126,6 +126,8 @@ class ZgloszeniaApiRepository {
         return 'OPEN';
       case 'W TOKU':
         return 'IN_PROGRESS';
+      case 'PRZERWANE':
+        return 'ON_HOLD';
       case 'WERYFIKACJA':
         return 'ON_HOLD';
       case 'ZAMKNIĘTE':
