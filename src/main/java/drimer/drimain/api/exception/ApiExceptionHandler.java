@@ -6,6 +6,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.Instant;
 import java.util.List;
@@ -36,6 +37,17 @@ public class ApiExceptionHandler {
                 status.value()
         );
         return ResponseEntity.status(status).body(resp);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiErrorResponse> handleDataIntegrity(DataIntegrityViolationException ex) {
+        ApiErrorResponse resp = new ApiErrorResponse(
+                "Conflict",
+                "Nie można wykonać operacji – rekord jest w użyciu lub narusza ograniczenia integralności.",
+                Instant.now(),
+                HttpStatus.CONFLICT.value()
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(resp);
     }
 
     // NOTE: Handle validation errors with detailed field error information
