@@ -14,7 +14,6 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.time.LocalTime;
 
 @Component
 @RequiredArgsConstructor
@@ -26,40 +25,62 @@ public class ZgloszenieToRaportListener {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional
-    public void onZgloszenieUpdated(ZgloszenieDomainEvent ev) {
-        if (ev.getType() != EventType.UPDATED) return;
-        // Szybka ścieżka: reaguj tylko gdy mogła zmienić się kolumna status
-        if (ev.getChangedFields() == null || ev.getChangedFields().stream().noneMatch(f -> "status".equalsIgnoreCase(f))) {
-            return;
-        }
+    public void onZgloszenieEvent(ZgloszenieDomainEvent ev) {
         Long id = ev.getZgloszenieId();
         if (id == null) return;
 
-        Zgloszenie z = zgloszenieRepository.findById(id).orElse(null);
+        // Obsłuż dwa przypadki:
+        // - CREATED: zgłoszenie utworzone od razu jako DONE
+        // - UPDATED: zmiana statusu -> DONE
+        switch (ev.getType()) {
+            case CREATED -> handleIfDone(id, true);
+            case UPDATED -> {
+                if (ev.getChangedFields() == null || ev.getChangedFields().stream().noneMatch(f -> "status".equalsIgnoreCase(f))) {
+                    return; // nie status
+                }
+                handleIfDone(id, false);
+            }
+            default -> {}
+        }
+    }
+
+    private void handleIfDone(Long zgloszenieId, boolean created) {
+        Zgloszenie z = zgloszenieRepository.findById(zgloszenieId).orElse(null);
         if (z == null) return;
         if (z.getStatus() != ZgloszenieStatus.DONE) return; // tylko zakończone
 
-        // Idempotencja: jeśli raport już istnieje dla tego zgłoszenia – nic nie rób
-        if (raportRepository.findByZgloszenieId(id).isPresent()) {
-            log.debug("Raport dla zgloszenieId={} już istnieje – pomijam.", id);
+        var existing = raportRepository.findByZgloszenieId(zgloszenieId);
+        if (existing.isPresent()) {
+            // Aktualizuj istniejący raport ostatnimi danymi ze zgłoszenia (np. ponowne zamknięcie)
+            Raport r = existing.get();
+            r.setMaszyna(z.getMaszyna());
+            r.setTypNaprawy(z.getTyp());
+            r.setOpis(z.getOpis());
+            r.setStatus(RaportStatus.ZAKONCZONE);
+            var data = z.getCompletedAt() != null ? z.getCompletedAt().toLocalDate() : (r.getDataNaprawy() != null ? r.getDataNaprawy() : LocalDate.now());
+            r.setDataNaprawy(data);
+            if (z.getAcceptedAt() != null) r.setCzasOd(z.getAcceptedAt().toLocalTime());
+            if (z.getCompletedAt() != null) r.setCzasDo(z.getCompletedAt().toLocalTime());
+            if (z.getAutor() != null && (r.getCreatedBy() == null || r.getCreatedBy().isBlank())) r.setCreatedBy(z.getAutor().getUsername());
+            raportRepository.save(r);
+            log.info("Zaktualizowano raport {} ze zgloszenia {} (status DONE)", r.getId(), zgloszenieId);
             return;
         }
 
+        // Brak – utwórz nowy raport
         Raport r = new Raport();
-        r.setZgloszenieId(id);
+        r.setZgloszenieId(zgloszenieId);
         r.setMaszyna(z.getMaszyna());
         r.setTypNaprawy(z.getTyp());
         r.setOpis(z.getOpis());
         r.setStatus(RaportStatus.ZAKONCZONE);
-        // Daty/czasy z accepted/completed
-        LocalDate data = z.getCompletedAt() != null ? z.getCompletedAt().toLocalDate() : LocalDate.now();
+        var data = z.getCompletedAt() != null ? z.getCompletedAt().toLocalDate() : LocalDate.now();
         r.setDataNaprawy(data);
-        if (z.getAcceptedAt() != null) r.setCzasOd(LocalTime.from(z.getAcceptedAt()));
-        if (z.getCompletedAt() != null) r.setCzasDo(LocalTime.from(z.getCompletedAt()));
+        if (z.getAcceptedAt() != null) r.setCzasOd(z.getAcceptedAt().toLocalTime());
+        if (z.getCompletedAt() != null) r.setCzasDo(z.getCompletedAt().toLocalTime());
         if (z.getAutor() != null) r.setCreatedBy(z.getAutor().getUsername());
 
         raportRepository.save(r);
-        log.info("Utworzono raport {} ze zgloszenia {} (status DONE)", r.getId(), id);
+        log.info("Utworzono raport {} ze zgloszenia {} ({} -> DONE)", r.getId(), zgloszenieId, created ? "CREATED" : "UPDATED");
     }
 }
-
