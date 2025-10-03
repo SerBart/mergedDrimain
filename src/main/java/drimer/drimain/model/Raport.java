@@ -40,6 +40,10 @@ public class Raport {
     @Column(name = "created_by", length = 120)
     private String createdBy;
 
+    // Nowe: identyfikator źródłowego zgłoszenia (unikalnie) dla idempotencji
+    @Column(name = "zgloszenie_id", unique = true)
+    private Long zgloszenieId;
+
     // Gettery / settery (jak poprzednio) + dla statusu
     public Long getId() { return id; }
     public Maszyna getMaszyna() { return maszyna; }
@@ -68,4 +72,7 @@ public class Raport {
 
     public String getCreatedBy() { return createdBy; }
     public void setCreatedBy(String createdBy) { this.createdBy = createdBy; }
+
+    public Long getZgloszenieId() { return zgloszenieId; }
+    public void setZgloszenieId(Long zgloszenieId) { this.zgloszenieId = zgloszenieId; }
 }

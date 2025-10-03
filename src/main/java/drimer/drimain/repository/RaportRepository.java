@@ -19,4 +19,6 @@ public interface RaportRepository extends JpaRepository<Raport, Long>, JpaSpecif
     @Override
     @EntityGraph(attributePaths = {"maszyna", "osoba", "partUsages", "partUsages.part"})
     Optional<Raport> findById(Long id);
+
+    Optional<Raport> findByZgloszenieId(Long zgloszenieId);
 }
