@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:dio/dio.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/models/part.dart';
 import '../../core/models/maszyna.dart';
@@ -629,6 +630,50 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                                     tooltip: 'Przypisz do maszyny / Inne',
                                     icon: const Icon(Icons.link, color: Colors.purple),
                                     onPressed: () => _assignPartDialog(p),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Usuń część',
+                                    icon: const Icon(Icons.delete, color: Colors.red),
+                                    onPressed: () async {
+                                      final confirm = await showDialog<bool>(
+                                        context: context,
+                                        builder: (ctx) => AlertDialog(
+                                          title: const Text('Usuń część'),
+                                          content: Text('Czy na pewno chcesz usunąć część "${p.nazwa}" (ID: ${p.id})?'),
+                                          actions: [
+                                            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Anuluj')),
+                                            FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Usuń')),
+                                          ],
+                                        ),
+                                      );
+                                      if (confirm == true) {
+                                        try {
+                                          await ref.read(partsApiRepositoryProvider).deletePart(p.id);
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(content: Text('Usunięto część.')),
+                                            );
+                                          }
+                                          await _load();
+                                        } on DioException catch (e) {
+                                          final code = e.response?.statusCode;
+                                          final msg = code == 409
+                                              ? 'Nie można usunąć części – jest używana w innych rekordach.'
+                                              : 'Błąd usuwania: ${e.message}';
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text(msg)),
+                                            );
+                                          }
+                                        } catch (e) {
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('Błąd usuwania: $e')),
+                                            );
+                                          }
+                                        }
+                                      }
+                                    },
                                   ),
                                 ],
                               ),

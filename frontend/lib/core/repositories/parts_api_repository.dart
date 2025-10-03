@@ -118,6 +118,14 @@ class PartsApiRepository {
     );
   }
 
+  Future<void> deletePart(int id) async {
+    final t = await _token();
+    await _dio.delete(
+      '/api/czesci/$id',
+      options: Options(headers: {'Authorization': 'Bearer $t'}),
+    );
+  }
+
   Future<String> _token() async {
     final t = await _storage.readToken();
     if (t == null || t.isEmpty) throw Exception('Brak tokenu – zaloguj się.');
