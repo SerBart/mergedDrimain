@@ -102,14 +102,15 @@ public class SecurityConfig {
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .toList();
-        // If wildcard is present, use patterns API (supports credentials)
-        if (allowedOrigins.size() == 1 && "*".equals(allowedOrigins.get(0))) {
-            config.setAllowedOriginPatterns(List.of("*"));
-        } else {
-            config.setAllowedOrigins(allowedOrigins);
-        }
+
+        // Zawsze używaj patterns, aby poprawnie echo-ować origin przy credentials
+        config.setAllowedOriginPatterns(allowedOrigins);
+
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        config.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
+        // Pozwól wszystkie, by nie blokować nowych nagłówków przeglądarki
+        config.setAllowedHeaders(List.of("*"));
+        // Ekspozycja przydanych nagłówków (np. Set-Cookie w devtools)
+        config.setExposedHeaders(Arrays.asList("Set-Cookie", "Authorization", "Content-Type"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 
