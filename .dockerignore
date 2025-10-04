@@ -1,0 +1,31 @@
+# Ignore VCS and IDE files
+.git
+.gitignore
+.idea/
+.vscode/
+
+# Maven outputs
+target/
+
+# Node/JS client
+client/node_modules/
+client/dist/
+client/build/
+
+# Flutter web/mobile frontend build artifacts
+frontend/.dart_tool/
+frontend/build/
+frontend/.flutter-plugins*
+frontend/.packages
+frontend/ios/Pods/
+frontend/android/.gradle/
+frontend/android/build/
+
+# Local data and uploads (do not send to image)
+data/
+uploads/
+
+# OS files
+.DS_Store
+Thumbs.db
+
