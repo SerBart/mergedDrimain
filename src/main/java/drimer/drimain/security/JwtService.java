@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
@@ -24,45 +25,61 @@ public class JwtService {
 
     private final SecretKey secretKey;
     private final long ttlMinutes;
-    // NOTE: New configuration for access and refresh token expiration times
     private final long accessExpirationMs;
     private final long refreshExpirationMs;
 
+    // Główny konstruktor używany przez Spring (konfiguracja z properties)
+    @Autowired
     public JwtService(
             @Value("${jwt.expiration.minutes:60}") long ttlMinutes,
             @Value("${jwt.secret.base64:}") String base64Secret,
             @Value("${jwt.secret.plain:}") String plainSecret,
+            @Value("${app.jwt.secret:}") String appPlainSecret,
             @Value("${app.jwt.access-expiration:3600000}") long accessExpirationMs,
             @Value("${app.jwt.refresh-expiration:604800000}") long refreshExpirationMs
     ) {
         this.ttlMinutes = ttlMinutes;
         this.accessExpirationMs = accessExpirationMs;
         this.refreshExpirationMs = refreshExpirationMs;
-        this.secretKey = buildKey(base64Secret, plainSecret);
+        this.secretKey = buildKey(base64Secret, plainSecret, appPlainSecret);
         log.info("JwtService initialized. TTL={} minutes, Access={}ms, Refresh={}ms, keyAlgorithm={}, keyLengthBytes={}",
                 ttlMinutes, accessExpirationMs, refreshExpirationMs, secretKey.getAlgorithm(), secretKey.getEncoded().length);
     }
 
-    private SecretKey buildKey(String base64Secret, String plainSecret) {
+    // Przeciążony konstruktor zgodny ze starym podpisem (używany w testach)
+    public JwtService(long ttlMinutes,
+                      String base64Secret,
+                      String plainSecret,
+                      long accessExpirationMs,
+                      long refreshExpirationMs) {
+        this(ttlMinutes, base64Secret, plainSecret, "", accessExpirationMs, refreshExpirationMs);
+    }
+
+    private SecretKey buildKey(String base64Secret, String plainSecret, String appPlainSecret) {
         try {
             byte[] keyBytes;
+            String source;
             if (!isBlank(base64Secret)) {
-                log.debug("Initializing JWT key from Base64 property 'jwt.secret.base64'");
+                source = "jwt.secret.base64";
                 keyBytes = Decoders.BASE64.decode(base64Secret.trim());
             } else if (!isBlank(plainSecret)) {
-                log.debug("Initializing JWT key from plain property 'jwt.secret.plain'");
+                source = "jwt.secret.plain";
                 keyBytes = plainSecret.getBytes(StandardCharsets.UTF_8);
+            } else if (!isBlank(appPlainSecret)) {
+                source = "app.jwt.secret";
+                keyBytes = appPlainSecret.getBytes(StandardCharsets.UTF_8);
             } else {
                 throw new IllegalStateException(
-                        "No JWT secret provided. Define either 'jwt.secret.base64' OR 'jwt.secret.plain'.");
+                        "No JWT secret provided. Define 'jwt.secret.base64' OR 'jwt.secret.plain' OR 'app.jwt.secret'.");
             }
 
             if (keyBytes.length < 32) {
                 throw new IllegalStateException(
                         "JWT secret too short: " + keyBytes.length +
-                                " bytes. Need >=32 bytes for HS256. Provide longer secret.");
+                                " bytes. Need >=32 bytes for HS256. Provide longer secret from " + source + ".");
             }
 
+            log.info("Using JWT secret from {} ({} bytes)", source, keyBytes.length);
             return Keys.hmacShaKeyFor(keyBytes);
         } catch (Exception ex) {
             log.error("Failed to initialize JWT SecretKey: {}", ex.getMessage(), ex);
@@ -85,7 +102,6 @@ public class JwtService {
                 .compact();
     }
 
-    // NOTE: Generate access token with configurable expiration
     public String generateAccessToken(String subject, Map<String, Object> extras) {
         Instant now = Instant.now();
         return Jwts.builder()
@@ -97,7 +113,6 @@ public class JwtService {
                 .compact();
     }
 
-    // NOTE: Generate refresh token with longer expiration
     public String generateRefreshToken(String subject) {
         Instant now = Instant.now();
         return Jwts.builder()

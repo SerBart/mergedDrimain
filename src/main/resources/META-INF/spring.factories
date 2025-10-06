@@ -1,2 +1,2 @@
 org.springframework.boot.env.EnvironmentPostProcessor=drimer.drimain.config.DatabaseUrlProcessor
-
+org.springframework.context.ApplicationListener=drimer.drimain.config.StartupFailureLogger
