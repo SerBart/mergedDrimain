@@ -6,10 +6,13 @@ import drimer.drimain.api.dto.RaportUpdateRequest;
 import drimer.drimain.api.mapper.RaportMapper;
 import drimer.drimain.events.RaportChangedEvent;
 import drimer.drimain.model.Raport;
+import drimer.drimain.model.Zgloszenie;
 import drimer.drimain.model.enums.RaportStatus;
+import drimer.drimain.model.enums.ZgloszenieStatus;
 import drimer.drimain.repository.MaszynaRepository;
 import drimer.drimain.repository.OsobaRepository;
 import drimer.drimain.repository.RaportRepository;
+import drimer.drimain.repository.ZgloszenieRepository;
 import drimer.drimain.repository.spec.RaportSpecifications;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +41,7 @@ public class RaportRestController {
     private final ApplicationEventPublisher publisher;
     private final OsobaRepository osobaRepository;
     private final RaportMapper raportMapper;
+    private final ZgloszenieRepository zgloszenieRepository;
 
     @GetMapping
     public Page<RaportDTO> list(@RequestParam(required = false) String status,
@@ -110,8 +114,8 @@ public class RaportRestController {
     // NOTE: Restrict report creation to ADMIN role only
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasRole('ADMIN')")
-    public RaportDTO create(@RequestBody RaportCreateRequest req, 
+    @PreAuthorize("hasAnyRole('ADMIN','BIURO','USER')")
+    public RaportDTO create(@RequestBody RaportCreateRequest req,
                            @AuthenticationPrincipal UserDetails userDetails) {
         Raport r = new Raport();
         r.setTypNaprawy(req.getTypNaprawy());
@@ -146,7 +150,7 @@ public class RaportRestController {
 
     // NOTE: Restrict report updates to ADMIN role only
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','BIURO','USER')")
     public RaportDTO update(@PathVariable Long id, @RequestBody RaportUpdateRequest req,
                            @AuthenticationPrincipal UserDetails userDetails) {
         Raport r = raportRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Raport not found"));
@@ -172,5 +176,34 @@ public class RaportRestController {
         if (userDetails != null) {
             log.info("Report {} deleted by user: {}", id, userDetails.getUsername());
         }
+    }
+
+    // Backfill: utwórz raporty dla ZAKOŃCZONYCH (DONE) zgłoszeń bez raportu
+    @PostMapping("/backfill-from-zgloszenia")
+    @PreAuthorize("hasAnyRole('ADMIN','BIURO')")
+    public int backfillFromZgloszenia() {
+        int created = 0;
+        var doneList = zgloszenieRepository.findAll().stream()
+                .filter(z -> z.getStatus() == ZgloszenieStatus.DONE)
+                .toList();
+        for (Zgloszenie z : doneList) {
+            if (z.getId() == null) continue;
+            if (raportRepository.findByZgloszenieId(z.getId()).isPresent()) continue;
+            Raport r = new Raport();
+            r.setZgloszenieId(z.getId());
+            r.setMaszyna(z.getMaszyna());
+            r.setTypNaprawy(z.getTyp());
+            r.setOpis(z.getOpis());
+            r.setStatus(drimer.drimain.model.enums.RaportStatus.ZAKONCZONE);
+            var data = z.getCompletedAt() != null ? z.getCompletedAt().toLocalDate() : java.time.LocalDate.now();
+            r.setDataNaprawy(data);
+            if (z.getAcceptedAt() != null) r.setCzasOd(z.getAcceptedAt().toLocalTime());
+            if (z.getCompletedAt() != null) r.setCzasDo(z.getCompletedAt().toLocalTime());
+            if (z.getAutor() != null) r.setCreatedBy(z.getAutor().getUsername());
+            raportRepository.save(r);
+            created++;
+        }
+        log.info("Backfill raportów zakończony. Utworzono: {}", created);
+        return created;
     }
 }
