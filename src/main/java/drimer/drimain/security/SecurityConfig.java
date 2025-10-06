@@ -50,6 +50,9 @@ public class SecurityConfig {
 
                         .requestMatchers("/api/auth/**").permitAll()
 
+                        // Actuator (health/info) for platform probes
+                        .requestMatchers("/actuator/**").permitAll()
+
                         // Statyki Fluttera (jak wcześniej)
                         .requestMatchers(
                                 "/", "/index.html",
