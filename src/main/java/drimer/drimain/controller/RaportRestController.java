@@ -114,7 +114,7 @@ public class RaportRestController {
     // NOTE: Restrict report creation to ADMIN role only
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('ADMIN','BIURO','USER')")
+    @PreAuthorize("hasAnyRole('ADMIN','BIURO')")
     public RaportDTO create(@RequestBody RaportCreateRequest req,
                            @AuthenticationPrincipal UserDetails userDetails) {
         Raport r = new Raport();
@@ -150,7 +150,7 @@ public class RaportRestController {
 
     // NOTE: Restrict report updates to ADMIN role only
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','BIURO','USER')")
+    @PreAuthorize("hasAnyRole('ADMIN','BIURO')")
     public RaportDTO update(@PathVariable Long id, @RequestBody RaportUpdateRequest req,
                            @AuthenticationPrincipal UserDetails userDetails) {
         Raport r = raportRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Raport not found"));
