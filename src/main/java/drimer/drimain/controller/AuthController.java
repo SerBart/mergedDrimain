@@ -30,6 +30,9 @@ import java.util.regex.Pattern;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import org.springframework.http.ResponseCookie;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -308,51 +311,17 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<?> me(@RequestHeader(name = "Authorization", required = false) String authHeader,
-                               HttpServletRequest request) {
-        String token = null;
-
-        // First try Authorization header
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            token = authHeader.substring(7);
+    public ResponseEntity<?> me(@AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails == null) {
+            return ResponseEntity.status(401).body("Unauthorized");
         }
-
-        // If no Authorization header, try JWT cookie
-        if (token == null) {
-            token = getJwtFromCookie(request);
-        }
-
-        if (token == null) {
-            return ResponseEntity.status(401).body("No token");
-        }
-
-        try {
-            String username = jwtService.extractUsername(token);
-            var userDetails = userDetailsService.loadUserByUsername(username);
-            
-            // Create response with user session information
-            Map<String, Object> userInfo = new HashMap<>();
-            userInfo.put("username", username);
-            userInfo.put("roles", userDetails.getAuthorities()
-                    .stream().map(a -> a.getAuthority()).toList());
-            // Add email if available
-            userRepository.findByUsername(username).ifPresent(u -> userInfo.put("email", u.getEmail()));
-
-            return ResponseEntity.ok(userInfo);
-        } catch (Exception ex) {
-            return ResponseEntity.status(401).body("Invalid token");
-        }
-    }
-
-    private String getJwtFromCookie(HttpServletRequest request) {
-        if (request.getCookies() != null) {
-            for (Cookie cookie : request.getCookies()) {
-                if ("JWT".equals(cookie.getName())) {
-                    return cookie.getValue();
-                }
-            }
-        }
-        return null;
+        var roles = userDetails.getAuthorities().stream()
+                .map(a -> a.getAuthority())
+                .collect(Collectors.toList());
+        Map<String, Object> body = new HashMap<>();
+        body.put("username", userDetails.getUsername());
+        body.put("roles", roles);
+        return ResponseEntity.ok(body);
     }
 
     @Data
