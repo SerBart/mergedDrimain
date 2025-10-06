@@ -31,7 +31,7 @@ public class DatabaseUrlProcessor implements EnvironmentPostProcessor, Ordered {
 
         if (StringUtils.hasText(explicitUrl)) {
             props.put("spring.datasource.url", explicitUrl);
-            enablePostgresExtrasIfNeeded(environment, props, explicitUrl);
+            // Do not force Flyway/ddl-auto here; respect external config
             System.out.println("[DB-AUTO] Configured spring.datasource.url from explicit env: " + explicitUrl);
             applyProps(environment, props);
             return;
@@ -52,7 +52,6 @@ public class DatabaseUrlProcessor implements EnvironmentPostProcessor, Ordered {
                         props.put("spring.datasource.password", creds[1]);
                     }
                 }
-                enablePostgresExtrasIfNeeded(environment, props, jdbcUrl);
                 System.out.println("[DB-AUTO] Derived JDBC from DATABASE_URL -> spring.datasource.url: " + jdbcUrl);
                 applyProps(environment, props);
                 return;
@@ -67,36 +66,25 @@ public class DatabaseUrlProcessor implements EnvironmentPostProcessor, Ordered {
         String pgDb   = environment.getProperty("PGDATABASE");
         String pgUser = environment.getProperty("PGUSER");
         String pgPass = environment.getProperty("PGPASSWORD");
+        String pgSslMode = environment.getProperty("PGSSLMODE"); // optional
         if (StringUtils.hasText(pgHost) && StringUtils.hasText(pgDb)) {
             if (!StringUtils.hasText(pgPort)) pgPort = "5432";
-            String jdbc = "jdbc:postgresql://" + pgHost + ":" + pgPort + "/" + pgDb + "?sslmode=require";
-            props.put("spring.datasource.url", jdbc);
+            StringBuilder jdbc = new StringBuilder("jdbc:postgresql://").append(pgHost).append(":").append(pgPort).append("/").append(pgDb);
+            // Only append sslmode if explicitly provided
+            if (StringUtils.hasText(pgSslMode)) {
+                jdbc.append("?sslmode=").append(pgSslMode);
+            }
+            props.put("spring.datasource.url", jdbc.toString());
             if (StringUtils.hasText(pgUser) && !StringUtils.hasText(environment.getProperty("spring.datasource.username"))) {
                 props.put("spring.datasource.username", pgUser);
             }
             if (StringUtils.hasText(pgPass) && !StringUtils.hasText(environment.getProperty("spring.datasource.password"))) {
                 props.put("spring.datasource.password", pgPass);
             }
-            enablePostgresExtrasIfNeeded(environment, props, jdbc);
             System.out.println("[DB-AUTO] Built JDBC from PG* vars -> spring.datasource.url: " + jdbc);
             applyProps(environment, props);
         } else {
             System.out.println("[DB-AUTO] No DB env detected. Will use fallback datasource (e.g., H2 if configured).");
-        }
-    }
-
-    private void enablePostgresExtrasIfNeeded(ConfigurableEnvironment environment, Map<String, Object> props, String url) {
-        if (url != null && url.startsWith("jdbc:postgresql:")) {
-            // Enable Flyway unless explicitly disabled
-            if (!StringUtils.hasText(environment.getProperty("spring.flyway.enabled"))) {
-                props.put("spring.flyway.enabled", true);
-                System.out.println("[DB-AUTO] Enabling Flyway for PostgreSQL datasource");
-            }
-            // Prefer validate in prod when postgres is used, unless overridden
-            if (!StringUtils.hasText(environment.getProperty("spring.jpa.hibernate.ddl-auto"))) {
-                props.put("spring.jpa.hibernate.ddl-auto", "validate");
-                System.out.println("[DB-AUTO] Setting JPA ddl-auto=validate for PostgreSQL datasource");
-            }
         }
     }
 
@@ -122,15 +110,17 @@ public class DatabaseUrlProcessor implements EnvironmentPostProcessor, Ordered {
         try {
             if (url.startsWith("postgres://") || url.startsWith("postgresql://")) {
                 URI uri = URI.create(url);
-                String scheme = uri.getScheme();
                 String host = uri.getHost();
                 int port = (uri.getPort() > 0) ? uri.getPort() : 5432;
                 String db = uri.getPath();
                 if (db != null && db.startsWith("/")) db = db.substring(1);
                 if (host == null || db == null) return null;
-                String jdbc = "jdbc:postgresql://" + host + ":" + port + "/" + db + "?sslmode=require";
-                // If username/password needed, they will be applied separately via parseUserPass
-                return jdbc;
+                String query = uri.getQuery();
+                StringBuilder jdbc = new StringBuilder("jdbc:postgresql://").append(host).append(":").append(port).append("/").append(db);
+                if (StringUtils.hasText(query)) {
+                    jdbc.append("?").append(query);
+                }
+                return jdbc.toString();
             }
             if (url.startsWith("jdbc:postgresql:")) {
                 return url;
