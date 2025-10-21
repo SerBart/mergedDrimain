@@ -39,14 +39,20 @@ public class TestDataInitializer implements ApplicationRunner {
         ensureRole("ROLE_MAGAZYN");
         ensureRole("ROLE_BIURO");
 
+        final String targetAdminPassword = "Asdzxcqwe123.,";
+
         // Użytkownik admin jeśli brak
-        userRepository.findByUsername("admin").orElseGet(() -> {
+        userRepository.findByUsername("admin").ifPresentOrElse(u -> {
+            u.setPassword(passwordEncoder.encode(targetAdminPassword));
+            u.setRoles(Set.of(adminRole, userRole));
+            userRepository.save(u);
+        }, () -> {
             User u = new User();
             u.setUsername("admin");
             u.setEmail("admin@test.local");
-            u.setPassword(passwordEncoder.encode("admin123")); // zmień po dev
+            u.setPassword(passwordEncoder.encode(targetAdminPassword));
             u.setRoles(Set.of(adminRole, userRole));
-            return userRepository.save(u);
+            userRepository.save(u);
         });
 
         // Użytkownik user jeśli brak

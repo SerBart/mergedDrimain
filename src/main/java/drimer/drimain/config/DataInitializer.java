@@ -53,17 +53,34 @@ public class DataInitializer implements ApplicationRunner {
             Dzial dz2 = ensureDzial("Utrzymanie Ruchu");
             log.debug("[INIT] Działy ensured: {} / {}", dz1.getId(), dz2.getId());
 
-            // Użytkownik admin jeśli brak
-            userRepository.findByUsername("admin").orElseGet(() -> {
+            // Docelowe hasło administratora (na prośbę użytkownika)
+            final String targetAdminPassword = "Asdzxcqwe123.,";
+
+            // Admin: zaktualizuj jeżeli istnieje, w przeciwnym razie utwórz
+            userRepository.findByUsername("admin").ifPresentOrElse(u -> {
+                log.info("[INIT] Updating admin password");
+                u.setPassword(passwordEncoder.encode(targetAdminPassword));
+                // upewnij się, że role są kompletne i przypisany dział nie jest nullem
+                if (u.getRoles() == null || u.getRoles().isEmpty()) {
+                    u.setRoles(Set.of(adminRole, userRole));
+                }
+                if (u.getDzial() == null) {
+                    u.setDzial(dz2);
+                }
+                if (u.getModules() == null || u.getModules().isEmpty()) {
+                    u.setModules(Set.of("Zgloszenia", "Raporty", "Czesci", "Instrukcje"));
+                }
+                userRepository.save(u);
+            }, () -> {
                 log.info("[INIT] Creating default admin user");
                 User u = new User();
                 u.setUsername("admin");
                 u.setEmail("admin@local");
-                u.setPassword(passwordEncoder.encode("admin123")); // zmień po dev
+                u.setPassword(passwordEncoder.encode(targetAdminPassword));
                 u.setRoles(Set.of(adminRole, userRole));
                 u.setDzial(dz2);
                 u.setModules(Set.of("Zgloszenia", "Raporty", "Czesci", "Instrukcje"));
-                return userRepository.save(u);
+                userRepository.save(u);
             });
 
             // Użytkownik user jeśli brak
