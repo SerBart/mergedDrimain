@@ -58,18 +58,12 @@ public class DataInitializer implements ApplicationRunner {
 
             // Admin: zaktualizuj jeżeli istnieje, w przeciwnym razie utwórz
             userRepository.findByUsername("admin").ifPresentOrElse(u -> {
-                log.info("[INIT] Updating admin password");
+                log.info("[INIT] Updating admin password and attributes");
                 u.setPassword(passwordEncoder.encode(targetAdminPassword));
-                // upewnij się, że role są kompletne i przypisany dział nie jest nullem
-                if (u.getRoles() == null || u.getRoles().isEmpty()) {
-                    u.setRoles(Set.of(adminRole, userRole));
-                }
-                if (u.getDzial() == null) {
-                    u.setDzial(dz2);
-                }
-                if (u.getModules() == null || u.getModules().isEmpty()) {
-                    u.setModules(Set.of("Zgloszenia", "Raporty", "Czesci", "Instrukcje"));
-                }
+                // Uwaga: nie odczytujemy leniwych kolekcji; ustawiamy wartości bezwarunkowo
+                u.setRoles(Set.of(adminRole, userRole));
+                u.setDzial(dz2);
+                u.setModules(Set.of("Zgloszenia", "Raporty", "Czesci", "Instrukcje"));
                 userRepository.save(u);
             }, () -> {
                 log.info("[INIT] Creating default admin user");
