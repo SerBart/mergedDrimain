@@ -36,7 +36,18 @@ public class SecurityConfig {
     private final JwtAuthFilter jwtAuthFilter;
     private final UserDetailsService userDetailsService;
 
-    // ... importy bez zmian
+    @Value("${app.security.h2-console-enabled:true}")
+    private boolean h2ConsoleEnabled;
+
+    @Value("${app.security.swagger-enabled:true}")
+    private boolean swaggerEnabled;
+
+    @Value("${app.security.hsts-enabled:false}")
+    private boolean hstsEnabled;
+
+    @Value("${app.security.csp:default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval';}")
+    private String contentSecurityPolicy;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -44,53 +55,80 @@ public class SecurityConfig {
                 .cors(cors -> {})
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(reg -> reg
-                        // Allow CORS preflight calls
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                .authorizeHttpRequests(reg -> {
+                    // Allow CORS preflight calls
+                    reg.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
 
-                        .requestMatchers("/api/auth/**").permitAll()
+                    reg.requestMatchers("/api/auth/**").permitAll();
 
-                        // Actuator (health/info) for platform probes
-                        .requestMatchers("/actuator/**").permitAll()
+                    // Actuator (health/info) for platform probes
+                    reg.requestMatchers("/actuator/**").permitAll();
 
-                        // Statyki Fluttera (jak wcześniej)
-                        .requestMatchers(
-                                "/", "/index.html",
-                                "/css/**", "/js/**", "/img/**",
-                                "/assets/**", "/icons/**", "/canvaskit/**",
-                                "/manifest.json",
-                                "/flutter.js", "/main.dart.js",
-                                "/flutter_bootstrap.js", "/flutter_service_worker.js",
-                                "/version.json",
-                                "/favicon.ico", "/favicon.png"
-                        ).permitAll()
+                    // Statyki Fluttera (jak wcześniej)
+                    reg.requestMatchers(
+                            "/", "/index.html",
+                            "/css/**", "/js/**", "/img/**",
+                            "/assets/**", "/icons/**", "/canvaskit/**",
+                            "/manifest.json",
+                            "/flutter.js", "/main.dart.js",
+                            "/flutter_bootstrap.js", "/flutter_service_worker.js",
+                            "/version.json",
+                            "/favicon.ico", "/favicon.png"
+                    ).permitAll();
 
-                        // H2 Console
-                        .requestMatchers("/h2-console/**").permitAll()
+                    // H2 Console (tylko jeśli włączone)
+                    if (h2ConsoleEnabled) {
+                        reg.requestMatchers("/h2-console/**").permitAll();
+                    }
 
-                        // Swagger
-                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                    // Swagger (tylko jeśli włączone)
+                    if (swaggerEnabled) {
+                        reg.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll();
+                    }
 
-                        // Public GET endpoints for machine lists used by forms
-                        .requestMatchers(HttpMethod.GET,
-                                "/api/meta/maszyny",
-                                "/api/meta/maszyny-simple",
-                                "/api/maszyny",
-                                "/api/maszyny/select"
-                        ).permitAll()
+                    // Public GET endpoints for machine lists used by forms
+                    reg.requestMatchers(HttpMethod.GET,
+                            "/api/meta/maszyny",
+                            "/api/meta/maszyny-simple",
+                            "/api/maszyny",
+                            "/api/maszyny/select"
+                    ).permitAll();
 
-                        // API wymaga auth (pozostałe)
-                        .requestMatchers("/api/**").authenticated()
+                    // RBAC: tylko ADMIN może tworzyć/aktualizować/usuwać raporty
+                    reg.requestMatchers(HttpMethod.POST, "/api/raporty/**").hasRole("ADMIN");
+                    reg.requestMatchers(HttpMethod.PUT, "/api/raporty/**").hasRole("ADMIN");
+                    reg.requestMatchers(HttpMethod.PATCH, "/api/raporty/**").hasRole("ADMIN");
+                    reg.requestMatchers(HttpMethod.DELETE, "/api/raporty/**").hasRole("ADMIN");
 
-                        .anyRequest().authenticated()
-                )
+                    // API wymaga auth (pozostałe)
+                    reg.requestMatchers("/api/**").authenticated();
+
+                    reg.anyRequest().authenticated();
+                })
                 .exceptionHandling(e -> e
                         .authenticationEntryPoint(authenticationEntryPoint())
                         .accessDeniedHandler(accessDeniedHandler())
                 )
+                .headers(h -> {
+                    // Referrer-Policy, X-Content-Type-Options
+                    h.referrerPolicy(ref -> ref.policy(org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER));
+                    h.contentTypeOptions(org.springframework.security.config.Customizer.withDefaults());
 
-                // Pozwól H2 Console w iframie
-                .headers(h -> h.frameOptions(f -> f.disable()));
+                    // Content-Security-Policy — uwaga: Flutter Web może wymagać 'unsafe-inline'/'unsafe-eval'
+                    h.contentSecurityPolicy(csp -> csp.policyDirectives(contentSecurityPolicy));
+
+                    // HSTS — włącz tylko, gdy skonfigurowane (np. w prod za SSL/proxy)
+                    if (hstsEnabled) {
+                        h.httpStrictTransportSecurity(hsts -> hsts
+                                .includeSubDomains(true)
+                                .preload(true)
+                                .maxAgeInSeconds(31536000)
+                        );
+                    }
+
+                    // Frame options — sameOrigin pozwala na H2 w tej samej domenie
+                    h.frameOptions(f -> f.sameOrigin());
+                });
 
         http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
@@ -110,9 +148,7 @@ public class SecurityConfig {
         config.setAllowedOriginPatterns(allowedOrigins);
 
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        // Pozwól wszystkie, by nie blokować nowych nagłówków przeglądarki
         config.setAllowedHeaders(List.of("*"));
-        // Ekspozycja przydanych nagłówków (np. Set-Cookie w devtools)
         config.setExposedHeaders(Arrays.asList("Set-Cookie", "Authorization", "Content-Type"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
@@ -186,3 +222,4 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 }
+

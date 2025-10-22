@@ -12,10 +12,12 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Set;
 import java.util.List;
+import java.util.Optional;
 
 @Component
 @Order(10) // Initialize roles and users
@@ -26,6 +28,15 @@ public class DataInitializer implements ApplicationRunner {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final DzialRepository dzialRepository;
+
+    @Value("${app.admin.username:admin}")
+    private String adminUsername;
+
+    @Value("${app.admin.force-reset:false}")
+    private boolean adminForceReset;
+
+    @Value("${app.admin.password:}")
+    private String adminPassword;
 
     public DataInitializer(RoleRepository roleRepository,
                            UserRepository userRepository,
@@ -53,31 +64,38 @@ public class DataInitializer implements ApplicationRunner {
             Dzial dz2 = ensureDzial("Utrzymanie Ruchu");
             log.debug("[INIT] Działy ensured: {} / {}", dz1.getId(), dz2.getId());
 
-            // Docelowe hasło administratora (na prośbę użytkownika)
-            final String targetAdminPassword = "Asdzxcqwe123.,";
+            Optional<User> adminOpt = userRepository.findByUsername(adminUsername);
 
-            // Admin: zaktualizuj jeżeli istnieje, w przeciwnym razie utwórz
-            userRepository.findByUsername("admin").ifPresentOrElse(u -> {
-                log.info("[INIT] Updating admin password and attributes");
-                u.setPassword(passwordEncoder.encode(targetAdminPassword));
-                // Uwaga: nie odczytujemy leniwych kolekcji; ustawiamy wartości bezwarunkowo
-                u.setRoles(Set.of(adminRole, userRole));
-                u.setDzial(dz2);
-                u.setModules(Set.of("Zgloszenia", "Raporty", "Czesci", "Instrukcje"));
-                userRepository.save(u);
-            }, () -> {
-                log.info("[INIT] Creating default admin user");
-                User u = new User();
-                u.setUsername("admin");
-                u.setEmail("admin@local");
-                u.setPassword(passwordEncoder.encode(targetAdminPassword));
-                u.setRoles(Set.of(adminRole, userRole));
-                u.setDzial(dz2);
-                u.setModules(Set.of("Zgloszenia", "Raporty", "Czesci", "Instrukcje"));
-                userRepository.save(u);
-            });
+            if (adminOpt.isPresent()) {
+                if (adminForceReset && notBlank(adminPassword)) {
+                    log.info("[INIT] Forcing admin password reset");
+                    User u = adminOpt.get();
+                    u.setPassword(passwordEncoder.encode(adminPassword));
+                    // Bezpiecznie nadpisujemy pola bez odczytu LAZY
+                    u.setRoles(Set.of(adminRole, userRole));
+                    u.setDzial(dz2);
+                    u.setModules(Set.of("Zgloszenia", "Raporty", "Czesci", "Instrukcje"));
+                    userRepository.save(u);
+                } else {
+                    log.info("[INIT] Admin exists; no password reset (set app.admin.force-reset=true + app.admin.password to reset)");
+                }
+            } else {
+                if (notBlank(adminPassword)) {
+                    log.info("[INIT] Creating admin user {}");
+                    User u = new User();
+                    u.setUsername(adminUsername);
+                    u.setEmail("admin@local");
+                    u.setPassword(passwordEncoder.encode(adminPassword));
+                    u.setRoles(Set.of(adminRole, userRole));
+                    u.setDzial(dz2);
+                    u.setModules(Set.of("Zgloszenia", "Raporty", "Czesci", "Instrukcje"));
+                    userRepository.save(u);
+                } else {
+                    log.warn("[INIT] Admin user does not exist and app.admin.password is empty. Skipping admin creation for safety.");
+                }
+            }
 
-            // Użytkownik user jeśli brak
+            // Użytkownik 'user' (dev/demo) – utwórz tylko jeśli nie istnieje
             userRepository.findByUsername("user").orElseGet(() -> {
                 log.info("[INIT] Creating default user");
                 User u = new User();
@@ -94,6 +112,10 @@ public class DataInitializer implements ApplicationRunner {
             log.error("[INIT] DataInitializer failed: {}", e.getMessage(), e);
             throw e;
         }
+    }
+
+    private boolean notBlank(String s) {
+        return s != null && !s.trim().isEmpty();
     }
 
     private Role ensureRole(String name) {

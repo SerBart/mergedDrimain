@@ -54,6 +54,16 @@ app:
     refresh-expiration: ${JWT_REFRESH_TTL_MS:604800000}
   cors:
     allowed-origins: "https://app.drimain.com,https://mergeddrimain-production.up.railway.app"
+  security:
+    h2-console-enabled: false
+    swagger-enabled: false
+    hsts-enabled: true
+    # Minimalny CSP kompatybilny z Flutter Web (dostosuj jeśli coś blokuje)
+    csp: "default-src 'self' https: data: blob; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-eval' 'unsafe-inline' https:; connect-src 'self' https://app.drimain.com https://mergeddrimain-production.up.railway.app https://*.railway.app;"
+  admin:
+    username: ${ADMIN_USERNAME:admin}
+    force-reset: ${ADMIN_FORCE_RESET:false}
+    password: ${ADMIN_PASSWORD:}
 
 server:
   forward-headers-strategy: framework
