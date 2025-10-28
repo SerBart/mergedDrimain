@@ -12,6 +12,7 @@ import drimer.drimain.util.ZgloszenieStatusMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -54,6 +55,7 @@ public class ZgloszenieRestController {
      */
     @GetMapping
     @Transactional(readOnly = true)
+    @PreAuthorize("@moduleGuard.has('Zgloszenia')")
     public List<ZgloszenieDTO> list(@RequestParam Optional<String> status,
                                     @RequestParam Optional<String> typ,
                                     @RequestParam Optional<String> q,
@@ -111,6 +113,7 @@ public class ZgloszenieRestController {
      */
     @GetMapping("/{id}")
     @Transactional(readOnly = true)
+    @PreAuthorize("@moduleGuard.has('Zgloszenia')")
     public ZgloszenieDTO get(@PathVariable Long id) {
         Zgloszenie z = zgloszenieRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Zgłoszenie nie istnieje"));
@@ -121,6 +124,7 @@ public class ZgloszenieRestController {
      * Create new.
      */
     @PostMapping
+    @PreAuthorize("@moduleGuard.has('Zgloszenia')")
     public ResponseEntity<ZgloszenieDTO> create(@RequestBody ZgloszenieCreateRequest req,
                                                 Authentication authentication) {
         Zgloszenie z = commandService.create(req, authentication);
@@ -131,6 +135,7 @@ public class ZgloszenieRestController {
      * Update existing (ADMIN or BIURO required).
      */
     @PutMapping("/{id}")
+    @PreAuthorize("@moduleGuard.has('Zgloszenia')")
     public ZgloszenieDTO update(@PathVariable Long id,
                                 @RequestBody ZgloszenieUpdateRequest req,
                                 Authentication authentication) {
@@ -146,6 +151,7 @@ public class ZgloszenieRestController {
      */
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("@moduleGuard.has('Zgloszenia')")
     public void delete(@PathVariable Long id, Authentication authentication) {
         if (!hasEditPermissions(authentication)) {
             throw new SecurityException("Brak uprawnień. Wymagana rola ADMIN lub BIURO.");

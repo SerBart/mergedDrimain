@@ -4,6 +4,7 @@ import drimer.drimain.events.EventType;
 import drimer.drimain.service.SseSubscriptionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -28,6 +29,7 @@ public class ZgloszenieStreamController {
      * @return SseEmitter for streaming events
      */
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @PreAuthorize("@moduleGuard.has('Zgloszenia')")
     public SseEmitter stream(
             @RequestParam(required = false) String types,
             @RequestParam(required = false) Long dzialId,
@@ -57,6 +59,7 @@ public class ZgloszenieStreamController {
      * Get the number of active SSE subscriptions (for monitoring).
      */
     @GetMapping("/stream/status")
+    @PreAuthorize("@moduleGuard.has('Zgloszenia')")
     public Object getStreamStatus() {
         return new Object() {
             public final int activeSubscriptions = sseSubscriptionService.getActiveSubscriptionCount();

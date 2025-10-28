@@ -3,6 +3,7 @@ package drimer.drimain.controller;
 import drimer.drimain.api.dto.*;
 import drimer.drimain.model.*;
 import drimer.drimain.repository.*;
+import drimer.drimain.security.ModulesCatalog;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -30,6 +31,12 @@ public class AdminRestController {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+
+    // ========== META: MODULES (kafelki) ==========
+    @GetMapping("/modules")
+    public List<String> getModulesCatalog() {
+        return ModulesCatalog.ALLOWED;
+    }
 
     // ========== DZIALY ==========
     
@@ -193,9 +200,9 @@ public class AdminRestController {
             user.setDzial(dzial);
         }
 
-        // Modules
+        // Modules - normalize & filter against catalog
         if (req.getModules() != null) {
-            user.setModules(req.getModules());
+            user.setModules(ModulesCatalog.normalizeAndFilter(req.getModules()));
         }
 
         userRepository.save(user);
@@ -233,9 +240,9 @@ public class AdminRestController {
             user.setDzial(null);
         }
 
-        // Modules update
+        // Modules update - normalize & filter; missing means clear
         if (req.getModules() != null) {
-            user.setModules(req.getModules());
+            user.setModules(ModulesCatalog.normalizeAndFilter(req.getModules()));
         } else {
             user.setModules(Set.of());
         }
@@ -288,7 +295,11 @@ public class AdminRestController {
         dto.setRoles(user.getRoles().stream()
                 .map(Role::getName)
                 .collect(Collectors.toSet()));
-        // Optional: department and modules can be added to DTO in future if needed by UI
+        if (user.getDzial() != null) {
+            dto.setDzialId(user.getDzial().getId());
+            dto.setDzialNazwa(user.getDzial().getNazwa());
+        }
+        dto.setModules(user.getModules());
         return dto;
     }
 }

@@ -44,6 +44,7 @@ public class RaportRestController {
     private final ZgloszenieRepository zgloszenieRepository;
 
     @GetMapping
+    @PreAuthorize("@moduleGuard.has('Raporty')")
     public Page<RaportDTO> list(@RequestParam(required = false) String status,
                                 @RequestParam(required = false) Long maszynaId,
                                 @RequestParam(required = false) LocalDate from,
@@ -106,15 +107,16 @@ public class RaportRestController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("@moduleGuard.has('Raporty')")
     public RaportDTO get(@PathVariable Long id) {
         Raport r = raportRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Raport not found"));
         return raportMapper.toDto(r);
     }
 
-    // NOTE: Restrict report creation to ADMIN role only
+    // Create report: require module AND role (ADMIN or BIURO)
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('ADMIN','BIURO')")
+    @PreAuthorize("@moduleGuard.has('Raporty') and hasAnyRole('ADMIN','BIURO')")
     public RaportDTO create(@RequestBody RaportCreateRequest req,
                            @AuthenticationPrincipal UserDetails userDetails) {
         Raport r = new Raport();
@@ -148,9 +150,9 @@ public class RaportRestController {
         return raportMapper.toDto(r);
     }
 
-    // NOTE: Restrict report updates to ADMIN role only
+    // Update report: require module AND role (ADMIN or BIURO)
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','BIURO')")
+    @PreAuthorize("@moduleGuard.has('Raporty') and hasAnyRole('ADMIN','BIURO')")
     public RaportDTO update(@PathVariable Long id, @RequestBody RaportUpdateRequest req,
                            @AuthenticationPrincipal UserDetails userDetails) {
         Raport r = raportRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Raport not found"));
@@ -167,10 +169,10 @@ public class RaportRestController {
         return raportMapper.toDto(r);
     }
 
-    // NOTE: Restrict report deletion to ADMIN role only
+    // Delete: require ADMIN + module
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') and @moduleGuard.has('Raporty')")
     public void delete(@PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
         raportRepository.deleteById(id);
         if (userDetails != null) {
@@ -180,7 +182,7 @@ public class RaportRestController {
 
     // Backfill: utwórz raporty dla ZAKOŃCZONYCH (DONE) zgłoszeń bez raportu
     @PostMapping("/backfill-from-zgloszenia")
-    @PreAuthorize("hasAnyRole('ADMIN','BIURO')")
+    @PreAuthorize("hasAnyRole('ADMIN','BIURO') and @moduleGuard.has('Raporty')")
     public int backfillFromZgloszenia() {
         int created = 0;
         var doneList = zgloszenieRepository.findAll().stream()
@@ -207,3 +209,4 @@ public class RaportRestController {
         return created;
     }
 }
+

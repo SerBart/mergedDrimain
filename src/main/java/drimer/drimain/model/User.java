@@ -32,7 +32,7 @@ public class User implements UserDetails {
     private Dzial dzial;
 
     // New: per-user modules access (simple string set)
-    @ElementCollection
+    @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "user_modules", joinColumns = @JoinColumn(name = "user_id"))
     @Column(name = "module")
     private Set<String> modules = new HashSet<>();
