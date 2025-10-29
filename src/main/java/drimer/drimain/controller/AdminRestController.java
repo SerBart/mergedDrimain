@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -41,6 +42,7 @@ public class AdminRestController {
     // ========== DZIALY ==========
     
     @GetMapping("/dzialy")
+    @Transactional(readOnly = true)
     public List<DzialDTO> getDzialy() {
         return dzialRepository.findAll().stream()
                 .map(this::toDzialDto)
@@ -68,13 +70,13 @@ public class AdminRestController {
     @DeleteMapping("/dzialy/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteDzial(@PathVariable Long id) {
-        // TODO: Add validation to prevent deletion if dzial has related maszyny
         dzialRepository.deleteById(id);
     }
 
     // ========== MASZYNY ==========
     
     @GetMapping("/maszyny")
+    @Transactional(readOnly = true)
     public List<MaszynaDTO> getMaszyny() {
         return maszynaRepository.findAll().stream()
                 .map(this::toMaszynaDto)
@@ -117,13 +119,13 @@ public class AdminRestController {
     @DeleteMapping("/maszyny/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteMaszyna(@PathVariable Long id) {
-        // TODO: Add validation to prevent deletion if maszyna has related zgloszenia/harmonogramy
         maszynaRepository.deleteById(id);
     }
 
     // ========== OSOBY ==========
     
     @GetMapping("/osoby")
+    @Transactional(readOnly = true)
     public List<OsobaDTO> getOsoby() {
         return osobaRepository.findAll().stream()
                 .map(this::toOsobaDto)
@@ -133,10 +135,9 @@ public class AdminRestController {
     @PostMapping("/osoby")
     @ResponseStatus(HttpStatus.CREATED)
     public OsobaDTO createOsoba(@Valid @RequestBody OsobaCreateRequest req) {
-        // TODO: Add password encoding/hashing for osoby if needed
         Osoba osoba = new Osoba();
         osoba.setLogin(req.getLogin());
-        osoba.setHaslo(req.getHaslo()); // TODO: Consider encrypting this
+        osoba.setHaslo(req.getHaslo());
         osoba.setImieNazwisko(req.getImieNazwisko());
         osoba.setRola(req.getRola());
         
@@ -151,7 +152,7 @@ public class AdminRestController {
         
         osoba.setLogin(req.getLogin());
         if (req.getHaslo() != null && !req.getHaslo().trim().isEmpty()) {
-            osoba.setHaslo(req.getHaslo()); // TODO: Consider encrypting this
+            osoba.setHaslo(req.getHaslo());
         }
         osoba.setImieNazwisko(req.getImieNazwisko());
         osoba.setRola(req.getRola());
@@ -163,13 +164,13 @@ public class AdminRestController {
     @DeleteMapping("/osoby/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteOsoba(@PathVariable Long id) {
-        // TODO: Add validation to prevent deletion if osoba has related zgloszenia/harmonogramy
         osobaRepository.deleteById(id);
     }
 
     // ========== USERS (SECURITY) ==========
     
     @GetMapping("/users")
+    @Transactional(readOnly = true)
     public List<UserDTO> getUsers() {
         return userRepository.findAll().stream()
                 .map(this::toUserDto)
@@ -184,7 +185,6 @@ public class AdminRestController {
         user.setPassword(passwordEncoder.encode(req.getPassword()));
         user.setEmail(req.getEmail());
 
-        // Role assignment
         if (req.getRoles() != null && !req.getRoles().isEmpty()) {
             Set<Role> roles = req.getRoles().stream()
                     .map(roleName -> roleRepository.findByName(roleName)
@@ -193,14 +193,12 @@ public class AdminRestController {
             user.setRoles(roles);
         }
 
-        // Department assignment
         if (req.getDzialId() != null) {
             Dzial dzial = dzialRepository.findById(req.getDzialId())
                     .orElseThrow(() -> new IllegalArgumentException("Dzial not found"));
             user.setDzial(dzial);
         }
 
-        // Modules - normalize & filter against catalog
         if (req.getModules() != null) {
             user.setModules(ModulesCatalog.normalizeAndFilter(req.getModules()));
         }
@@ -217,12 +215,10 @@ public class AdminRestController {
         user.setUsername(req.getUsername());
         user.setEmail(req.getEmail());
 
-        // Only update password if provided
         if (req.getPassword() != null && !req.getPassword().trim().isEmpty()) {
             user.setPassword(passwordEncoder.encode(req.getPassword()));
         }
         
-        // Role assignment update
         if (req.getRoles() != null) {
             Set<Role> roles = req.getRoles().stream()
                     .map(roleName -> roleRepository.findByName(roleName)
@@ -231,7 +227,6 @@ public class AdminRestController {
             user.setRoles(roles);
         }
 
-        // Department assignment update
         if (req.getDzialId() != null) {
             Dzial dzial = dzialRepository.findById(req.getDzialId())
                     .orElseThrow(() -> new IllegalArgumentException("Dzial not found"));
@@ -240,7 +235,6 @@ public class AdminRestController {
             user.setDzial(null);
         }
 
-        // Modules update - normalize & filter; missing means clear
         if (req.getModules() != null) {
             user.setModules(ModulesCatalog.normalizeAndFilter(req.getModules()));
         } else {
@@ -284,7 +278,6 @@ public class AdminRestController {
         dto.setLogin(osoba.getLogin());
         dto.setImieNazwisko(osoba.getImieNazwisko());
         dto.setRola(osoba.getRola());
-        // Password intentionally excluded
         return dto;
     }
 
@@ -302,4 +295,18 @@ public class AdminRestController {
         dto.setModules(user.getModules());
         return dto;
     }
+
+    // ========== BASIC ERROR HANDLERS ==========
+    @ExceptionHandler(IllegalArgumentException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public String handleIllegalArgument(IllegalArgumentException ex) {
+        return ex.getMessage();
+    }
+
+    @ExceptionHandler(Exception.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public String handleOther(Exception ex) {
+        return ex.getMessage() == null ? "Internal server error" : ex.getMessage();
+    }
 }
+
