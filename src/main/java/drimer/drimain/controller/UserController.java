@@ -10,6 +10,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -28,6 +29,7 @@ public class UserController {
      * Accessible by authenticated users only
      */
     @GetMapping("/me")
+    @Transactional(readOnly = true)
     public ResponseEntity<?> getCurrentUser(@AuthenticationPrincipal UserDetails userDetails) {
         try {
             if (userDetails == null) {
@@ -38,7 +40,9 @@ public class UserController {
             userInfo.put("username", userDetails.getUsername());
             userInfo.put("roles", userDetails.getAuthorities()
                     .stream().map(a -> a.getAuthority()).toList());
-            userRepository.findByUsername(userDetails.getUsername())
+
+            // Załaduj użytkownika wraz z działem, aby uniknąć LAZY poza transakcją
+            userRepository.findByUsernameFetchDzial(userDetails.getUsername())
                     .ifPresent(u -> {
                         userInfo.put("email", u.getEmail());
                         if (u.getDzial() != null) {
@@ -51,7 +55,7 @@ public class UserController {
             log.debug("User info requested for: {}", userDetails.getUsername());
             return ResponseEntity.ok(userInfo);
         } catch (Exception e) {
-            log.error("Error getting user info: {}", e.getMessage());
+            log.error("Error getting user info: {}", e.getMessage(), e);
             return ResponseEntity.status(500).body("Internal server error");
         }
     }
