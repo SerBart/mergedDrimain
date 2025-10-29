@@ -7,6 +7,7 @@ import '../../widgets/dialogs.dart';
 import '../../core/models/dzial.dart';
 import '../../core/models/maszyna.dart';
 import '../../core/models/osoba.dart';
+import '../../core/models/admin_user.dart';
 
 class AdminScreen extends ConsumerStatefulWidget {
   const AdminScreen({super.key});
@@ -23,10 +24,22 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
   final _userLoginCtrl = TextEditingController();
   String _userRole = 'USER';
 
+  // API Users (systemowi) – formularz
+  final _apiUserUsernameCtrl = TextEditingController();
+  final _apiUserPasswordCtrl = TextEditingController();
+  final _apiUserEmailCtrl = TextEditingController();
+  int? _apiUserDzialId;
+  Set<String> _apiUserModules = {};
+  String _apiUserRole = 'USER';
+
   bool _loading = true;
   List<Dzial> _dzialy = [];
   List<Maszyna> _maszyny = [];
   List<Osoba> _osoby = [];
+
+  // API Users + katalog modułów
+  List<AdminUser> _users = [];
+  List<String> _modulesCatalog = [];
 
   @override
   void initState() {
@@ -40,6 +53,9 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
     _maszynaCtrl.dispose();
     _osobaCtrl.dispose();
     _userLoginCtrl.dispose();
+    _apiUserUsernameCtrl.dispose();
+    _apiUserPasswordCtrl.dispose();
+    _apiUserEmailCtrl.dispose();
     super.dispose();
   }
 
@@ -51,13 +67,20 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
         api.getDzialy(),
         api.getMaszyny(),
         api.getOsoby(),
+        api.getUsers(),
+        api.getModulesCatalog(),
       ]);
       _dzialy = results[0] as List<Dzial>;
       _maszyny = results[1] as List<Maszyna>;
       _osoby = results[2] as List<Osoba>;
+      _users = results[3] as List<AdminUser>;
+      _modulesCatalog = (results[4] as List).cast<String>();
       // Jeżeli wybrany dział został usunięty, wyczyść wybór
       if (_maszynaDzialId != null && !_dzialy.any((d) => d.id == _maszynaDzialId)) {
         _maszynaDzialId = null;
+      }
+      if (_apiUserDzialId != null && !_dzialy.any((d) => d.id == _apiUserDzialId)) {
+        _apiUserDzialId = null;
       }
     } catch (e) {
       if (mounted) {
@@ -180,6 +203,47 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
     }
   }
 
+  Future<void> _createApiUser() async {
+    final username = _apiUserUsernameCtrl.text.trim();
+    final password = _apiUserPasswordCtrl.text.trim();
+    final email = _apiUserEmailCtrl.text.trim();
+    if (username.isEmpty || password.isEmpty || email.isEmpty) {
+      _showError('Uzupełnij login, hasło i e-mail.');
+      return;
+    }
+    try {
+      final roles = _apiUserRole == 'ADMIN'
+          ? {'ROLE_ADMIN', 'ROLE_USER'}
+          : {'ROLE_USER'};
+      await ref.read(adminApiRepositoryProvider).createUser(
+            username: username,
+            password: password,
+            email: email,
+            dzialId: _apiUserDzialId,
+            roles: roles,
+            modules: _apiUserModules,
+          );
+      _apiUserUsernameCtrl.clear();
+      _apiUserPasswordCtrl.clear();
+      _apiUserEmailCtrl.clear();
+      _apiUserDzialId = null;
+      _apiUserModules = {};
+      _apiUserRole = 'USER';
+      await _loadAll();
+    } catch (e) {
+      _showError('Błąd tworzenia użytkownika: $e');
+    }
+  }
+
+  Future<void> _deleteApiUser(int id) async {
+    try {
+      await ref.read(adminApiRepositoryProvider).deleteUser(id);
+      await _loadAll();
+    } catch (e) {
+      _showError('Błąd usuwania użytkownika: $e');
+    }
+  }
+
   void _showError(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
@@ -204,7 +268,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
       );
     }
 
-    final users = mock.getUsers();
+    final usersDemo = mock.getUsers();
 
     return Scaffold(
       appBar: AppBar(
@@ -332,6 +396,90 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                     ),
                   ),
                   _CardSection(
+                    title: 'Użytkownicy (API) – role i kafelki',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        DropdownButtonFormField<int>(
+                          value: _apiUserDzialId,
+                          decoration: const InputDecoration(labelText: 'Dział (opcjonalnie)'),
+                          items: _dzialy
+                              .map((d) => DropdownMenuItem(value: d.id, child: Text(d.nazwa)))
+                              .toList(),
+                          onChanged: (v) => setState(() => _apiUserDzialId = v),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _apiUserUsernameCtrl,
+                          decoration: const InputDecoration(labelText: 'Login (username) – wymagany'),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _apiUserPasswordCtrl,
+                          decoration: const InputDecoration(labelText: 'Hasło – wymagane'),
+                          obscureText: true,
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _apiUserEmailCtrl,
+                          decoration: const InputDecoration(labelText: 'E-mail – wymagany'),
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          value: _apiUserRole,
+                          decoration: const InputDecoration(labelText: 'Rola'),
+                          items: const [
+                            DropdownMenuItem(value: 'USER', child: Text('USER')),
+                            DropdownMenuItem(value: 'ADMIN', child: Text('ADMIN')),
+                          ],
+                          onChanged: (v) => setState(() => _apiUserRole = v ?? 'USER'),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text('Kafelki (modules):'),
+                        Wrap(
+                          spacing: 8,
+                          children: _modulesCatalog.map((m) {
+                            final selected = _apiUserModules.contains(m);
+                            return FilterChip(
+                              label: Text(m),
+                              selected: selected,
+                              onSelected: (v) => setState(() {
+                                if (v) {
+                                  _apiUserModules = {..._apiUserModules, m};
+                                } else {
+                                  _apiUserModules = {..._apiUserModules}..remove(m);
+                                }
+                              }),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: ElevatedButton(
+                            onPressed: _createApiUser,
+                            child: const Text('Utwórz użytkownika'),
+                          ),
+                        ),
+                        const Divider(height: 24),
+                        const Text('Lista użytkowników:'),
+                        const SizedBox(height: 8),
+                        ..._users.map((u) => ListTile(
+                              title: Text(u.username),
+                              subtitle: Text('Role: ' + (u.roles.join(', ')) + '\nKafelki: ' + (u.modules.join(', '))),
+                              isThreeLine: true,
+                              trailing: IconButton(
+                                icon: const Icon(Icons.delete, color: Colors.red),
+                                onPressed: () async {
+                                  final ok = await showConfirmDialog(context, 'Usuń użytkownika', 'Usunąć ${u.username}?');
+                                  if (ok == true) await _deleteApiUser(u.id);
+                                },
+                              ),
+                            )),
+                      ],
+                    ),
+                  ),
+                  _CardSection(
                     title: 'Użytkownicy (DEMO)',
                     child: Column(
                       children: [
@@ -363,7 +511,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        ...users.map((u) => ListTile(
+                        ...usersDemo.map((u) => ListTile(
                               title: Text(u.username),
                               subtitle: Text(u.role),
                               trailing: IconButton(
@@ -385,7 +533,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                     ),
                   ),
                   const SizedBox(height: 40),
-                  const Center(child: Text('Działy/Maszyny/Osoby zapisują się do bazy. Sekcja Użytkownicy to DEMO.')),
+                  const Center(child: Text('Działy/Maszyny/Osoby zapisują się do bazy. Sekcja Użytkownicy (API) to realni użytkownicy z rolami i kafelkami. Sekcja Użytkownicy (DEMO) to lokalny mock.')),
                 ],
               ),
             ),

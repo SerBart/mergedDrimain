@@ -52,11 +52,12 @@ final metaApiRepositoryProvider = Provider<MetaApiRepository>((ref) {
   return MetaApiRepository(api.dio, storage);
 });
 
-// Repozytorium admin (działy, maszyny, osoby)
+// Repozytorium admin (działy, maszyny, osoby, użytkownicy, modules)
 final adminApiRepositoryProvider = Provider<AdminApiRepository>((ref) {
   final api = ref.watch(apiClientProvider);
   final storage = ref.watch(secureStorageProvider);
-  return AdminApiRepository(api.dio, storage);
+  final auth = ref.watch(authServiceProvider);
+  return AdminApiRepository(api.dio, storage, auth);
 });
 
 // Repozytorium API dla instrukcji napraw
