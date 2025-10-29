@@ -88,7 +88,14 @@ public class AuthController {
             
             User user = userRepository.findByUsername(userDetails.getUsername())
                     .orElseThrow(() -> new RuntimeException("User not found"));
-            RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
+
+            RefreshToken refreshToken = null;
+            try {
+                refreshToken = refreshTokenService.createRefreshToken(user);
+            } catch (Exception e) {
+                // Avoid failing the whole login if refresh token subsystem misbehaves
+                log.error("Failed to create refresh token for user {}: {}", user.getUsername(), e.getMessage(), e);
+            }
 
             boolean isHttps = httpRequest.isSecure() || "https".equalsIgnoreCase(httpRequest.getHeader("X-Forwarded-Proto"));
             String sameSite = isHttps ? "None" : "Lax";
@@ -103,8 +110,8 @@ public class AuthController {
                     .build();
             response.addHeader("Set-Cookie", jwtCookie.toString());
 
-            // Remember-me: set persistent refresh token cookie
-            if (request.isRememberMe()) {
+            // Remember-me: set persistent refresh token cookie if creation succeeded
+            if (request.isRememberMe() && refreshToken != null) {
                 Duration ttl = Duration.between(LocalDateTime.now(), refreshToken.getExpiry());
                 if (ttl.isNegative()) ttl = Duration.ofDays(7); // fallback
                 ResponseCookie refreshCookie = ResponseCookie.from("REFRESH_TOKEN", refreshToken.getToken())
@@ -128,9 +135,13 @@ public class AuthController {
             }
 
             log.info("User {} logged in successfully (rememberMe={})", userDetails.getUsername(), request.isRememberMe());
-            return ResponseEntity.ok(new AuthResponse(accessToken, refreshToken.getToken()));
+            return ResponseEntity.ok(new AuthResponse(accessToken, refreshToken == null ? null : refreshToken.getToken()));
         } catch (AuthenticationException e) {
             return ResponseEntity.status(401).body("Bad credentials");
+        } catch (Exception e) {
+            // Log full stacktrace for unexpected errors to help debug 500 during login
+            log.error("Unexpected error during login for '{}': {}", request == null ? "<null>" : request.getUsername(), e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Internal server error");
         }
     }
 
