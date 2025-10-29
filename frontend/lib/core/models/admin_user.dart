@@ -5,6 +5,7 @@ class AdminUser {
   final int? dzialId;
   final String? dzialNazwa;
   final Set<String> modules;
+  final String? email;
 
   AdminUser({
     required this.id,
@@ -13,6 +14,7 @@ class AdminUser {
     this.dzialId,
     this.dzialNazwa,
     required this.modules,
+    this.email,
   });
 
   factory AdminUser.fromJson(Map<String, dynamic> json) => AdminUser(
@@ -26,6 +28,6 @@ class AdminUser {
         modules: ((json['modules'] as List?) ?? const [])
             .map((e) => e.toString())
             .toSet(),
+        email: json['email'] as String?,
       );
 }
-

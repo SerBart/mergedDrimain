@@ -10,6 +10,9 @@ public class UserDTO {
     private String username;
     private Set<String> roles; // Role names for simplicity
 
+    // Email dodany do ekspozycji w panelu admina
+    private String email;
+
     // New: department info
     private Long dzialId;
     private String dzialNazwa;

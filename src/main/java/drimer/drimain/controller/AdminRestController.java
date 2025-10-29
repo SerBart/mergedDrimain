@@ -288,6 +288,7 @@ public class AdminRestController {
         dto.setRoles(user.getRoles().stream()
                 .map(Role::getName)
                 .collect(Collectors.toSet()));
+        dto.setEmail(user.getEmail());
         if (user.getDzial() != null) {
             dto.setDzialId(user.getDzial().getId());
             dto.setDzialNazwa(user.getDzial().getNazwa());

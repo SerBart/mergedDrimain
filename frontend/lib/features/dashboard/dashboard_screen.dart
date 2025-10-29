@@ -12,6 +12,9 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authStateProvider);
     final isAdmin = auth?.role == AppRoles.admin;
+    final modules = auth?.modules ?? const {};
+
+    bool has(String moduleKey) => modules.any((m) => m.toLowerCase() == moduleKey.toLowerCase());
 
     final items = [
       _DashboardItem(
@@ -19,36 +22,47 @@ class DashboardScreen extends ConsumerWidget {
         label: 'Raporty',
         color: Colors.indigo,
         onTap: () => context.go('/raporty'),
+        requiredModule: 'Raporty',
+        hasAccess: has('Raporty'),
       ),
       _DashboardItem(
         icon: FontAwesomeIcons.triangleExclamation,
         label: 'Zgłoszenia',
         color: Colors.orange.shade700,
         onTap: () => context.go('/zgloszenia'),
+        requiredModule: 'Zgloszenia',
+        hasAccess: has('Zgloszenia'),
       ),
       _DashboardItem(
         icon: FontAwesomeIcons.calendarDays,
         label: 'Harmonogramy',
         color: Colors.green.shade700,
         onTap: () => context.go('/harmonogramy'),
+        requiredModule: 'Harmonogramy',
+        hasAccess: has('Harmonogramy'),
       ),
       _DashboardItem(
         icon: FontAwesomeIcons.clipboardCheck,
         label: 'Przeglądy',
         color: Colors.blueGrey,
         onTap: () => context.go('/przeglady'),
+        // Brak wymogu modułu – pozostawiamy dostęp
       ),
       _DashboardItem(
         icon: Icons.menu_book_outlined,
         label: 'Instrukcje napraw',
         color: Colors.brown,
         onTap: () => context.go('/instrukcje'),
+        requiredModule: 'Instrukcje',
+        hasAccess: has('Instrukcje'),
       ),
       _DashboardItem(
         icon: Icons.inventory_2_outlined,
         label: 'Części',
         color: Colors.deepPurple,
         onTap: () => context.go('/czesci'),
+        requiredModule: 'Czesci',
+        hasAccess: has('Czesci'),
       ),
       if (isAdmin)
         _DashboardItem(
@@ -98,40 +112,61 @@ class _DashboardItem extends StatelessWidget {
   final String label;
   final Color color;
   final VoidCallback onTap;
+  final String? requiredModule;
+  final bool hasAccess;
   const _DashboardItem({
     required this.icon,
     required this.label,
     required this.color,
     required this.onTap,
+    this.requiredModule,
+    this.hasAccess = true,
   });
 
   @override
   Widget build(BuildContext context) {
+    final disabled = requiredModule != null && !hasAccess;
     return InkWell(
       borderRadius: BorderRadius.circular(22),
-      onTap: onTap,
+      onTap: disabled
+          ? () => ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Brak uprawnień do modułu: ${requiredModule ?? label}')),
+              )
+          : onTap,
       child: Ink(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [color.withOpacity(.85), color.withOpacity(.55)],
+            colors: disabled
+                ? [Colors.grey.withOpacity(.6), Colors.grey.withOpacity(.4)]
+                : [color.withOpacity(.85), color.withOpacity(.55)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(22),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 42, color: Colors.white),
-              const SizedBox(height: 12),
-              Text(label,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, color: Colors.white)),
-            ],
-          ),
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 42, color: Colors.white),
+                  const SizedBox(height: 12),
+                  Text(label,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, color: Colors.white)),
+                ],
+              ),
+            ),
+            if (disabled)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Icon(Icons.lock, color: Colors.white.withOpacity(.9)),
+              )
+          ],
         ),
       ),
     );

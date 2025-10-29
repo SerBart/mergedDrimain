@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import '../models/user.dart';
 import 'secure_storage_service.dart';
 
-/// Realna autoryzacja: POST /api/auth/login -> token, GET /api/auth/me -> role
+/// Realna autoryzacja: POST /api/auth/login -> token, GET /api/users/me -> roles/modules
 class AuthService {
   final Dio _dio;
   final SecureStorageService _storage;
@@ -31,32 +31,32 @@ class AuthService {
     }
 
     final meResp = await _dio.get(
-      '/api/auth/me',
+      '/api/users/me',
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
     final me = meResp.data as Map<String, dynamic>;
     final roles = (me['roles'] as List<dynamic>? ?? const []).cast<String>();
     final role = roles.contains('ROLE_ADMIN') ? 'ADMIN' : 'USER';
+    final modules = ((me['modules'] as List<dynamic>? ?? const [])).map((e) => e.toString()).toSet();
 
     return User(
       id: 0,
       username: (me['username'] as String?) ?? username,
       role: role,
       token: token,
+      modules: modules,
     );
   }
 
   /// Próba odświeżenia access tokenu: używa lokalnego refreshToken (mobile)
   /// lub ciasteczka REFRESH_TOKEN (web/same-origin). Zwraca nowy token lub null.
   Future<String?> refresh() async {
-    // Spróbuj z lokalnym refresh tokenem (mobile)
     final localRefresh = await _storage.readRefreshToken();
     try {
       Response resp;
       if (localRefresh != null && localRefresh.isNotEmpty) {
         resp = await _dio.post('/api/auth/refresh', data: {'refreshToken': localRefresh});
       } else {
-        // Web/same-origin: ciasteczko HttpOnly powinno być automatycznie dołączone
         resp = await _dio.post('/api/auth/refresh');
       }
       final data = resp.data as Map<String, dynamic>;
@@ -65,16 +65,14 @@ class AuthService {
         await _storage.saveToken(token);
         return token;
       }
-    } catch (_) {
-      // Ignoruj – brak ważnego refresh tokenu
-    }
+    } catch (_) {}
     return null;
   }
 
   Future<Map<String, dynamic>?> me(String token) async {
     try {
       final meResp = await _dio.get(
-        '/api/auth/me',
+        '/api/users/me',
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
       return (meResp.data as Map<String, dynamic>);

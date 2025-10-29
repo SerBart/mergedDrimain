@@ -114,11 +114,13 @@ class AuthController extends StateNotifier<User?> {
     if (me != null && token != null) {
       final roles = (me['roles'] as List<dynamic>? ?? const []).cast<String>();
       final role = roles.contains('ROLE_ADMIN') ? 'ADMIN' : 'USER';
+      final modules = ((me['modules'] as List<dynamic>? ?? const [])).map((e) => e.toString()).toSet();
       state = User(
         id: 0,
         username: (me['username'] as String?) ?? '',
         role: role,
         token: token,
+        modules: modules,
       );
     }
   }
