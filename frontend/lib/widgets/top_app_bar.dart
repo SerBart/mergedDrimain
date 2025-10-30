@@ -87,7 +87,80 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
                     tooltip: 'Powiadomienia',
                     icon: const Icon(Icons.notifications, color: Colors.white),
                     onPressed: () {
-                      context.go('/notifications');
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                        ),
+                        builder: (ctx) {
+                          return Consumer(builder: (c, innerRef, child) {
+                            final notifsAsync = innerRef.watch(notificationsListProvider);
+                            return SizedBox(
+                              height: MediaQuery.of(ctx).size.height * 0.6,
+                              child: Column(
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        const Text('Powiadomienia', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                        Row(children: [
+                                          IconButton(
+                                            tooltip: 'Odśwież',
+                                            onPressed: () => innerRef.refresh(notificationsListProvider),
+                                            icon: const Icon(Icons.refresh),
+                                          ),
+                                          TextButton(
+                                            onPressed: () {
+                                              Navigator.of(ctx).pop();
+                                              context.go('/notifications');
+                                            },
+                                            child: const Text('Pokaż wszystkie'),
+                                          ),
+                                        ])
+                                      ],
+                                    ),
+                                  ),
+                                  const Divider(height: 1),
+                                  Expanded(
+                                    child: notifsAsync.when(
+                                      data: (list) {
+                                        if (list.isEmpty) return const Center(child: Text('Brak powiadomień'));
+                                        final preview = list.length > 5 ? list.sublist(0, 5) : list;
+                                        return ListView.separated(
+                                          itemCount: preview.length,
+                                          separatorBuilder: (_, __) => const Divider(height: 1),
+                                          itemBuilder: (ctx2, i) {
+                                            final n = preview[i];
+                                            final created = n.createdAt != null ? n.createdAt!.toLocal().toString() : '';
+                                            return ListTile(
+                                              title: Text(n.title ?? (n.message ?? 'Bez tytułu')),
+                                              subtitle: Text(n.message ?? ''),
+                                              trailing: Text(created, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                                              onTap: () {
+                                                Navigator.of(ctx).pop();
+                                                if (n.link != null && n.link!.isNotEmpty) {
+                                                  try {
+                                                    context.go(n.link!);
+                                                  } catch (_) {}
+                                                }
+                                              },
+                                            );
+                                          },
+                                        );
+                                      },
+                                      loading: () => const Center(child: CircularProgressIndicator()),
+                                      error: (e, st) => Center(child: Text('Błąd: ${e.toString()}')),
+                                    ),
+                                  )
+                                ],
+                              ),
+                            );
+                          });
+                        },
+                      );
                     },
                   ),
                   Positioned(
@@ -99,10 +172,13 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
                       constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                       child: Center(
                         child: notifsAsync.when(
-                          data: (list) => Text(
-                            '${list.length}',
-                            style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
-                          ),
+                          data: (list) {
+                            final unread = list.where((n) => !n.read).length;
+                            return Text(
+                              '$unread',
+                              style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                            );
+                          },
                           loading: () => const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
                           error: (_, __) => const Text('0', style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
                         ),

@@ -90,8 +90,12 @@ final notificationsApiRepositoryProvider = Provider<NotificationsApiRepository>(
   return NotificationsApiRepository(api.dio, storage);
 });
 
-// Provider zwracający listę powiadomień (Future) — można go użyć do badge/ekranu
-final notificationsListProvider = FutureProvider<List<NotificationModel>>((ref) async {
+// Provider zwracający listę powiadomień (Future) — odświeża się po zmianie stanu auth
+final notificationsListProvider = FutureProvider.autoDispose<List<NotificationModel>>((ref) async {
+  // Odśwież, kiedy zmienia się stan autoryzacji
+  final auth = ref.watch(authStateProvider);
+  if (auth == null) return <NotificationModel>[];
+
   final repo = ref.watch(notificationsApiRepositoryProvider);
   try {
     return await repo.fetchAll();
