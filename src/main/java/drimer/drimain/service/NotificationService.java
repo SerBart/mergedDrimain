@@ -1,9 +1,7 @@
 package drimer.drimain.service;
 
 import drimer.drimain.model.Notification;
-import drimer.drimain.model.NotificationType;
 import drimer.drimain.model.User;
-import drimer.drimain.repository.NotificationRepository;
 import drimer.drimain.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,7 +18,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class NotificationService {
 
-    private final NotificationRepository notificationRepository;
+    private final drimer.drimain.repository.NotificationRepository notificationRepository;
     private final UserRepository userRepository;
 
     // Modules we don't want to surface in notifications (case-insensitive)
@@ -76,7 +74,7 @@ public class NotificationService {
      * Tworzy powiadomienie modułowe (user=null) i zapisuje je.
      * Powiadomienia dla modułów z EXCLUDED_MODULES nie będą tworzone.
      */
-    public Notification createModuleNotification(String module, NotificationType type, String title, String message, String link) {
+    public Notification createModuleNotification(String module, drimer.drimain.model.NotificationType type, String title, String message, String link) {
         if (module != null && isExcludedModule(module)) return null;
         Notification n = new Notification();
         n.setModule(module);
@@ -92,7 +90,7 @@ public class NotificationService {
     /**
      * Tworzy powiadomienie personalne dla wskazanego użytkownika.
      */
-    public Notification createPersonalNotification(User user, NotificationType type, String title, String message, String link) {
+    public Notification createPersonalNotification(User user, drimer.drimain.model.NotificationType type, String title, String message, String link) {
         if (user == null) return null;
         Notification n = new Notification();
         n.setUser(user);
@@ -106,4 +104,3 @@ public class NotificationService {
         return notificationRepository.save(n);
     }
 }
-
