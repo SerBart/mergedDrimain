@@ -18,6 +18,16 @@ class NotificationsApiRepository {
     return list.map((m) => NotificationModel.fromJson(m)).toList();
   }
 
+  Future<List<NotificationModel>> markAllRead() async {
+    final token = await _readToken();
+    final resp = await _dio.post(
+      '/api/notifications/mark-all-read',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    final list = (resp.data as List<dynamic>).cast<Map<String, dynamic>>();
+    return list.map((m) => NotificationModel.fromJson(m)).toList();
+  }
+
   Future<String> _readToken() async {
     final token = await _storage.readToken();
     if (token == null || token.isEmpty) {
@@ -26,4 +36,3 @@ class NotificationsApiRepository {
     return token;
   }
 }
-

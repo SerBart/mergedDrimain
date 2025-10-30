@@ -49,6 +49,14 @@ public class NotificationRestController {
                 .collect(Collectors.toList());
     }
 
+    @PostMapping("/mark-all-read")
+    @PreAuthorize("isAuthenticated()")
+    public List<NotificationDTO> markAllRead(Authentication authentication) {
+        return notificationService.markAllRead(authentication).stream()
+                .map(NotificationMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
     /**
      * Test endpoint to create a notification quickly for debugging.
      * - ?personal=true -> creates personal notification for current user

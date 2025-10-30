@@ -103,4 +103,20 @@ public class NotificationService {
         n.setRead(false);
         return notificationRepository.save(n);
     }
+
+    /**
+     * Oznacza wszystkie powiadomienia widoczne dla użytkownika jako przeczytane i zwraca zaktualizowaną listę.
+     */
+    public List<Notification> markAllRead(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) return List.of();
+        List<Notification> list = getForUser(authentication);
+        if (list.isEmpty()) return List.of();
+        for (Notification n : list) {
+            n.setRead(true);
+        }
+        // save all
+        notificationRepository.saveAll(list);
+        // return fresh list
+        return getForUser(authentication);
+    }
 }

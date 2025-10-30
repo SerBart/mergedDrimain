@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../core/providers/app_providers.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import '../core/models/notification.dart';
 
 /// Reusable, modern top app bar used across screens.
 /// Shows logo, app name and logout button. Implements PreferredSizeWidget
@@ -83,86 +84,57 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
               Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  IconButton(
-                    tooltip: 'Powiadomienia',
-                    icon: const Icon(Icons.notifications, color: Colors.white),
-                    onPressed: () {
-                      showModalBottomSheet(
-                        context: context,
-                        isScrollControlled: true,
-                        shape: const RoundedRectangleBorder(
-                          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                        ),
-                        builder: (ctx) {
-                          return Consumer(builder: (c, innerRef, child) {
-                            final notifsAsync = innerRef.watch(notificationsListProvider);
-                            return SizedBox(
-                              height: MediaQuery.of(ctx).size.height * 0.6,
-                              child: Column(
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        const Text('Powiadomienia', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                                        Row(children: [
-                                          IconButton(
-                                            tooltip: 'Odśwież',
-                                            onPressed: () => innerRef.refresh(notificationsListProvider),
-                                            icon: const Icon(Icons.refresh),
-                                          ),
-                                          TextButton(
-                                            onPressed: () {
-                                              Navigator.of(ctx).pop();
-                                              context.go('/notifications');
-                                            },
-                                            child: const Text('Pokaż wszystkie'),
-                                          ),
-                                        ])
-                                      ],
-                                    ),
-                                  ),
-                                  const Divider(height: 1),
-                                  Expanded(
-                                    child: notifsAsync.when(
-                                      data: (list) {
-                                        if (list.isEmpty) return const Center(child: Text('Brak powiadomień'));
-                                        final preview = list.length > 5 ? list.sublist(0, 5) : list;
-                                        return ListView.separated(
-                                          itemCount: preview.length,
-                                          separatorBuilder: (_, __) => const Divider(height: 1),
-                                          itemBuilder: (ctx2, i) {
-                                            final n = preview[i];
-                                            final created = n.createdAt != null ? n.createdAt!.toLocal().toString() : '';
-                                            return ListTile(
-                                              title: Text(n.title ?? (n.message ?? 'Bez tytułu')),
-                                              subtitle: Text(n.message ?? ''),
-                                              trailing: Text(created, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                                              onTap: () {
-                                                Navigator.of(ctx).pop();
-                                                if (n.link != null && n.link!.isNotEmpty) {
-                                                  try {
-                                                    context.go(n.link!);
-                                                  } catch (_) {}
-                                                }
-                                              },
-                                            );
-                                          },
-                                        );
-                                      },
-                                      loading: () => const Center(child: CircularProgressIndicator()),
-                                      error: (e, st) => Center(child: Text('Błąd: ${e.toString()}')),
-                                    ),
-                                  )
-                                ],
-                              ),
-                            );
-                          });
-                        },
-                      );
-                    },
-                  ),
+                  // use Builder to get correct context for positioning
+                  Builder(builder: (buttonContext) {
+                    return IconButton(
+                      tooltip: 'Powiadomienia',
+                      icon: const Icon(Icons.notifications, color: Colors.white),
+                      onPressed: () async {
+                        try {
+                          // Mark all read via repository, then refresh provider so badge updates
+                          final repo = ref.read(notificationsApiRepositoryProvider);
+                          // call markAllRead and get updated list
+                          final updated = await repo.markAllRead();
+                          // refresh provider
+                          ref.refresh(notificationsListProvider);
+                          // compute menu position anchored to the icon
+                          final RenderBox button = buttonContext.findRenderObject() as RenderBox;
+                          final overlay = Overlay.of(buttonContext)!.context.findRenderObject() as RenderBox;
+                          final RelativeRect position = RelativeRect.fromRect(
+                            Rect.fromPoints(
+                              button.localToGlobal(Offset.zero, ancestor: overlay),
+                              button.localToGlobal(button.size.bottomRight(Offset.zero), ancestor: overlay),
+                            ),
+                            Offset.zero & overlay.size,
+                          );
+
+                          // Build menu entries from updated list (preview up to 5)
+                          final preview = updated.length > 5 ? updated.sublist(0, 5) : updated;
+                          final items = preview.map((n) => PopupMenuItem<NotificationModel>(
+                            value: n,
+                            child: ListTile(
+                              title: Text(n.title ?? (n.message ?? 'Bez tytułu')),
+                              subtitle: Text(n.message ?? ''),
+                              trailing: Text(n.createdAt != null ? n.createdAt!.toLocal().toString() : '', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                            ),
+                          )).toList();
+
+                          if (items.isEmpty) {
+                            // show a simple menu with 'Brak powiadomień'
+                            await showMenu(context: buttonContext, position: position, items: [const PopupMenuItem(child: Text('Brak powiadomień'))]);
+                          } else {
+                            final selected = await showMenu<NotificationModel>(context: buttonContext, position: position, items: items);
+                            if (selected != null && selected.link != null && selected.link!.isNotEmpty) {
+                              try { buttonContext.go(selected.link!); } catch (_) {}
+                            }
+                          }
+                        } catch (e) {
+                          // fallback: open full notifications page
+                          context.go('/notifications');
+                        }
+                      },
+                    );
+                  }),
                   Positioned(
                     right: 6,
                     top: 10,
