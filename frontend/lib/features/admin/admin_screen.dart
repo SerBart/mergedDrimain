@@ -8,6 +8,7 @@ import '../../core/models/dzial.dart';
 import '../../core/models/maszyna.dart';
 import '../../core/models/osoba.dart';
 import '../../core/models/admin_user.dart';
+import '../../widgets/top_app_bar.dart';
 
 class AdminScreen extends ConsumerStatefulWidget {
   const AdminScreen({super.key});
@@ -256,14 +257,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
 
     if (auth?.role != AppRoles.admin) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('Brak dostępu'),
-          leading: IconButton(
-            tooltip: 'Dashboard',
-            icon: const Icon(Icons.home),
-            onPressed: () => context.go('/dashboard'),
-          ),
-        ),
+        appBar: const TopAppBar(title: 'Brak dostępu'),
         body: const Center(child: Text('ADMIN wymagany.')),
       );
     }
@@ -271,14 +265,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
     final usersDemo = mock.getUsers();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Panel Admina'),
-        leading: IconButton(
-          tooltip: 'Dashboard',
-          icon: const Icon(Icons.home),
-          onPressed: () => context.go('/dashboard'),
-        ),
-      ),
+      appBar: const TopAppBar(title: 'Panel Admina'),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
@@ -565,3 +552,4 @@ class _CardSection extends StatelessWidget {
     );
   }
 }
+

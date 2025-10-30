@@ -86,8 +86,13 @@ public class AuthController {
 
             String accessToken = jwtService.generateAccessToken(userDetails.getUsername(), claims);
             
-            User user = userRepository.findByUsername(userDetails.getUsername())
-                    .orElseThrow(() -> new RuntimeException("User not found"));
+            // Ensure user exists in DB — if not, treat as unauthorized (avoid throwing runtime exception)
+            var optUser = userRepository.findByUsername(userDetails.getUsername());
+            if (optUser.isEmpty()) {
+                log.warn("Authenticated principal '{}' not found in users table", userDetails.getUsername());
+                return ResponseEntity.status(401).body("User not found");
+            }
+            User user = optUser.get();
 
             RefreshToken refreshToken = null;
             try {

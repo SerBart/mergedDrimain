@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/constants/app_roles.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import '../../widgets/top_app_bar.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -74,23 +75,7 @@ class DashboardScreen extends ConsumerWidget {
     ];
 
     return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title: SizedBox(
-          height: 42,
-          child: Image.asset('assets/images/logo.png', fit: BoxFit.contain),
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Wyloguj',
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await ref.read(authStateProvider.notifier).logout();
-              if (context.mounted) context.go('/login');
-            },
-          )
-        ],
-      ),
+      appBar: const TopAppBar(title: 'Dashboard'),
       body: GridView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: items.length,
