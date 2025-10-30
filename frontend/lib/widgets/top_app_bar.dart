@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../core/providers/app_providers.dart';
 import '../routing/app_router.dart';
+import '../core/utils/web_nav.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../core/models/notification.dart';
 
@@ -39,27 +40,49 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
               icon: const Icon(Icons.arrow_back, color: Colors.white),
               tooltip: 'Powrót',
               onPressed: () async {
-                // Use router from provider to avoid context-scoped router issues (dialogs/nested navigators).
+                // Close any dialogs/overlays (use root navigator)
                 try {
-                  ref.read(appRouterProvider).goNamed('dashboard');
-                  return;
+                  Navigator.of(context, rootNavigator: true).popUntil((r) => r.isFirst);
                 } catch (_) {}
 
-                // If provider-based navigation fails, try popping back to the first route.
+                // Debug info: print and briefly show current GoRouter location if available
                 try {
-                  if (Navigator.of(context).canPop()) {
-                    Navigator.of(context).popUntil((r) => r.isFirst);
-                    return;
+                  final loc = GoRouter.of(context).location;
+                  debugPrint('[TopAppBar] current location: $loc');
+                  if (ScaffoldMessenger.maybeOf(context) != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Aktualna ścieżka: $loc'), duration: Duration(seconds: 2)));
                   }
                 } catch (_) {}
 
-                // Last resort: use provider router to go by absolute path and show feedback on failure.
+                // Try direct context-based navigation first (uses nearest router)
+                try {
+                  GoRouter.of(context).go('/dashboard');
+                  return;
+                } catch (e1, s1) {
+                  debugPrint('[TopAppBar] context.go failed: $e1\n$s1');
+                }
+
+                // Fallback to provider router
+                try {
+                  ref.read(appRouterProvider).goNamed('dashboard');
+                  return;
+                } catch (e2, s2) {
+                  debugPrint('[TopAppBar] provider.goNamed failed: $e2\n$s2');
+                }
+
+                // Final attempt: provider absolute path
                 try {
                   ref.read(appRouterProvider).go('/dashboard');
                   return;
-                } catch (e) {
+                } catch (e3, s3) {
+                  debugPrint('[TopAppBar] provider.go failed: $e3\n$s3');
+                  // Try forcing a full-page navigation on web as last resort
+                  try {
+                    navigateToDashboardWeb();
+                    return;
+                  } catch (_) {}
                   if (ScaffoldMessenger.maybeOf(context) != null) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nie można przejść do panelu głównego.')));
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Nie można przejść do panelu głównego: $e3')));
                   }
                 }
               },
