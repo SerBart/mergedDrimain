@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../core/providers/app_providers.dart';
+import '../routing/app_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../core/models/notification.dart';
 
@@ -37,12 +38,29 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
           ? IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.white),
               tooltip: 'Powrót',
-              onPressed: () {
-                // Navigate back to main menu ('/') if possible, else pop
+              onPressed: () async {
+                // Use router from provider to avoid context-scoped router issues (dialogs/nested navigators).
                 try {
-                  context.go('/');
-                } catch (_) {
-                  if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+                  ref.read(appRouterProvider).goNamed('dashboard');
+                  return;
+                } catch (_) {}
+
+                // If provider-based navigation fails, try popping back to the first route.
+                try {
+                  if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).popUntil((r) => r.isFirst);
+                    return;
+                  }
+                } catch (_) {}
+
+                // Last resort: use provider router to go by absolute path and show feedback on failure.
+                try {
+                  ref.read(appRouterProvider).go('/dashboard');
+                  return;
+                } catch (e) {
+                  if (ScaffoldMessenger.maybeOf(context) != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nie można przejść do panelu głównego.')));
+                  }
                 }
               },
             )

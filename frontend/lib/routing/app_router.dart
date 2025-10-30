@@ -30,7 +30,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
-      GoRoute(path: '/dashboard', builder: (_, __) => const DashboardScreen()),
+      GoRoute(name: 'dashboard', path: '/dashboard', builder: (_, __) => const DashboardScreen()),
       GoRoute(path: '/raporty', builder: (_, __) => const RaportyListScreen()),
       GoRoute(path: '/raport/nowy', builder: (_, __) => const RaportFormScreen()),
       GoRoute(path: '/czesci', builder: (_, __) => const CzesciListScreen()),
