@@ -14,6 +14,7 @@ import '../features/przeglady/przeglady_screen.dart';
 import '../features/admin/admin_screen.dart';
 import '../features/instrukcje/instrukcje_list_screen.dart' as instrukcje_list;
 import '../features/instrukcje/instrukcja_form_screen.dart' as instrukcja_form;
+import '../features/notifications/notifications_page.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authStateProvider);
@@ -38,6 +39,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/przeglady', builder: (_, __) => const PrzegladyScreen()),
       GoRoute(path: '/instrukcje', builder: (_, __) => const instrukcje_list.InstrukcjeListScreen()),
       GoRoute(path: '/instrukcje/nowa', builder: (_, __) => const instrukcja_form.InstrukcjaFormScreen()),
+      // Notifications page
+      GoRoute(path: '/notifications', builder: (_, __) => const NotificationsPage()),
       // Panel Admina
       GoRoute(path: '/admin', builder: (_, __) => const AdminScreen()),
     ],

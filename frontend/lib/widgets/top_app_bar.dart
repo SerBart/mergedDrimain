@@ -23,6 +23,9 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
     // Attempt to load package info asynchronously via a FutureBuilder
     final versionFuture = PackageInfo.fromPlatform();
 
+    // Watch notifications provider (AsyncValue)
+    final notifsAsync = ref.watch(notificationsListProvider);
+
     return AppBar(
       automaticallyImplyLeading: false,
       elevation: 6,
@@ -76,7 +79,7 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8.0),
           child: Row(
             children: [
-              // Notifications icon with badge (placeholder count)
+              // Notifications icon with badge
               Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -84,8 +87,7 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
                     tooltip: 'Powiadomienia',
                     icon: const Icon(Icons.notifications, color: Colors.white),
                     onPressed: () {
-                      // TODO: navigate to notifications screen
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Powiadomienia (placeholder)')));
+                      context.go('/notifications');
                     },
                   ),
                   Positioned(
@@ -95,7 +97,16 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
                       padding: const EdgeInsets.all(2),
                       decoration: BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)]),
                       constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                      child: const Center(child: Text('3', style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold))),
+                      child: Center(
+                        child: notifsAsync.when(
+                          data: (list) => Text(
+                            '${list.length}',
+                            style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                          loading: () => const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                          error: (_, __) => const Text('0', style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
                     ),
                   ),
                 ],

@@ -11,6 +11,8 @@ import '../repositories/admin_api_repository.dart';
 import '../repositories/instructions_api_repository.dart';
 import '../repositories/parts_api_repository.dart';
 import '../repositories/raporty_api_repository.dart';
+import '../repositories/notifications_api_repository.dart';
+import '../models/notification.dart';
 
 // Globalny klient HTTP (adres z --dart-define=API_BASE)
 final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
@@ -79,6 +81,23 @@ final raportyApiRepositoryProvider = Provider<RaportyApiRepository>((ref) {
   final api = ref.watch(apiClientProvider);
   final storage = ref.watch(secureStorageProvider);
   return RaportyApiRepository(api.dio, storage);
+});
+
+// Notifications repository + provider
+final notificationsApiRepositoryProvider = Provider<NotificationsApiRepository>((ref) {
+  final api = ref.watch(apiClientProvider);
+  final storage = ref.watch(secureStorageProvider);
+  return NotificationsApiRepository(api.dio, storage);
+});
+
+// Provider zwracający listę powiadomień (Future) — można go użyć do badge/ekranu
+final notificationsListProvider = FutureProvider<List<NotificationModel>>((ref) async {
+  final repo = ref.watch(notificationsApiRepositoryProvider);
+  try {
+    return await repo.fetchAll();
+  } catch (e) {
+    return <NotificationModel>[];
+  }
 });
 
 // Stan/logika autoryzacji w aplikacji
