@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../widgets/top_app_bar.dart';
 
 import '../../core/models/maszyna.dart';
 import '../../core/models/osoba.dart';
@@ -223,17 +224,13 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
     final osoby = repo.getOsoby();
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEdit ? 'Edytuj raport' : 'Nowy raport'),
-        leading: IconButton(
-          tooltip: 'Dashboard',
-          icon: const Icon(Icons.home),
-          onPressed: () => context.go('/dashboard'),
-        ),
-        actions: [
+      appBar: TopAppBar(
+        title: _isEdit ? 'Edytuj raport' : 'Nowy raport',
+        showBack: true,
+        extraActions: [
           IconButton(
             tooltip: 'Zapisz',
-            icon: const Icon(Icons.save),
+            icon: const Icon(Icons.save, color: Colors.white),
             onPressed: _save,
           ),
         ],

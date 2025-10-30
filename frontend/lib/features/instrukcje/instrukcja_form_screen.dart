@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../widgets/top_app_bar.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/models/maszyna.dart';
 import '../../core/repositories/parts_api_repository.dart';
@@ -125,18 +126,14 @@ class _InstrukcjaFormScreenState extends ConsumerState<InstrukcjaFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Nowa instrukcja'),
-        leading: IconButton(
-          icon: const Icon(Icons.home),
-          tooltip: 'Dashboard',
-          onPressed: () => context.go('/dashboard'),
-        ),
-        actions: [
+      appBar: TopAppBar(
+        title: 'Nowa instrukcja',
+        showBack: true,
+        extraActions: [
           IconButton(
             onPressed: _submitting ? null : _loadMeta,
             tooltip: 'Odśwież listy',
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh, color: Colors.white),
           ),
         ],
       ),

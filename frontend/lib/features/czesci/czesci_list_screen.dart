@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:dio/dio.dart';
+import '../../widgets/top_app_bar.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/models/part.dart';
 import '../../core/models/maszyna.dart';
@@ -440,16 +440,12 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
     final parts = _filtered(_items);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Części zamienne'),
-        leading: IconButton(
-          tooltip: 'Dashboard',
-          icon: const Icon(Icons.home),
-          onPressed: () => context.go('/dashboard'),
-        ),
-        actions: [
+      appBar: TopAppBar(
+        title: 'Części zamienne',
+        showBack: true,
+        extraActions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: _loading ? null : () async { await _load(); await _loadMaszyny(); },
             tooltip: 'Odśwież',
           ),

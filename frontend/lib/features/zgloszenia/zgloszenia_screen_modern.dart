@@ -9,6 +9,7 @@ import '../../core/models/maszyna.dart';
 import '../../core/models/dzial.dart';
 import '../../widgets/photo_picker_field.dart';
 import '../../widgets/centered_scroll_card.dart';
+import '../../widgets/top_app_bar.dart';
 
 class ZgloszeniaScreenModern extends ConsumerStatefulWidget {
   const ZgloszeniaScreenModern({super.key});
@@ -920,24 +921,7 @@ class _ZgloszeniaScreenModernState
     final data = _filtered(repo.getZgloszenia());
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Zgłoszenia'),
-        leading: IconButton(
-          tooltip: 'Dashboard',
-          icon: const Icon(Icons.home),
-          onPressed: () => context.go('/dashboard'),
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Odśwież z API',
-            icon: const Icon(Icons.refresh),
-            onPressed: _busy ? null : () async {
-              await _syncMetaFromApi();
-              await _loadFromApi();
-            },
-          ),
-        ],
-      ),
+      appBar: const TopAppBar(title: 'Zgłoszenia', showBack: true),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _busy ? null : _openAddDialog,
         icon: const Icon(Icons.add),

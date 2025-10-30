@@ -5,6 +5,7 @@ import '../../core/providers/app_providers.dart';
 import '../../core/models/harmonogram.dart';
 import '../../core/models/maszyna.dart';
 import '../../core/models/dzial.dart';
+import '../../widgets/top_app_bar.dart';
 
 // Dodane: enum musi być na poziomie top-level w Dart
 enum DayColorMode { none, dominantFrequency, gradientFrequencies, status }
@@ -597,14 +598,10 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Przeglądy'),
-        leading: IconButton(
-          tooltip: 'Dashboard',
-          icon: const Icon(Icons.home),
-          onPressed: () => context.go('/dashboard'),
-        ),
-        actions: [
+      appBar: TopAppBar(
+        title: 'Przeglądy',
+        showBack: true,
+        extraActions: [
           Tooltip(
             message: _colorModeLabel(),
             child: IconButton(
@@ -618,11 +615,6 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
               icon: Icon(_strongFill ? Icons.opacity : Icons.opacity_outlined),
               onPressed: () => setState(() => _strongFill = !_strongFill),
             ),
-          ),
-          IconButton(
-            tooltip: 'Odśwież',
-            icon: const Icon(Icons.refresh),
-            onPressed: _loading ? null : _loadMonth,
           ),
         ],
       ),

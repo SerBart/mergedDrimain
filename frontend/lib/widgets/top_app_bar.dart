@@ -10,7 +10,9 @@ import '../core/models/notification.dart';
 /// Shows logo, app name and logout button. Implements PreferredSizeWidget
 class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
   final String? title;
-  const TopAppBar({Key? key, this.title}) : super(key: key);
+  final bool showBack;
+  final List<Widget>? extraActions;
+  const TopAppBar({Key? key, this.title, this.showBack = false, this.extraActions}) : super(key: key);
 
   @override
   Size get preferredSize => const Size.fromHeight(64);
@@ -31,6 +33,20 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
       automaticallyImplyLeading: false,
       elevation: 6,
       backgroundColor: Colors.transparent,
+      leading: showBack
+          ? IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              tooltip: 'Powrót',
+              onPressed: () {
+                // Navigate back to main menu ('/') if possible, else pop
+                try {
+                  context.go('/');
+                } catch (_) {
+                  if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+                }
+              },
+            )
+          : null,
       flexibleSpace: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -80,118 +96,120 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8.0),
           child: Row(
             children: [
-              // Notifications icon with badge
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  // use Builder to get correct context for positioning
-                  Builder(builder: (buttonContext) {
-                    return IconButton(
-                      tooltip: 'Powiadomienia',
-                      icon: const Icon(Icons.notifications, color: Colors.white),
-                      onPressed: () async {
-                        try {
-                          // Mark all read via repository, then refresh provider so badge updates
-                          final repo = ref.read(notificationsApiRepositoryProvider);
-                          // call markAllRead and get updated list
-                          final updated = await repo.markAllRead();
-                          // refresh provider
-                          ref.refresh(notificationsListProvider);
-                          // compute menu position anchored to the icon
-                          final RenderBox button = buttonContext.findRenderObject() as RenderBox;
-                          final overlay = Overlay.of(buttonContext)!.context.findRenderObject() as RenderBox;
-                          final RelativeRect position = RelativeRect.fromRect(
-                            Rect.fromPoints(
-                              button.localToGlobal(Offset.zero, ancestor: overlay),
-                              button.localToGlobal(button.size.bottomRight(Offset.zero), ancestor: overlay),
-                            ),
-                            Offset.zero & overlay.size,
-                          );
+              // render any extra actions provided by screens (e.g. save button)
+              if (extraActions != null) ...extraActions!,
+               // Notifications icon with badge
+               Stack(
+                 clipBehavior: Clip.none,
+                 children: [
+                   // use Builder to get correct context for positioning
+                   Builder(builder: (buttonContext) {
+                     return IconButton(
+                       tooltip: 'Powiadomienia',
+                       icon: const Icon(Icons.notifications, color: Colors.white),
+                       onPressed: () async {
+                         try {
+                           // Mark all read via repository, then refresh provider so badge updates
+                           final repo = ref.read(notificationsApiRepositoryProvider);
+                           // call markAllRead and get updated list
+                           final updated = await repo.markAllRead();
+                           // refresh provider
+                           ref.refresh(notificationsListProvider);
+                           // compute menu position anchored to the icon
+                           final RenderBox button = buttonContext.findRenderObject() as RenderBox;
+                           final overlay = Overlay.of(buttonContext)!.context.findRenderObject() as RenderBox;
+                           final RelativeRect position = RelativeRect.fromRect(
+                             Rect.fromPoints(
+                               button.localToGlobal(Offset.zero, ancestor: overlay),
+                               button.localToGlobal(button.size.bottomRight(Offset.zero), ancestor: overlay),
+                             ),
+                             Offset.zero & overlay.size,
+                           );
 
-                          // Build menu entries from updated list (preview up to 5)
-                          final preview = updated.length > 5 ? updated.sublist(0, 5) : updated;
-                          final items = preview.map((n) => PopupMenuItem<NotificationModel>(
-                            value: n,
-                            child: ListTile(
-                              title: Text(n.title ?? (n.message ?? 'Bez tytułu')),
-                              subtitle: Text(n.message ?? ''),
-                              trailing: Text(n.createdAt != null ? n.createdAt!.toLocal().toString() : '', style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                            ),
-                          )).toList();
+                           // Build menu entries from updated list (preview up to 5)
+                           final preview = updated.length > 5 ? updated.sublist(0, 5) : updated;
+                           final items = preview.map((n) => PopupMenuItem<NotificationModel>(
+                             value: n,
+                             child: ListTile(
+                               title: Text(n.title ?? (n.message ?? 'Bez tytułu')),
+                               subtitle: Text(n.message ?? ''),
+                               trailing: Text(n.createdAt != null ? n.createdAt!.toLocal().toString() : '', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                             ),
+                           )).toList();
 
-                          if (items.isEmpty) {
-                            // show a simple menu with 'Brak powiadomień'
-                            await showMenu(context: buttonContext, position: position, items: [const PopupMenuItem(child: Text('Brak powiadomień'))]);
-                          } else {
-                            final selected = await showMenu<NotificationModel>(context: buttonContext, position: position, items: items);
-                            if (selected != null && selected.link != null && selected.link!.isNotEmpty) {
-                              try { buttonContext.go(selected.link!); } catch (_) {}
-                            }
-                          }
-                        } catch (e) {
-                          // fallback: open full notifications page
-                          context.go('/notifications');
-                        }
-                      },
-                    );
-                  }),
-                  Positioned(
-                    right: 6,
-                    top: 10,
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)]),
-                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                      child: Center(
-                        child: notifsAsync.when(
-                          data: (list) {
-                            final unread = list.where((n) => !n.read).length;
-                            return Text(
-                              '$unread',
-                              style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
-                            );
-                          },
-                          loading: () => const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
-                          error: (_, __) => const Text('0', style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              // show small user avatar
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: Colors.white24,
-                child: Text(initials, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-              ),
-              const SizedBox(width: 8),
-              // Profile menu with version and logout
-              PopupMenuButton<int>(
-                color: Colors.white,
-                icon: const Icon(Icons.more_vert, color: Colors.white),
-                onSelected: (v) async {
-                  if (v == 1) {
-                    // logout
-                    await ref.read(authStateProvider.notifier).logout();
-                    if (context.mounted) context.go('/login');
-                  }
-                },
-                itemBuilder: (ctx) => [
-                  PopupMenuItem(value: 0, child: FutureBuilder<PackageInfo>(
-                    future: versionFuture,
-                    builder: (ctx, snap) {
-                      final ver = snap.hasData ? snap.data!.version : '...';
-                      return Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Wersja'), Text(ver, style: TextStyle(fontWeight: FontWeight.w700))]);
-                    },
-                  )),
-                  const PopupMenuDivider(),
-                  const PopupMenuItem(value: 1, child: Text('Wyloguj')),
-                ],
-              ),
-            ],
-          ),
-        )
+                           if (items.isEmpty) {
+                             // show a simple menu with 'Brak powiadomień'
+                             await showMenu(context: buttonContext, position: position, items: [const PopupMenuItem(child: Text('Brak powiadomień'))]);
+                           } else {
+                             final selected = await showMenu<NotificationModel>(context: buttonContext, position: position, items: items);
+                             if (selected != null && selected.link != null && selected.link!.isNotEmpty) {
+                               try { buttonContext.go(selected.link!); } catch (_) {}
+                             }
+                           }
+                         } catch (e) {
+                           // fallback: open full notifications page
+                           context.go('/notifications');
+                         }
+                       },
+                     );
+                   }),
+                   Positioned(
+                     right: 6,
+                     top: 10,
+                     child: Container(
+                       padding: const EdgeInsets.all(2),
+                       decoration: BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)]),
+                       constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                       child: Center(
+                         child: notifsAsync.when(
+                           data: (list) {
+                             final unread = list.where((n) => !n.read).length;
+                             return Text(
+                               '$unread',
+                               style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                             );
+                           },
+                           loading: () => const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                           error: (_, __) => const Text('0', style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
+                         ),
+                       ),
+                     ),
+                   ),
+                 ],
+               ),
+               // show small user avatar
+               CircleAvatar(
+                 radius: 16,
+                 backgroundColor: Colors.white24,
+                 child: Text(initials, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+               ),
+               const SizedBox(width: 8),
+               // Profile menu with version and logout
+               PopupMenuButton<int>(
+                 color: Colors.white,
+                 icon: const Icon(Icons.more_vert, color: Colors.white),
+                 onSelected: (v) async {
+                   if (v == 1) {
+                     // logout
+                     await ref.read(authStateProvider.notifier).logout();
+                     if (context.mounted) context.go('/login');
+                   }
+                 },
+                 itemBuilder: (ctx) => [
+                   PopupMenuItem(value: 0, child: FutureBuilder<PackageInfo>(
+                     future: versionFuture,
+                     builder: (ctx, snap) {
+                       final ver = snap.hasData ? snap.data!.version : '...';
+                       return Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Wersja'), Text(ver, style: TextStyle(fontWeight: FontWeight.w700))]);
+                     },
+                   )),
+                   const PopupMenuDivider(),
+                   const PopupMenuItem(value: 1, child: Text('Wyloguj')),
+                 ],
+               ),
+             ],
+           ),
+         )
       ],
     );
   }

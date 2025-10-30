@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../widgets/top_app_bar.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/models/raport.dart';
@@ -364,26 +365,7 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
     final raporty = _apply(repo.getRaporty());
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Raporty'),
-        leading: IconButton(
-          tooltip: 'Dashboard',
-          icon: const Icon(Icons.home),
-          onPressed: () => context.go('/dashboard'),
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Odśwież z backendu',
-            icon: const Icon(Icons.refresh),
-            onPressed: _busy ? null : () async { await _syncMetaFromApi(); await _loadFromApi(); },
-          ),
-          IconButton(
-            tooltip: 'Dodaj raport',
-            icon: const Icon(Icons.add),
-            onPressed: _busy ? null : _openAddRaportDialog,
-          )
-        ],
-      ),
+      appBar: const TopAppBar(title: 'Raporty', showBack: true),
       body: AbsorbPointer(
         absorbing: _busy,
         child: ListView(
@@ -499,4 +481,3 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
     );
   }
 }
-

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/models/notification.dart';
+import '../../widgets/top_app_bar.dart';
 
 class NotificationsPage extends ConsumerWidget {
   const NotificationsPage({Key? key}) : super(key: key);
@@ -12,9 +13,7 @@ class NotificationsPage extends ConsumerWidget {
     final notifsAsync = ref.watch(notificationsListProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Powiadomienia'),
-      ),
+      appBar: const TopAppBar(title: 'Powiadomienia', showBack: true),
       body: notifsAsync.when(
         data: (list) {
           if (list.isEmpty) {

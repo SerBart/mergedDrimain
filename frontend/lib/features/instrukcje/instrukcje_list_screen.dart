@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/models/instruction.dart';
 import '../../widgets/centered_scroll_card.dart';
+import '../../widgets/top_app_bar.dart';
 
 class InstrukcjeListScreen extends ConsumerStatefulWidget {
   const InstrukcjeListScreen({super.key});
@@ -94,17 +95,13 @@ class _InstrukcjeListScreenState extends ConsumerState<InstrukcjeListScreen> {
   Widget build(BuildContext context) {
     final isAdmin = ref.watch(authStateProvider.select((u) => u?.role == 'ADMIN'));
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Instrukcje napraw'),
-        leading: IconButton(
-          tooltip: 'Dashboard',
-          icon: const Icon(Icons.home),
-          onPressed: () => context.go('/dashboard'),
-        ),
-        actions: [
-          IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh)),
+      appBar: TopAppBar(
+        title: 'Instrukcje napraw',
+        showBack: true,
+        extraActions: [
+          IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh, color: Colors.white)),
           if (isAdmin == true)
-            IconButton(onPressed: _loading ? null : _openAdd, icon: const Icon(Icons.add))
+            IconButton(onPressed: _loading ? null : _openAdd, icon: const Icon(Icons.add, color: Colors.white)),
         ],
       ),
       body: _loading && _items.isEmpty

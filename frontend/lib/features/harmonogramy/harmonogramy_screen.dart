@@ -6,6 +6,7 @@ import '../../core/models/harmonogram.dart';
 import '../../core/models/maszyna.dart';
 import '../../core/models/osoba.dart';
 import '../../widgets/centered_scroll_card.dart';
+import '../../widgets/top_app_bar.dart';
 
 class HarmonogramyScreen extends ConsumerStatefulWidget {
   const HarmonogramyScreen({super.key});
@@ -252,14 +253,7 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Harmonogramy'),
-        leading: IconButton(
-          tooltip: 'Dashboard',
-          icon: const Icon(Icons.home),
-          onPressed: () => context.go('/dashboard'),
-        ),
-      ),
+      appBar: const TopAppBar(title: 'Harmonogramy', showBack: true),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _handleAddTap,
         icon: const Icon(Icons.add),
