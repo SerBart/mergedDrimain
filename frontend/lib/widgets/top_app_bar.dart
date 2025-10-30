@@ -45,13 +45,10 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
                   Navigator.of(context, rootNavigator: true).popUntil((r) => r.isFirst);
                 } catch (_) {}
 
-                // Debug info: print and briefly show current URL path (safe fallback)
+                // Debug info: print current URL path (safe fallback). No UI popups.
                 try {
                   final loc = Uri.base.path; // safe cross-platform fallback for current URL path
                   debugPrint('[TopAppBar] current location: $loc');
-                  if (ScaffoldMessenger.maybeOf(context) != null) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Aktualna ścieżka: $loc'), duration: Duration(seconds: 2)));
-                  }
                 } catch (_) {}
 
                 // Try direct context-based navigation first (uses nearest router)
