@@ -25,6 +25,8 @@ import java.util.stream.Collectors;
 // New imports
 import drimer.drimain.repository.UserRepository;
 import drimer.drimain.model.User;
+import drimer.drimain.service.NotificationService;
+import drimer.drimain.model.NotificationType;
 
 /**
  * REST controller for Zgloszenie CRUD.
@@ -47,6 +49,8 @@ public class ZgloszenieRestController {
     private final ZgloszenieCommandService commandService;
     // New: to resolve current user's department
     private final UserRepository userRepository;
+    // New: notification service
+    private final NotificationService notificationService;
 
     /**
      * List with simple filters.
@@ -128,6 +132,17 @@ public class ZgloszenieRestController {
     public ResponseEntity<ZgloszenieDTO> create(@RequestBody ZgloszenieCreateRequest req,
                                                 Authentication authentication) {
         Zgloszenie z = commandService.create(req, authentication);
+
+        // Create module notification for users who have access to "Zgloszenia" (except excluded modules handled in service)
+        try {
+            String title = "Nowe zgłoszenie";
+            String message = z.getTytul() != null ? z.getTytul() : (z.getOpis() != null ? z.getOpis() : "");
+            String link = "/zgloszenia/" + z.getId();
+            notificationService.createModuleNotification("Zgloszenia", NotificationType.NEW_ZGLOSZENIE, title, message, link);
+        } catch (Exception ex) {
+            // Nie przerywamy tworzenia zgloszenia, logowanie opcjonalne
+        }
+
         return ResponseEntity.status(HttpStatus.CREATED).body(ZgloszenieMapper.toDto(z));
     }
 
@@ -204,3 +219,4 @@ public class ZgloszenieRestController {
         public ErrorResponse(String message) { this.message = message; }
     }
 }
+

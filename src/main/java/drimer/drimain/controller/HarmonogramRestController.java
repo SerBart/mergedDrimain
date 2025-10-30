@@ -4,6 +4,8 @@ import drimer.drimain.api.dto.*;
 import drimer.drimain.model.Harmonogram;
 import drimer.drimain.model.Maszyna;
 import drimer.drimain.model.Osoba;
+import drimer.drimain.model.NotificationType;
+import drimer.drimain.service.NotificationService;
 import drimer.drimain.model.enums.StatusHarmonogramu;
 import drimer.drimain.repository.HarmonogramRepository;
 import drimer.drimain.repository.DzialRepository;
@@ -27,6 +29,8 @@ public class HarmonogramRestController {
     private final MaszynaRepository maszynaRepository;
     private final OsobaRepository osobaRepository;
     private final DzialRepository dzialRepository;
+    // notification service
+    private final NotificationService notificationService;
 
     @GetMapping
     public List<HarmonogramDTO> list(@RequestParam Optional<Integer> year,
@@ -75,6 +79,17 @@ public class HarmonogramRestController {
         }
 
         harmonogramRepository.save(h);
+
+        // create module notification for harmonogramy
+        try {
+            String title = "Nowy harmonogram";
+            String message = h.getOpis() != null ? h.getOpis() : "";
+            String link = "/harmonogramy/" + h.getId();
+            notificationService.createModuleNotification("Harmonogramy", NotificationType.NEW_HARMONOGRAM, title, message, link);
+        } catch (Exception ex) {
+            // ignore notification errors
+        }
+
         return toDto(h);
     }
 
