@@ -257,7 +257,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
 
     if (auth?.role != AppRoles.admin) {
       return Scaffold(
-        appBar: const TopAppBar(title: 'Brak dostępu'),
+        appBar: const TopAppBar(title: 'Brak dostępu', showBack: true),
         body: const Center(child: Text('ADMIN wymagany.')),
       );
     }
@@ -265,7 +265,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
     final usersDemo = mock.getUsers();
 
     return Scaffold(
-      appBar: const TopAppBar(title: 'Panel Admina'),
+      appBar: const TopAppBar(title: 'Panel Admina', showBack: true),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
@@ -552,4 +552,3 @@ class _CardSection extends StatelessWidget {
     );
   }
 }
-
