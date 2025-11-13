@@ -52,19 +52,22 @@ public class MetaController {
     }
 
     @GetMapping("/osoby-simple")
-    public List<SimpleOsobaDTO> simpleOsoby() {
-        // Zbierz istniej05ce loginy Osob
+    public List<SimpleOsobaDTO> simpleOsoby(
+            @RequestParam(name = "dzialId", required = false) Long dzialId,
+            @RequestParam(name = "dzialNazwa", required = false) String dzialNazwa
+    ) {
+        // Zbierz istniejące loginy Osób
         Set<String> existing = new HashSet<>();
         osobaRepository.findAll().forEach(o -> {
             if (o.getLogin() != null && !o.getLogin().isBlank()) existing.add(o.getLogin());
         });
-        // Dla kacdego ucytkownika bez odpowiadaj05cej Osoby - utw7rz wpis Osoba (login=username)
+        // Dla każdego użytkownika bez odpowiadającej Osoby - utwórz wpis Osoba (login=username)
         userRepository.findAll().forEach(u -> {
             String uname = u.getUsername();
             if (uname != null && !uname.isBlank() && !existing.contains(uname)) {
                 Osoba nowa = new Osoba();
                 nowa.setLogin(uname);
-                // imie+nazwisko ustawiamy na username, dop5ki nie zostanie uzupe2nione inaczej
+                // imie+nazwisko ustawiamy na username, dopóki nie zostanie uzupełnione inaczej
                 nowa.setImieNazwisko(uname);
                 nowa.setHaslo(null);
                 nowa.setRola(null);
@@ -72,8 +75,18 @@ public class MetaController {
                 existing.add(uname);
             }
         });
-        // Zwr057 gotow05 list19
-        return osobaRepository.findAll().stream().map(o -> {
+
+        // Zastosuj filtr po dziale jeśli podano
+        List<Osoba> osoby;
+        if (dzialId != null) {
+            osoby = osobaRepository.findByDzial_Id(dzialId);
+        } else if (dzialNazwa != null && !dzialNazwa.isBlank()) {
+            osoby = osobaRepository.findByDzial_NazwaIgnoreCase(dzialNazwa.trim());
+        } else {
+            osoby = osobaRepository.findAll();
+        }
+
+        return osoby.stream().map(o -> {
             SimpleOsobaDTO dto = new SimpleOsobaDTO();
             dto.setId(o.getId());
             dto.setImieNazwisko(o.getImieNazwisko());

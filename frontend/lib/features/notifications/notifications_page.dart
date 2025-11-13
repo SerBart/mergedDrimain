@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/models/notification.dart';
 import '../../widgets/top_app_bar.dart';
+import '../../core/utils/notification_router.dart';
 
 class NotificationsPage extends ConsumerWidget {
   const NotificationsPage({Key? key}) : super(key: key);
@@ -30,14 +31,10 @@ class NotificationsPage extends ConsumerWidget {
                 subtitle: Text(n.message ?? ''),
                 trailing: Text(created, style: const TextStyle(fontSize: 11, color: Colors.grey)),
                 onTap: () {
-                  if (n.link != null && n.link!.isNotEmpty) {
-                    // Use go_router to navigate within app
-                    try {
-                      context.go(n.link!);
-                    } catch (_) {
-                      // fallback: do nothing
-                    }
-                  }
+                  try {
+                    final target = routeFromNotificationModel(n);
+                    ctx.go(target);
+                  } catch (_) {}
                 },
               );
             },

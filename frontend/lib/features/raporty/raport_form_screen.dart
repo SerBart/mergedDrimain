@@ -62,7 +62,13 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
     try {
       final meta = ref.read(metaApiRepositoryProvider);
       final fetchedMaszyny = await meta.fetchMaszynySimple();
-      final fetchedOsoby = await meta.fetchOsobySimple();
+      // tylko osoby z UR
+      const urName = 'Utrzymanie Ruchu';
+      var fetchedOsoby = await meta.fetchOsobySimple(dzialNazwa: urName);
+      // fallback: jeżeli brak osób w UR, pokaż wszystkie, aby formularz był używalny
+      if (fetchedOsoby.isEmpty) {
+        fetchedOsoby = await meta.fetchOsobySimple();
+      }
       final mock = ref.read(mockRepoProvider);
       // Podmień zawartość list w mock repo na dane z backendu
       mock.maszyny
