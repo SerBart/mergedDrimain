@@ -5,12 +5,13 @@ import lombok.Data;
 
 @Data
 public class OsobaCreateRequest {
-    @NotBlank
+    // login i hasło opcjonalne
     private String login;
-    
-    @NotBlank
     private String haslo;
-    
+
+    // wymagane imię i nazwisko do listy wybieralnej
+    @NotBlank
     private String imieNazwisko;
+
     private String rola;
 }

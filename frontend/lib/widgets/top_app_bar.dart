@@ -7,6 +7,7 @@ import '../routing/app_router.dart';
 import '../core/utils/web_nav.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../core/models/notification.dart';
+import '../core/utils/notification_router.dart';
 
 /// Reusable, modern top app bar used across screens.
 /// Shows logo, app name and logout button. Implements PreferredSizeWidget
@@ -149,10 +150,9 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
                          try {
                            // Mark all read via repository, then refresh provider so badge updates
                            final repo = ref.read(notificationsApiRepositoryProvider);
-                           // call markAllRead and get updated list
                            final updated = await repo.markAllRead();
-                           // refresh provider
                            ref.refresh(notificationsListProvider);
+
                            // compute menu position anchored to the icon
                            final RenderBox button = buttonContext.findRenderObject() as RenderBox;
                            final overlay = Overlay.of(buttonContext)!.context.findRenderObject() as RenderBox;
@@ -166,27 +166,53 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
 
                            // Build menu entries from updated list (preview up to 5)
                            final preview = updated.length > 5 ? updated.sublist(0, 5) : updated;
-                           final items = preview.map((n) => PopupMenuItem<NotificationModel>(
-                             value: n,
-                             child: ListTile(
-                               title: Text(n.title ?? (n.message ?? 'Bez tytułu')),
-                               subtitle: Text(n.message ?? ''),
-                               trailing: Text(n.createdAt != null ? n.createdAt!.toLocal().toString() : '', style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                             ),
-                           )).toList();
+                           final items = preview
+                               .map((n) => PopupMenuItem<NotificationModel>(
+                                     value: n,
+                                     child: ListTile(
+                                       title: Text(n.title ?? (n.message ?? 'Bez tytułu')),
+                                       subtitle: Text(n.message ?? ''),
+                                       trailing: Text(
+                                         n.createdAt != null ? n.createdAt!.toLocal().toString() : '',
+                                         style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                       ),
+                                     ),
+                                   ))
+                               .toList();
 
                            if (items.isEmpty) {
-                             // show a simple menu with 'Brak powiadomień'
-                             await showMenu(context: buttonContext, position: position, items: [const PopupMenuItem(child: Text('Brak powiadomień'))]);
+                             await showMenu(
+                               context: buttonContext,
+                               position: position,
+                               items: const [PopupMenuItem(child: Text('Brak powiadomień'))],
+                             );
                            } else {
-                             final selected = await showMenu<NotificationModel>(context: buttonContext, position: position, items: items);
-                             if (selected != null && selected.link != null && selected.link!.isNotEmpty) {
-                               try { buttonContext.go(selected.link!); } catch (_) {}
+                             final selected = await showMenu<NotificationModel>(
+                               context: buttonContext,
+                               position: position,
+                               items: items,
+                             );
+                             if (selected != null) {
+                               // Use helper to compute route for this notification
+                               String target = routeFromNotificationModel(selected);
+                               if (!target.startsWith('/')) target = '/$target';
+                               try {
+                                 ref.read(appRouterProvider).go(target);
+                               } catch (e) {
+                                 debugPrint('[TopAppBar] failed navigating to $target: $e');
+                                 try {
+                                   ref.read(appRouterProvider).go('/notifications');
+                                 } catch (_) {}
+                               }
                              }
                            }
                          } catch (e) {
                            // fallback: open full notifications page
-                           context.go('/notifications');
+                           if (buttonContext.mounted) {
+                             buttonContext.go('/notifications');
+                           } else {
+                             context.go('/notifications');
+                           }
                          }
                        },
                      );
@@ -202,13 +228,14 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
                          child: notifsAsync.when(
                            data: (list) {
                              final unread = list.where((n) => !n.read).length;
+                             if (unread <= 0) return const SizedBox.shrink();
                              return Text(
                                '$unread',
                                style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
                              );
                            },
                            loading: () => const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
-                           error: (_, __) => const Text('0', style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
+                           error: (_, __) => const SizedBox.shrink(),
                          ),
                        ),
                      ),
