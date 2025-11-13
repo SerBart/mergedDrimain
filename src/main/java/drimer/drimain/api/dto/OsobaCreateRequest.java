@@ -14,4 +14,7 @@ public class OsobaCreateRequest {
     private String imieNazwisko;
 
     private String rola;
+
+    // nowe: przypisanie do działu
+    private Long dzialId;
 }

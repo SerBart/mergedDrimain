@@ -22,6 +22,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
   final _maszynaCtrl = TextEditingController();
   int? _maszynaDzialId;
   final _osobaCtrl = TextEditingController(); // imie i nazwisko
+  int? _osobaDzialId; // nowy: dział dla osoby
   final _userLoginCtrl = TextEditingController();
   String _userRole = 'USER';
 
@@ -76,13 +77,10 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
       _osoby = results[2] as List<Osoba>;
       _users = results[3] as List<AdminUser>;
       _modulesCatalog = (results[4] as List).cast<String>();
-      // Jeżeli wybrany dział został usunięty, wyczyść wybór
-      if (_maszynaDzialId != null && !_dzialy.any((d) => d.id == _maszynaDzialId)) {
-        _maszynaDzialId = null;
-      }
-      if (_apiUserDzialId != null && !_dzialy.any((d) => d.id == _apiUserDzialId)) {
-        _apiUserDzialId = null;
-      }
+      // sanity: wyczyść nieistniejące wybory działu
+      if (_maszynaDzialId != null && !_dzialy.any((d) => d.id == _maszynaDzialId)) _maszynaDzialId = null;
+      if (_apiUserDzialId != null && !_dzialy.any((d) => d.id == _apiUserDzialId)) _apiUserDzialId = null;
+      if (_osobaDzialId != null && !_dzialy.any((d) => d.id == _osobaDzialId)) _osobaDzialId = null;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -137,61 +135,22 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
     }
   }
 
-  Future<void> _addOsobaDialog() async {
+  Future<void> _addOsoba() async {
     final imieNazwisko = _osobaCtrl.text.trim();
-    final loginCtrl = TextEditingController();
-    final hasloCtrl = TextEditingController();
-
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Nowa osoba'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: loginCtrl,
-              decoration: const InputDecoration(labelText: 'Login (wymagany)'),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: hasloCtrl,
-              decoration: const InputDecoration(labelText: 'Hasło (wymagane)'),
-              obscureText: true,
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: TextEditingController(text: imieNazwisko),
-              decoration: const InputDecoration(labelText: 'Imię i nazwisko (opcjonalne)'),
-              onChanged: (v) {}, // tylko do pokazania wartości początkowej
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Anuluj')),
-          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Zapisz')),
-        ],
-      ),
-    );
-
-    if (ok == true) {
-      final login = loginCtrl.text.trim();
-      final haslo = hasloCtrl.text.trim();
-      if (login.isEmpty || haslo.isEmpty) {
-        _showError('Login i hasło są wymagane.');
-        return;
-      }
-      try {
-        await ref.read(adminApiRepositoryProvider).addOsoba(
-              login: login,
-              haslo: haslo,
-              imieNazwisko: imieNazwisko.isEmpty ? null : imieNazwisko,
-            );
-        _osobaCtrl.clear();
-        await _loadAll();
-      } catch (e) {
-        _showError('Błąd dodawania osoby: $e');
-      }
+    final dzialId = _osobaDzialId;
+    if (imieNazwisko.isEmpty) {
+      _showError('Podaj imię i nazwisko.');
+      return;
+    }
+    try {
+      await ref.read(adminApiRepositoryProvider).addOsoba(
+            imieNazwisko: imieNazwisko,
+            dzialId: dzialId,
+          );
+      _osobaCtrl.clear();
+      await _loadAll();
+    } catch (e) {
+      _showError('Błąd dodawania osoby: $e');
     }
   }
 
@@ -353,6 +312,13 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                     title: 'Osoby',
                     child: Column(
                       children: [
+                        DropdownButtonFormField<int>(
+                          value: _osobaDzialId,
+                          decoration: const InputDecoration(labelText: 'Dział (opcjonalnie)'),
+                          items: _dzialy.map((d) => DropdownMenuItem(value: d.id, child: Text(d.nazwa))).toList(),
+                          onChanged: (v) => setState(() => _osobaDzialId = v),
+                        ),
+                        const SizedBox(height: 8),
                         Row(
                           children: [
                             Expanded(
@@ -363,7 +329,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                             ),
                             const SizedBox(width: 8),
                             ElevatedButton(
-                              onPressed: _addOsobaDialog,
+                              onPressed: _addOsoba,
                               child: const Text('Dodaj'),
                             ),
                           ],

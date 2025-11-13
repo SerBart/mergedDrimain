@@ -15,6 +15,11 @@ public class Osoba {
     private String imieNazwisko;
     private String rola;
 
+    // Nowe: przypisanie do działu
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "dzial_id")
+    private Dzial dzial;
+
     public Osoba() {}
 
     public Osoba(String login, String haslo, String rola) {
@@ -50,4 +55,8 @@ public class Osoba {
     public String getRola() { return rola; }
 
     public void setRola(String rola) { this.rola = rola; }
+
+    public Dzial getDzial() { return dzial; }
+
+    public void setDzial(Dzial dzial) { this.dzial = dzial; }
 }

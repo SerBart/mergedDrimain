@@ -157,17 +157,19 @@ class AdminApiRepository {
   }
 
   Future<Osoba> addOsoba({
-    required String login,
-    required String haslo,
-    String? imieNazwisko,
+    required String imieNazwisko,
+    int? dzialId,
+    String? login,
+    String? haslo,
     String? rola,
   }) async {
     final token = await _token();
-    final body = {
-      'login': login,
-      'haslo': haslo,
-      if (imieNazwisko != null) 'imieNazwisko': imieNazwisko,
-      if (rola != null) 'rola': rola,
+    final body = <String, dynamic>{
+      'imieNazwisko': imieNazwisko,
+      if (dzialId != null) 'dzialId': dzialId,
+      if (login != null && login.isNotEmpty) 'login': login,
+      if (haslo != null && haslo.isNotEmpty) 'haslo': haslo,
+      if (rola != null && rola.isNotEmpty) 'rola': rola,
     };
     final resp = await _dio.post(
       '/api/admin/osoby',

@@ -136,11 +136,16 @@ public class AdminRestController {
     @ResponseStatus(HttpStatus.CREATED)
     public OsobaDTO createOsoba(@Valid @RequestBody OsobaCreateRequest req) {
         Osoba osoba = new Osoba();
-        osoba.setLogin(req.getLogin());
-        osoba.setHaslo(req.getHaslo());
+        // login/hasło opcjonalne
+        if (req.getLogin() != null && !req.getLogin().isBlank()) osoba.setLogin(req.getLogin());
+        if (req.getHaslo() != null && !req.getHaslo().isBlank()) osoba.setHaslo(req.getHaslo());
         osoba.setImieNazwisko(req.getImieNazwisko());
         osoba.setRola(req.getRola());
-        
+        if (req.getDzialId() != null) {
+            Dzial dz = dzialRepository.findById(req.getDzialId())
+                    .orElseThrow(() -> new IllegalArgumentException("Dzial not found"));
+            osoba.setDzial(dz);
+        }
         osobaRepository.save(osoba);
         return toOsobaDto(osoba);
     }
@@ -149,14 +154,19 @@ public class AdminRestController {
     public OsobaDTO updateOsoba(@PathVariable Long id, @Valid @RequestBody OsobaCreateRequest req) {
         Osoba osoba = osobaRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Osoba not found"));
-        
-        osoba.setLogin(req.getLogin());
+        if (req.getLogin() != null) osoba.setLogin(req.getLogin());
         if (req.getHaslo() != null && !req.getHaslo().trim().isEmpty()) {
             osoba.setHaslo(req.getHaslo());
         }
-        osoba.setImieNazwisko(req.getImieNazwisko());
+        if (req.getImieNazwisko() != null) osoba.setImieNazwisko(req.getImieNazwisko());
         osoba.setRola(req.getRola());
-        
+        if (req.getDzialId() != null) {
+            Dzial dz = dzialRepository.findById(req.getDzialId())
+                    .orElseThrow(() -> new IllegalArgumentException("Dzial not found"));
+            osoba.setDzial(dz);
+        } else {
+            osoba.setDzial(null);
+        }
         osobaRepository.save(osoba);
         return toOsobaDto(osoba);
     }
@@ -278,6 +288,10 @@ public class AdminRestController {
         dto.setLogin(osoba.getLogin());
         dto.setImieNazwisko(osoba.getImieNazwisko());
         dto.setRola(osoba.getRola());
+        if (osoba.getDzial() != null) {
+            dto.setDzialId(osoba.getDzial().getId());
+            dto.setDzialNazwa(osoba.getDzial().getNazwa());
+        }
         return dto;
     }
 
@@ -310,4 +324,3 @@ public class AdminRestController {
         return ex.getMessage() == null ? "Internal server error" : ex.getMessage();
     }
 }
-

@@ -8,5 +8,7 @@ public class OsobaDTO {
     private String login;
     private String imieNazwisko;
     private String rola;
-    // Note: password field intentionally excluded for security
+    // Dodatkowe informacje o dziale osoby (opcjonalne)
+    private Long dzialId;
+    private String dzialNazwa;
 }
