@@ -5,6 +5,7 @@ import '../../core/providers/app_providers.dart';
 import '../../core/models/harmonogram.dart';
 import '../../core/models/maszyna.dart';
 import '../../core/models/dzial.dart';
+import '../../core/models/osoba.dart';
 import '../../widgets/top_app_bar.dart';
 
 // Dodane: enum musi być na poziomie top-level w Dart
@@ -22,6 +23,7 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
   List<Harmonogram> _items = [];
   List<Maszyna> _maszyny = [];
   List<Dzial> _dzialy = [];
+  List<Osoba> _osoby = []; // lista osób (UR)
   bool _loadingMeta = false;
 
   // Tryby kolorowania dnia
@@ -86,9 +88,16 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
     setState(() => _loadingMeta = true);
     try {
       final adminRepo = ref.read(adminApiRepositoryProvider);
+      final metaRepo = ref.read(metaApiRepositoryProvider);
       final maszyny = await adminRepo.getMaszyny();
       final dzialy = await adminRepo.getDzialy();
-      setState(() { _maszyny = maszyny; _dzialy = dzialy; });
+      // pobierz osoby tylko z UR; fallback do wszystkich jeśli brak
+      const urName = 'Utrzymanie Ruchu';
+      var osoby = await metaRepo.fetchOsobySimple(dzialNazwa: urName);
+      if (osoby.isEmpty) {
+        osoby = await metaRepo.fetchOsobySimple();
+      }
+      setState(() { _maszyny = maszyny; _dzialy = dzialy; _osoby = osoby; });
     } catch (_) {
       // ciche – meta nie blokuje krytycznie
     } finally {
@@ -165,7 +174,8 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
     String opis = '';
     int? maszynaId;
     int? dzialId;
-    bool useMaszyna = true; // toggle between maszyna / dzial
+    int? osobaId; // wykonujący przegląd
+    bool useMaszyna = true; // toggle między maszyna / dzial
 
     await showDialog(
       context: context,
@@ -245,6 +255,18 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
                       onChanged: (v) => setLocal(() => dzialId = v),
                     ),
                   const SizedBox(height: 12),
+                  // Wybór osoby (opcjonalnie)
+                  if (_osoby.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<int>(
+                      value: osobaId,
+                      decoration: const InputDecoration(labelText: 'Osoba (opcjonalnie)', border: OutlineInputBorder()),
+                      items: [const DropdownMenuItem<int>(value: null, child: Text('Brak')),
+                        ..._osoby.map((o) => DropdownMenuItem(value: o.id, child: Text(o.imieNazwisko)))
+                      ],
+                      onChanged: (v) => setLocal(() => osobaId = v),
+                    ),
+                  ],
                   TextFormField(
                     maxLines: 2,
                     decoration: const InputDecoration(labelText: 'Opis (opcjonalnie)', border: OutlineInputBorder()),
@@ -268,6 +290,7 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
                     data: selectedDate,
                     maszynaId: useMaszyna ? maszynaId : null,
                     dzialId: useMaszyna ? null : dzialId,
+                    osobaId: osobaId,
                     frequency: frequency,
                     opis: opis.isNotEmpty ? opis : null,
                   );
@@ -307,7 +330,7 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
                 contentPadding: EdgeInsets.zero,
                 leading: CircleAvatar(radius: 10, backgroundColor: _colorFor(e.frequency)),
                 title: Text(e.opis.isNotEmpty ? e.opis : (e.maszyna?.nazwa ?? e.dzial?.nazwa ?? 'Przegląd')),
-                subtitle: Text('${e.frequency ?? '-'} • ${e.status}'),
+                subtitle: Text('${e.frequency ?? '-'} • ${e.status}' + (e.osoba != null ? ' • ${e.osoba!.imieNazwisko}' : '')),
                 trailing: IconButton(
                   icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
                   onPressed: () async {
