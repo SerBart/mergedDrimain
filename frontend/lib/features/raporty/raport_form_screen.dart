@@ -52,6 +52,12 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
   String _maszynaQuery = '';
   List<Dzial> _dzialyLocal = []; // załadowane działy
 
+  // NOWE: stany ładowania / błędów
+  bool _loadingMeta = false;
+  bool _loadingMaszyny = false;
+  String? _metaError;
+  String? _maszynyError;
+
   bool get _isEdit => _loaded != null || widget.existing != null;
 
   @override
@@ -65,6 +71,10 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
   }
 
   Future<void> _syncMetaFromApi() async {
+    setState(() {
+      _loadingMeta = true;
+      _metaError = null;
+    });
     try {
       final meta = ref.read(metaApiRepositoryProvider);
       final fetchedDzialy = await meta.fetchDzialySimple();
@@ -87,17 +97,24 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
         _dzial = _maszyna!.dzial;
         await _fetchMaszynyForDzial();
       }
-      setState(() {});
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Nie udało się pobrać meta danych: $e')),
-      );
+      _metaError = 'Meta dane (działy) błąd: $e';
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Nie udało się pobrać meta danych: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingMeta = false);
     }
   }
 
   Future<void> _fetchMaszynyForDzial() async {
     if (_dzial == null) return;
+    setState(() {
+      _loadingMaszyny = true;
+      _maszynyError = null;
+    });
     try {
       final meta = ref.read(metaApiRepositoryProvider);
       final fetchedMaszyny = await meta.fetchMaszynySimple(dzialId: _dzial!.id);
@@ -109,12 +126,15 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
       if (_maszyna != null && !fetchedMaszyny.any((m) => m.id == _maszyna!.id)) {
         _maszyna = null;
       }
-      setState(() {});
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Nie udało się pobrać maszyn dla działu: $e')),
-      );
+      _maszynyError = 'Błąd maszyn dla działu: $e';
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Nie udało się pobrać maszyn dla działu: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingMaszyny = false);
     }
   }
 
@@ -310,36 +330,77 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
               items: dzialy
                   .map((d) => DropdownMenuItem(value: d, child: Text(d.nazwa)))
                   .toList(),
-              onChanged: (v) => _onSelectDzial(v),
+              onChanged: _loadingMeta ? null : (v) => _onSelectDzial(v),
               validator: (v) => v == null ? 'Wybierz dział' : null,
             ),
-            // DEBUG / DIAGNOSTYKA DZIAŁÓW
+            // ROZSZERZONA DIAGNOSTYKA + SPINNER
             Padding(
               padding: const EdgeInsets.only(top: 6.0, bottom: 12.0),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      dzialy.isEmpty
-                          ? 'Brak działów – sprawdź /api/meta/dzialy-simple lub czy jesteś zalogowany.'
-                          : 'Załadowano działów: ${dzialy.length}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: dzialy.isEmpty ? Colors.redAccent : Colors.grey.shade600,
+                  Row(
+                    children: [
+                      if (_loadingMeta) const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                      Expanded(
+                        child: Text(
+                          _metaError != null
+                              ? _metaError!
+                              : dzialy.isEmpty
+                                  ? 'Brak działów – odśwież lub sprawdź autoryzację.'
+                                  : 'Działy: ${dzialy.length} (wybrany: ${_dzial?.nazwa ?? '-'}).',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: _metaError != null
+                                ? Colors.redAccent
+                                : (dzialy.isEmpty ? Colors.redAccent : Colors.grey.shade600),
+                          ),
+                        ),
                       ),
-                    ),
+                      IconButton(
+                        tooltip: 'Odśwież meta (działy)',
+                        icon: const Icon(Icons.refresh, size: 18),
+                        onPressed: _loadingMeta
+                            ? null
+                            : () async {
+                                await _syncMetaFromApi();
+                                if (mounted && _metaError == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Odświeżono działy')),);
+                                }
+                              },
+                      ),
+                    ],
                   ),
-                  IconButton(
-                    tooltip: 'Odśwież listę działów',
-                    icon: const Icon(Icons.refresh, size: 18),
-                    onPressed: () async {
-                      await _syncMetaFromApi();
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Odświeżono meta dane')),
-                        );
-                      }
-                    },
+                  AnimatedOpacity(
+                    opacity: _dzial != null ? 1 : 0.5,
+                    duration: const Duration(milliseconds: 200),
+                    child: Row(
+                      children: [
+                        if (_loadingMaszyny) const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                        Expanded(
+                          child: Text(
+                            _maszynyError != null
+                                ? _maszynyError!
+                                : _dzial == null
+                                    ? 'Wybierz dział aby pobrać maszyny.'
+                                    : 'Maszyny: ${wszystkieMaszyny.length} (filtrowane: ${maszyny.length}).',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: _maszynyError != null
+                                  ? Colors.redAccent
+                                  : Colors.grey.shade600,
+                            ),
+                          ),
+                        ),
+                        if (_dzial != null)
+                          IconButton(
+                            tooltip: 'Odśwież maszyny dla działu',
+                            icon: const Icon(Icons.settings_backup_restore, size: 18),
+                            onPressed: _loadingMaszyny ? null : () async { await _fetchMaszynyForDzial(); },
+                          ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -348,7 +409,7 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
             // WYSZUKIWARKA MASZYN (aktywowana gdy wybrano dział)
             TextField(
               controller: _maszynaSearchCtrl,
-              enabled: _dzial != null,
+              enabled: _dzial != null && !_loadingMaszyny,
               decoration: InputDecoration(
                 labelText: 'Szukaj maszyny (minimum 1 litera)',
                 prefixIcon: const Icon(Icons.search),
@@ -371,12 +432,14 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
               decoration: InputDecoration(
                 labelText: _dzial == null
                     ? 'Maszyna (najpierw wybierz dział)'
-                    : 'Maszyna',
+                    : _loadingMaszyny
+                        ? 'Maszyna (ładowanie...)'
+                        : 'Maszyna',
               ),
               items: maszyny
                   .map((m) => DropdownMenuItem(value: m, child: Text(m.nazwa)))
                   .toList(),
-              onChanged: _dzial == null ? null : (v) => setState(() => _maszyna = v),
+              onChanged: (_dzial == null || _loadingMaszyny) ? null : (v) => setState(() => _maszyna = v),
               validator: (v) => v == null ? 'Wybierz maszynę' : null,
             ),
             const SizedBox(height: 16),
