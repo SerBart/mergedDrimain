@@ -336,8 +336,8 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
                       await _syncMetaFromApi();
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Odświeżono meta dane')),);
-                        ###komentarz
+                          const SnackBar(content: Text('Odświeżono meta dane')),
+                        );
                       }
                     },
                   ),
