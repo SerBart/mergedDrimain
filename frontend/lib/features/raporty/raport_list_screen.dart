@@ -10,6 +10,7 @@ import '../../widgets/dialogs.dart';
 import '../../core/models/maszyna.dart';
 import '../../core/models/osoba.dart';
 import '../../widgets/centered_scroll_card.dart';
+import 'raport_form_screen.dart';
 
 class RaportyListScreen extends ConsumerStatefulWidget {
   const RaportyListScreen({super.key});
@@ -223,7 +224,28 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _busy ? null : () => context.go('/raport/nowy'),
+        onPressed: _busy
+            ? null
+            : () async {
+                final ok = await showDialog<bool>(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (ctx) => Dialog(
+                    insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    child: RaportFormScreen(
+                      embedInDialog: true,
+                      onSaved: (r) {
+                        // Raport formularz już robi upsert do mockRepo
+                      },
+                    ),
+                  ),
+                );
+                if (ok == true && mounted) {
+                  await _loadFromApi();
+                  await showSuccessDialog(context, 'OK', 'Raport dodany');
+                }
+              },
         icon: const Icon(FontAwesomeIcons.plus),
         label: const Text('Nowy'),
       ),
