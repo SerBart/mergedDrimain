@@ -55061,9 +55061,10 @@ j=h.at
 i=h.ax
 i.toString
 s.aIB(new A.fY(m,r,q,n,k,j,i,p,o,l,h.CW))
-i=h.c
-i.toString
-A.bO(i,!1).cW(g)},
+h.a.toString
+r=h.c
+r.toString
+A.bO(r,!1).cW(g)},
 D3(a){return this.aqH(a)},
 aqH(a){var s=0,r=A.v(t.H),q=this
 var $async$D3=A.q(function(b,c){if(b===1)return A.r(c,r)
@@ -55083,82 +55084,83 @@ if(r.length===0)return a
 s=A.Y(a).h("aL<1>")
 s=A.T(new A.aL(a,new A.aN4(r),s),s.h("w.E"))
 return s},
-H(a3){var s,r,q,p,o,n,m,l,k,j,i,h,g=this,f=null,e=g.gaY().d2($.fq(),t.R),d=t.i8,c=A.ej(e.x,d),b=g.aiP(c),a=t.O0,a0=A.ej(e.y,a),a1=g.dx,a2=g.cx==null
-if(a2)g.a.toString
-a2=!a2?"Edytuj raport":"Nowy raport"
-s=g.gatb()
-r=t.p
-a2=A.ZE(A.b([A.cx(f,f,f,B.QG,f,f,s,f,f,f,"Zapisz")],r),!0,a2)
-q=g.z
-p=J.cu(a1)
-o=p.h0(a1,new A.aNg(),t._6)
-o=A.T(o,o.$ti.h("a8.E"))
-n=g.dy?f:new A.aNh(g)
-q=A.et(B.rr,!1,o,n,new A.aNi(),q,t.Dj)
-n=A.b([],r)
-if(g.dy)n.push(B.Dr)
-o=g.fx
-if(!(o!=null))if(p.gab(a1))o="Brak dzia\u0142\xf3w \u2013 od\u015bwie\u017c lub sprawd\u017a autoryzacj\u0119."
-else{o=p.gB(a1)
-m=g.z
-m=m==null?f:m.b
-if(m==null)m="-"
-m="Dzia\u0142y: "+o+" (wybrany: "+m+")."
-o=m}if(g.fx!=null)p=B.dp
-else p=p.gab(a1)?B.dp:B.dL
-n.push(A.cn(A.Z(o,f,f,f,A.fB(f,f,p,f,f,f,f,f,f,f,f,11,f,f,f,f,f,!0,f,f,f,f,f,f,f,f),f,f,f),1))
-n.push(A.cx(f,f,f,B.QI,f,f,g.dy?f:new A.aNp(g,a3),f,f,f,"Od\u015bwie\u017c meta (dzia\u0142y)"))
-p=A.bL(n,B.q,B.n,B.t,0,f)
-o=g.z!=null?1:0.5
-n=A.b([],r)
-if(g.fr)n.push(B.Dr)
-m=g.fy
-l=m!=null
-if(!l)m=g.z==null?"Wybierz dzia\u0142 aby pobra\u0107 maszyny.":"Maszyny: "+c.length+" (filtrowane: "+b.length+")."
-n.push(A.cn(A.Z(m,f,f,f,A.fB(f,f,l?B.dp:B.dL,f,f,f,f,f,f,f,f,11,f,f,f,f,f,!0,f,f,f,f,f,f,f,f),f,f,f),1))
-if(g.z!=null)n.push(A.cx(f,f,f,B.QM,f,f,g.fr?f:new A.aNq(g),f,f,f,"Od\u015bwie\u017c maszyny dla dzia\u0142u"))
-p=A.c3(A.b([p,A.aXk(A.bL(n,B.q,B.n,B.t,0,f),B.V,B.E,o)],r),B.aw,B.n,B.t,0,B.H)
-o=g.z!=null&&!g.fr
-o=A.e4(!0,B.ag,!1,f,!0,B.k,f,A.ed(),g.cy,f,f,f,f,f,2,A.vp(f,f,f,f,f,f,f,f,!0,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,"Szukaj maszyny (minimum 1 litera)",!0,!0,f,B.h0,f,f,f,f,f,f,g.db.length!==0?A.cx(f,f,f,B.iP,f,f,new A.aNr(g),f,f,f,f):f,f,f,f,f),B.J,!0,f,!0,o,!1,f,B.ad,f,f,f,f,f,f,f,1,f,f,!1,"\u2022",f,new A.aNs(g),f,f,f,!1,f,f,!1,f,!0,f,B.am,f,f,B.a9,B.a7,f,f,f,f,f,f,f,!0,B.I,f,B.ar,f,f,f,f)
-n=g.x
-if(g.z==null)m="Maszyna (najpierw wybierz dzia\u0142)"
-else m=g.fr?"Maszyna (\u0142adowanie...)":"Maszyna"
-m=A.vp(f,f,f,f,f,f,f,f,!0,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,m,!0,!0,f,f,f,f,f,f,f,f,f,f,f,f,f)
-l=A.Y(b).h("N<1,bX<dN>>")
-l=A.T(new A.N(b,new A.aNt(),l),l.h("a8.E"))
-k=g.z==null||g.fr?f:new A.aNu(g)
-d=A.et(m,!1,l,k,new A.aNv(),n,d)
-n=g.y
-k=A.b([B.NT],t.q8)
-B.b.N(k,new A.N(a0,new A.aNw(),A.Y(a0).h("N<1,bX<e1>>")))
-a=A.et(B.Rk,!1,k,new A.aNj(g),f,n,a)
-n=A.jm(!1,g.Q,B.Rr,!1,f,f,f,1,!1,f,f,f,f,f,f,B.I,f,new A.aNk())
-k=A.jm(!1,g.as,B.Rt,!1,f,f,f,3,!1,f,f,f,f,f,f,B.I,f,f)
-l=A.et(B.Rg,!1,B.U4,new A.aNl(g),f,g.at,t.N)
-m=g.ax
-m=m==null?"Data":"Data: "+B.c.V(m.Qs(),0,10)
-j=g.ay
-if(j==null)j="Czas od"
-else{i=A.bK(a3,B.M,t.v)
-i.toString
-A.au(a3,B.c7,t.w).toString
-j="Od: "+i.OB(j,!1)}i=g.ch
-if(i==null)i="Czas do"
+H(a3){var s,r,q,p,o,n,m,l,k,j,i,h,g,f=this,e=null,d=f.gaY().d2($.fq(),t.R),c=t.i8,b=A.ej(d.x,c),a=f.aiP(b),a0=t.O0,a1=A.ej(d.y,a0),a2=f.dx
+f.a.toString
+s=f.cx
+s=s!=null?"Edytuj raport":"Nowy raport"
+r=f.gatb()
+q=t.p
+s=A.ZE(A.b([A.cx(e,e,e,B.QG,e,e,r,e,e,e,"Zapisz")],q),!0,s)
+p=f.z
+o=J.cu(a2)
+n=o.h0(a2,new A.aNg(),t._6)
+n=A.T(n,n.$ti.h("a8.E"))
+m=f.dy?e:new A.aNh(f)
+p=A.et(B.rr,!1,n,m,new A.aNi(),p,t.Dj)
+m=A.b([],q)
+if(f.dy)m.push(B.Dr)
+n=f.fx
+if(!(n!=null))if(o.gab(a2))n="Brak dzia\u0142\xf3w \u2013 od\u015bwie\u017c lub sprawd\u017a autoryzacj\u0119."
+else{n=o.gB(a2)
+l=f.z
+l=l==null?e:l.b
+if(l==null)l="-"
+l="Dzia\u0142y: "+n+" (wybrany: "+l+")."
+n=l}if(f.fx!=null)o=B.dp
+else o=o.gab(a2)?B.dp:B.dL
+m.push(A.cn(A.Z(n,e,e,e,A.fB(e,e,o,e,e,e,e,e,e,e,e,11,e,e,e,e,e,!0,e,e,e,e,e,e,e,e),e,e,e),1))
+m.push(A.cx(e,e,e,B.QI,e,e,f.dy?e:new A.aNp(f,a3),e,e,e,"Od\u015bwie\u017c meta (dzia\u0142y)"))
+o=A.bL(m,B.q,B.n,B.t,0,e)
+n=f.z!=null?1:0.5
+m=A.b([],q)
+if(f.fr)m.push(B.Dr)
+l=f.fy
+k=l!=null
+if(!k)l=f.z==null?"Wybierz dzia\u0142 aby pobra\u0107 maszyny.":"Maszyny: "+b.length+" (filtrowane: "+a.length+")."
+m.push(A.cn(A.Z(l,e,e,e,A.fB(e,e,k?B.dp:B.dL,e,e,e,e,e,e,e,e,11,e,e,e,e,e,!0,e,e,e,e,e,e,e,e),e,e,e),1))
+if(f.z!=null)m.push(A.cx(e,e,e,B.QM,e,e,f.fr?e:new A.aNq(f),e,e,e,"Od\u015bwie\u017c maszyny dla dzia\u0142u"))
+o=A.c3(A.b([o,A.aXk(A.bL(m,B.q,B.n,B.t,0,e),B.V,B.E,n)],q),B.aw,B.n,B.t,0,B.H)
+n=f.z!=null&&!f.fr
+n=A.e4(!0,B.ag,!1,e,!0,B.k,e,A.ed(),f.cy,e,e,e,e,e,2,A.vp(e,e,e,e,e,e,e,e,!0,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,"Szukaj maszyny (minimum 1 litera)",!0,!0,e,B.h0,e,e,e,e,e,e,f.db.length!==0?A.cx(e,e,e,B.iP,e,e,new A.aNr(f),e,e,e,e):e,e,e,e,e),B.J,!0,e,!0,n,!1,e,B.ad,e,e,e,e,e,e,e,1,e,e,!1,"\u2022",e,new A.aNs(f),e,e,e,!1,e,e,!1,e,!0,e,B.am,e,e,B.a9,B.a7,e,e,e,e,e,e,e,!0,B.I,e,B.ar,e,e,e,e)
+m=f.x
+if(f.z==null)l="Maszyna (najpierw wybierz dzia\u0142)"
+else l=f.fr?"Maszyna (\u0142adowanie...)":"Maszyna"
+l=A.vp(e,e,e,e,e,e,e,e,!0,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,e,l,!0,!0,e,e,e,e,e,e,e,e,e,e,e,e,e)
+k=A.Y(a).h("N<1,bX<dN>>")
+k=A.T(new A.N(a,new A.aNt(),k),k.h("a8.E"))
+j=f.z==null||f.fr?e:new A.aNu(f)
+c=A.et(l,!1,k,j,new A.aNv(),m,c)
+m=f.y
+j=A.b([B.NT],t.q8)
+B.b.N(j,new A.N(a1,new A.aNw(),A.Y(a1).h("N<1,bX<e1>>")))
+a0=A.et(B.Rk,!1,j,new A.aNj(f),e,m,a0)
+m=A.jm(!1,f.Q,B.Rr,!1,e,e,e,1,!1,e,e,e,e,e,e,B.I,e,new A.aNk())
+j=A.jm(!1,f.as,B.Rt,!1,e,e,e,3,!1,e,e,e,e,e,e,B.I,e,e)
+k=A.et(B.Rg,!1,B.U4,new A.aNl(f),e,f.at,t.N)
+l=f.ax
+l=l==null?"Data":"Data: "+B.c.V(l.Qs(),0,10)
+i=f.ay
+if(i==null)i="Czas od"
 else{h=A.bK(a3,B.M,t.v)
 h.toString
 A.au(a3,B.c7,t.w).toString
-i="Do: "+h.OB(i,!1)}i=A.b([q,new A.aM(B.OD,p,f),B.bH,o,B.bH,d,B.bH,a,B.bH,n,B.bH,k,B.bH,l,B.Ds,A.BR(A.b([new A.CP(m,B.rc,g.gas4(),f),new A.CP(j,B.Qe,new A.aNm(g),f),new A.CP(i,B.Q2,new A.aNn(g),f)],r),12,12)],r)
-if(g.Mo()!=null){d=g.Mo()
-d.toString
-B.b.N(i,A.b([B.ai,A.Z(d,f,f,f,B.a6U,f,f,f)],r))}i.push(B.a1x)
-d=A.dK(14)
-a=A.L(a3).ch.aM(0.4)
-i.push(A.y8(new A.aM(B.qr,A.b3Z(g.CW,"Zdj\u0119cie (opcjonalne)",new A.aNo(g)),f),0,f,new A.dq(d,new A.aS(a,1,B.v,-1))))
-i.push(B.a1y)
-d=g.cx==null
-if(d)g.a.toString
-i.push(new A.cN(B.cn,f,f,A.aY0(B.lW,A.Z(!d?"Zapisz zmiany":"Dodaj raport",f,f,f,f,f,f,f),s),f))
-return A.kb(a2,A.FW(f,A.zN(i,B.am,f,!1),g.w),f,f)}}
+i="Od: "+h.OB(i,!1)}h=f.ch
+if(h==null)h="Czas do"
+else{g=A.bK(a3,B.M,t.v)
+g.toString
+A.au(a3,B.c7,t.w).toString
+h="Do: "+g.OB(h,!1)}h=A.b([p,new A.aM(B.OD,o,e),B.bH,n,B.bH,c,B.bH,a0,B.bH,m,B.bH,j,B.bH,k,B.Ds,A.BR(A.b([new A.CP(l,B.rc,f.gas4(),e),new A.CP(i,B.Qe,new A.aNm(f),e),new A.CP(h,B.Q2,new A.aNn(f),e)],q),12,12)],q)
+if(f.Mo()!=null){c=f.Mo()
+c.toString
+B.b.N(h,A.b([B.ai,A.Z(c,e,e,e,B.a6U,e,e,e)],q))}h.push(B.a1x)
+c=A.dK(14)
+a0=A.L(a3).ch.aM(0.4)
+h.push(A.y8(new A.aM(B.qr,A.b3Z(f.CW,"Zdj\u0119cie (opcjonalne)",new A.aNo(f)),e),0,e,new A.dq(c,new A.aS(a0,1,B.v,-1))))
+h.push(B.a1y)
+c=f.cx==null
+if(c)f.a.toString
+h.push(new A.cN(B.cn,e,e,A.aY0(B.lW,A.Z(!c?"Zapisz zmiany":"Dodaj raport",e,e,e,e,e,e,e),r),e))
+return A.kb(s,A.FW(e,A.zN(h,B.am,e,!1),f.w),e,e)}}
 A.aNx.prototype={
 $1(a){this.a.o0()},
 $S:8}

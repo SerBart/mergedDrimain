@@ -19,11 +19,16 @@ import '../../widgets/photo_picker_field.dart';
 class RaportFormScreen extends ConsumerStatefulWidget {
   final Raport? existing;
   final int? raportId;
+  // NOWE: tryb osadzenia w dialogu oraz callback po zapisie
+  final bool embedInDialog;
+  final void Function(Raport)? onSaved;
 
   const RaportFormScreen({
     super.key,
     this.existing,
     this.raportId,
+    this.embedInDialog = false,
+    this.onSaved,
   });
 
   @override
@@ -274,7 +279,12 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
     );
 
     repo.upsertRaport(raport);
-    Navigator.pop(context);
+    widget.onSaved?.call(raport);
+    if (widget.embedInDialog) {
+      Navigator.pop(context, true);
+    } else {
+      Navigator.pop(context);
+    }
   }
 
   void _onSelectDzial(Dzial? dz) async {
@@ -306,6 +316,253 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
     final osoby = repo.getOsoby();
     final dzialy = _dzialyLocal; // zaciągnięte meta
 
+    if (widget.embedInDialog) {
+      // WERSJA DIALOGOWA (bez AppBar / Scaffold)
+      return SizedBox(
+        width: 640,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Nagłówek dialogu
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 12, 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _isEdit ? 'Edytuj raport' : 'Nowy raport',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Zamknij',
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // --- przeniesiona lista pól (część children z wersji Scaffold) ---
+                      // DZIAŁ
+                      DropdownButtonFormField<Dzial>(
+                        value: _dzial,
+                        decoration: const InputDecoration(labelText: 'Dział'),
+                        items: _dzialyLocal.map((d) => DropdownMenuItem(value: d, child: Text(d.nazwa))).toList(),
+                        onChanged: _loadingMeta ? null : (v) => _onSelectDzial(v),
+                        validator: (v) => v == null ? 'Wybierz dział' : null,
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6.0, bottom: 12.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                if (_loadingMeta) const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                                Expanded(
+                                  child: Text(
+                                    _metaError != null
+                                        ? _metaError!
+                                        : _dzialyLocal.isEmpty
+                                            ? 'Brak działów – odśwież lub sprawdź autoryzację.'
+                                            : 'Działy: ${_dzialyLocal.length} (wybrany: ${_dzial?.nazwa ?? '-'}).',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: _metaError != null
+                                          ? Colors.redAccent
+                                          : (_dzialyLocal.isEmpty ? Colors.redAccent : Colors.grey.shade600),
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'Odśwież działy',
+                                  icon: const Icon(Icons.refresh, size: 18),
+                                  onPressed: _loadingMeta ? null : _syncMetaFromApi,
+                                ),
+                              ],
+                            ),
+                            AnimatedOpacity(
+                              opacity: _dzial != null ? 1 : 0.5,
+                              duration: const Duration(milliseconds: 200),
+                              child: Row(
+                                children: [
+                                  if (_loadingMaszyny) const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                                  Expanded(
+                                    child: Text(
+                                      _maszynyError != null
+                                          ? _maszynyError!
+                                          : _dzial == null
+                                              ? 'Wybierz dział aby pobrać maszyny.'
+                                              : 'Maszyny: ${repo.getMaszyny().length} (filtrowane: ${_filteredMaszyny(repo.getMaszyny()).length}).',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: _maszynyError != null ? Colors.redAccent : Colors.grey.shade600,
+                                      ),
+                                    ),
+                                  ),
+                                  if (_dzial != null)
+                                    IconButton(
+                                      tooltip: 'Odśwież maszyny',
+                                      icon: const Icon(Icons.settings_backup_restore, size: 18),
+                                      onPressed: _loadingMaszyny ? null : _fetchMaszynyForDzial,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      TextField(
+                        controller: _maszynaSearchCtrl,
+                        enabled: _dzial != null && !_loadingMaszyny,
+                        decoration: InputDecoration(
+                          labelText: 'Szukaj maszyny (minimum 1 litera)',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: _maszynaQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  onPressed: () => setState(() {
+                                    _maszynaSearchCtrl.clear();
+                                    _maszynaQuery = '';
+                                  }),
+                                )
+                              : null,
+                        ),
+                        onChanged: (v) => setState(() => _maszynaQuery = v),
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<Maszyna>(
+                        value: _maszyna,
+                        decoration: InputDecoration(
+                          labelText: _dzial == null
+                              ? 'Maszyna (najpierw wybierz dział)'
+                              : _loadingMaszyny
+                                  ? 'Maszyna (ładowanie...)'
+                                  : 'Maszyna',
+                        ),
+                        items: _filteredMaszyny(repo.getMaszyny())
+                            .map((m) => DropdownMenuItem(value: m, child: Text(m.nazwa)))
+                            .toList(),
+                        onChanged: (_dzial == null || _loadingMaszyny) ? null : (v) => setState(() => _maszyna = v),
+                        validator: (v) => v == null ? 'Wybierz maszynę' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<Osoba>(
+                        value: _osoba,
+                        decoration: const InputDecoration(labelText: 'Osoba (wykonujący) – opcjonalne'),
+                        items: [
+                          const DropdownMenuItem<Osoba>(value: null, child: Text('Brak')),
+                          ...repo.getOsoby().map((o) => DropdownMenuItem(value: o, child: Text(o.imieNazwisko))),
+                        ],
+                        onChanged: (v) => setState(() => _osoba = v),
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _typNaprawyCtrl,
+                        decoration: const InputDecoration(labelText: 'Typ naprawy'),
+                        validator: (v) => v == null || v.trim().isEmpty ? 'Wymagane' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _opisCtrl,
+                        decoration: const InputDecoration(labelText: 'Opis'),
+                        maxLines: 3,
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        value: _status,
+                        decoration: const InputDecoration(labelText: 'Status'),
+                        items: const [
+                          DropdownMenuItem(value: 'NOWY', child: Text('NOWY')),
+                          DropdownMenuItem(value: 'W TOKU', child: Text('W TOKU')),
+                          DropdownMenuItem(value: 'OCZEKUJE', child: Text('OCZEKUJE')),
+                          DropdownMenuItem(value: 'ZAKOŃCZONY', child: Text('ZAKOŃCZONY')),
+                        ],
+                        onChanged: (v) => setState(() => _status = v ?? _status),
+                      ),
+                      const SizedBox(height: 20),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          _PickerButton(
+                            label: _dataNaprawy == null
+                                ? 'Data'
+                                : 'Data: ${_dataNaprawy!.toIso8601String().substring(0, 10)}',
+                            icon: Icons.calendar_month_outlined,
+                            onTap: _pickDate,
+                          ),
+                          _PickerButton(
+                            label: _czasOd == null ? 'Czas od' : 'Od: ${_czasOd!.format(context)}',
+                            icon: Icons.schedule_outlined,
+                            onTap: () => _pickTime(true),
+                          ),
+                          _PickerButton(
+                            label: _czasDo == null ? 'Czas do' : 'Do: ${_czasDo!.format(context)}',
+                            icon: Icons.schedule,
+                            onTap: () => _pickTime(false),
+                          ),
+                        ],
+                      ),
+                      if (_validateTimes() != null) ...[
+                        const SizedBox(height: 8),
+                        Text(_validateTimes()!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                      ],
+                      const SizedBox(height: 20),
+                      Card(
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          side: BorderSide(color: Theme.of(context).dividerColor.withOpacity(.4)),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                          child: PhotoPickerField(
+                            initialBase64: _photoBase64,
+                            label: 'Zdjęcie (opcjonalne)',
+                            onChanged: (b64) => _photoBase64 = b64,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Anuluj'),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.save),
+                      onPressed: _save,
+                      label: Text(_isEdit ? 'Zapisz zmiany' : 'Dodaj'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // ORYGINALNA WERSJA Z SCFFOLD
     return Scaffold(
       appBar: TopAppBar(
         title: _isEdit ? 'Edytuj raport' : 'Nowy raport',
