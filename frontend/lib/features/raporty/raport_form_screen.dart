@@ -50,6 +50,14 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
   TimeOfDay? _czasDo;
   String? _photoBase64;
 
+  // Lista typów jak w nowych zgłoszeniach
+  static const List<String> _typyNapraw = [
+    'Usterka',
+    'Awaria',
+    'Przezbrojenie',
+    'Modernizacja',
+  ];
+
   // Załadowany (jeśli edycja przez ID)
   Raport? _loaded;
 
@@ -170,6 +178,8 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
     } else {
       // Wartości domyślne nowego
       _status = 'NOWY';
+      // Domyślny typ naprawy jak w zgłoszeniach
+      _typNaprawyCtrl.text = _typyNapraw.first;
     }
     // Ustaw widoczny tekst wyszukiwania maszyny dla Autocomplete
     _maszynaSearchText = _maszyna?.nazwa ?? '';
@@ -446,7 +456,7 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
         ),
       ),
       const SizedBox(height: 16),
-      // MASZYNA – Autocomplete w jednym okienku (min. 3 litery)
+      // MASZYNA – Autocomplete (rozwiń listę lub wpisz min. 1 literę)
       FormField<void>(
         validator: (_) => _maszyna == null ? 'Wybierz maszynę' : null,
         builder: (state) => Column(
@@ -466,8 +476,8 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
                   return const Iterable<Maszyna>.empty();
                 }
                 final q = tev.text.trim().toLowerCase();
-                if (q.length < 3) return const Iterable<Maszyna>.empty();
                 final all = ref.read(mockRepoProvider).getMaszyny();
+                if (q.isEmpty) return all; // pełna lista bez wpisywania
                 return all.where((m) => m.nazwa.toLowerCase().contains(q));
               },
               onSelected: (Maszyna sel) {
@@ -481,9 +491,21 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
                   controller: textCtrl,
                   focusNode: focusNode,
                   enabled: _dzial != null && !_loadingMaszyny,
-                  decoration: const InputDecoration(
-                    hintText: 'Wpisz min. 3 litery, aby zobaczyć propozycje',
-                    prefixIcon: Icon(Icons.search),
+                  decoration: InputDecoration(
+                    hintText: 'Wpisz literę lub rozwiń listę',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: IconButton(
+                      tooltip: 'Pokaż pełną listę',
+                      icon: const Icon(Icons.arrow_drop_down),
+                      onPressed: _dzial != null && !_loadingMaszyny
+                          ? () {
+                              // Wymuś otwarcie listy bez wpisywania
+                              focusNode.requestFocus();
+                              textCtrl.text = textCtrl.text + ' ';
+                              textCtrl.text = textCtrl.text.trimRight();
+                            }
+                          : null,
+                    ),
                   ),
                   onChanged: (v) => setState(() {
                     _maszynaSearchText = v;
@@ -539,9 +561,18 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
         onChanged: (v) => setState(() => _osoba = v),
       ),
       const SizedBox(height: 16),
-      TextFormField(
-        controller: _typNaprawyCtrl,
+      // Zmiana: Typ naprawy z listy rozwijalnej (jak w nowych zgłoszeniach)
+      DropdownButtonFormField<String>(
+        value: _typyNapraw.contains(_typNaprawyCtrl.text) && _typNaprawyCtrl.text.isNotEmpty
+            ? _typNaprawyCtrl.text
+            : _typyNapraw.first,
         decoration: const InputDecoration(labelText: 'Typ naprawy'),
+        items: _typyNapraw
+            .map((t) => DropdownMenuItem<String>(value: t, child: Text(t)))
+            .toList(),
+        onChanged: (v) => setState(() {
+          if (v != null) _typNaprawyCtrl.text = v;
+        }),
         validator: (v) => v == null || v.trim().isEmpty ? 'Wymagane' : null,
       ),
       const SizedBox(height: 16),
