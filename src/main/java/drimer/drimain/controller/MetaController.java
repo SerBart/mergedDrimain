@@ -19,6 +19,7 @@ import drimer.drimain.api.dto.DzialDTO;
 import drimer.drimain.api.dto.MaszynaSelectDTO;
 import drimer.drimain.repository.UserRepository;
 import drimer.drimain.model.Osoba;
+import drimer.drimain.model.Maszyna;
 
 @RestController
 @RequestMapping("/api/meta")
@@ -42,8 +43,19 @@ public class MetaController {
 
     // Proste listy do formularzy (bez ograniczenia do ADMIN)
     @GetMapping("/maszyny-simple")
-    public List<SimpleMaszynaDTO> simpleMaszyny() {
-        return maszynaRepository.findAll().stream().map(m -> {
+    public List<SimpleMaszynaDTO> simpleMaszyny(
+            @RequestParam(name = "dzialId", required = false) Long dzialId,
+            @RequestParam(name = "dzialNazwa", required = false) String dzialNazwa
+    ) {
+        List<Maszyna> maszyn;
+        if (dzialId != null) {
+            maszyn = maszynaRepository.findByDzial_Id(dzialId);
+        } else if (dzialNazwa != null && !dzialNazwa.isBlank()) {
+            maszyn = maszynaRepository.findByDzial_NazwaIgnoreCase(dzialNazwa.trim());
+        } else {
+            maszyn = maszynaRepository.findAll();
+        }
+        return maszyn.stream().map(m -> {
             SimpleMaszynaDTO dto = new SimpleMaszynaDTO();
             dto.setId(m.getId());
             dto.setNazwa(m.getNazwa());

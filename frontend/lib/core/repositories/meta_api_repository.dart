@@ -10,10 +10,14 @@ class MetaApiRepository {
 
   MetaApiRepository(this._dio, this._storage);
 
-  Future<List<Maszyna>> fetchMaszynySimple() async {
+  Future<List<Maszyna>> fetchMaszynySimple({int? dzialId, String? dzialNazwa}) async {
     final token = await _readToken();
+    final qp = <String, dynamic>{};
+    if (dzialId != null) qp['dzialId'] = dzialId;
+    if (dzialNazwa != null && dzialNazwa.isNotEmpty) qp['dzialNazwa'] = dzialNazwa;
     final resp = await _dio.get(
       '/api/meta/maszyny-simple',
+      queryParameters: qp.isEmpty ? null : qp,
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
     final list = (resp.data as List).cast<Map<String, dynamic>>();

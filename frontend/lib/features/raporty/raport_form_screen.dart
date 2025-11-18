@@ -6,6 +6,7 @@ import '../../widgets/top_app_bar.dart';
 import '../../core/models/maszyna.dart';
 import '../../core/models/osoba.dart';
 import '../../core/models/raport.dart';
+import '../../core/models/dzial.dart'; // nowy import
 import '../../core/providers/app_providers.dart';
 import '../../core/repositories/meta_api_repository.dart';
 import '../../widgets/photo_picker_field.dart';
@@ -35,6 +36,7 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
   // Pola formularza
   Maszyna? _maszyna;
   Osoba? _osoba;
+  Dzial? _dzial; // wybrany dział
   final _typNaprawyCtrl = TextEditingController();
   final _opisCtrl = TextEditingController();
   String _status = 'NOWY';
@@ -45,6 +47,10 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
 
   // Załadowany (jeśli edycja przez ID)
   Raport? _loaded;
+
+  final TextEditingController _maszynaSearchCtrl = TextEditingController();
+  String _maszynaQuery = '';
+  List<Dzial> _dzialyLocal = []; // załadowane działy
 
   bool get _isEdit => _loaded != null || widget.existing != null;
 
@@ -61,27 +67,53 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
   Future<void> _syncMetaFromApi() async {
     try {
       final meta = ref.read(metaApiRepositoryProvider);
-      final fetchedMaszyny = await meta.fetchMaszynySimple();
-      // tylko osoby z UR
+      final fetchedDzialy = await meta.fetchDzialySimple();
+      final mock = ref.read(mockRepoProvider);
+      mock.dzialy
+        ..clear()
+        ..addAll(fetchedDzialy);
+      _dzialyLocal = fetchedDzialy;
+
+      // osoby tylko z UR (jak wcześniej) – pozostawiono logikę
       const urName = 'Utrzymanie Ruchu';
       var fetchedOsoby = await meta.fetchOsobySimple(dzialNazwa: urName);
-      // fallback: jeżeli brak osób w UR, pokaż wszystkie, aby formularz był używalny
       if (fetchedOsoby.isEmpty) {
         fetchedOsoby = await meta.fetchOsobySimple();
       }
-      final mock = ref.read(mockRepoProvider);
-      // Podmień zawartość list w mock repo na dane z backendu
-      mock.maszyny
-        ..clear()
-        ..addAll(fetchedMaszyny);
-      mock.osoby
-        ..clear()
-        ..addAll(fetchedOsoby);
-      if (mounted) setState(() {});
+      mock.osoby..clear()..addAll(fetchedOsoby);
+
+      // Jeśli edycja i mamy maszynę z działem, ustaw dział i pobierz maszyny dla niego
+      if (_maszyna?.dzial != null && _dzial == null) {
+        _dzial = _maszyna!.dzial;
+        await _fetchMaszynyForDzial();
+      }
+      setState(() {});
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Nie udało się pobrać listy maszyn/osób: $e')),
+        SnackBar(content: Text('Nie udało się pobrać meta danych: $e')),
+      );
+    }
+  }
+
+  Future<void> _fetchMaszynyForDzial() async {
+    if (_dzial == null) return;
+    try {
+      final meta = ref.read(metaApiRepositoryProvider);
+      final fetchedMaszyny = await meta.fetchMaszynySimple(dzialId: _dzial!.id);
+      final mock = ref.read(mockRepoProvider);
+      mock.maszyny
+        ..clear()
+        ..addAll(fetchedMaszyny);
+      // Jeżeli obecnie wybrana maszyna nie należy do nowego zestawu – wyczyść
+      if (_maszyna != null && !fetchedMaszyny.any((m) => m.id == _maszyna!.id)) {
+        _maszyna = null;
+      }
+      setState(() {});
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Nie udało się pobrać maszyn dla działu: $e')),
       );
     }
   }
@@ -100,6 +132,7 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
     if (base != null) {
       _maszyna = base.maszyna;
       _osoba = base.osoba;
+      _dzial = base.maszyna?.dzial; // null-safe
       _typNaprawyCtrl.text = base.typNaprawy;
       _opisCtrl.text = base.opis;
       _status = base.status;
@@ -117,6 +150,7 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
   void dispose() {
     _typNaprawyCtrl.dispose();
     _opisCtrl.dispose();
+    _maszynaSearchCtrl.dispose();
     super.dispose();
   }
 
@@ -223,11 +257,34 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
     Navigator.pop(context);
   }
 
+  void _onSelectDzial(Dzial? dz) async {
+    setState(() {
+      _dzial = dz;
+      _maszyna = null; // reset maszyny przy zmianie działu
+    });
+    if (dz != null) {
+      await _fetchMaszynyForDzial();
+    } else {
+      // brak działu => wyczyść listę maszyn lokalnie
+      final mock = ref.read(mockRepoProvider);
+      mock.maszyny.clear();
+      setState(() {});
+    }
+  }
+
+  List<Maszyna> _filteredMaszyny(List<Maszyna> all) {
+    final q = _maszynaQuery.trim().toLowerCase();
+    if (q.isEmpty) return all;
+    return all.where((m) => m.nazwa.toLowerCase().contains(q)).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final repo = ref.watch(mockRepoProvider);
-    final maszyny = repo.getMaszyny();
+    final wszystkieMaszyny = repo.getMaszyny();
+    final maszyny = _filteredMaszyny(wszystkieMaszyny);
     final osoby = repo.getOsoby();
+    final dzialy = _dzialyLocal; // zaciągnięte meta
 
     return Scaffold(
       appBar: TopAppBar(
@@ -246,16 +303,49 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            // MASZYNA
+            // DZIAŁ – wymagany przed wyborem maszyny
+            DropdownButtonFormField<Dzial>(
+              value: _dzial,
+              decoration: const InputDecoration(labelText: 'Dział'),
+              items: dzialy
+                  .map((d) => DropdownMenuItem(value: d, child: Text(d.nazwa)))
+                  .toList(),
+              onChanged: (v) => _onSelectDzial(v),
+              validator: (v) => v == null ? 'Wybierz dział' : null,
+            ),
+            const SizedBox(height: 16),
+            // WYSZUKIWARKA MASZYN (aktywowana gdy wybrano dział)
+            TextField(
+              controller: _maszynaSearchCtrl,
+              enabled: _dzial != null,
+              decoration: InputDecoration(
+                labelText: 'Szukaj maszyny (minimum 1 litera)',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _maszynaQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () => setState(() {
+                          _maszynaSearchCtrl.clear();
+                          _maszynaQuery = '';
+                        }),
+                      )
+                    : null,
+              ),
+              onChanged: (v) => setState(() => _maszynaQuery = v),
+            ),
+            const SizedBox(height: 16),
+            // MASZYNA – zależna od działu
             DropdownButtonFormField<Maszyna>(
               value: _maszyna,
-              decoration: const InputDecoration(labelText: 'Maszyna'),
+              decoration: InputDecoration(
+                labelText: _dzial == null
+                    ? 'Maszyna (najpierw wybierz dział)'
+                    : 'Maszyna',
+              ),
               items: maszyny
-                  .map(
-                    (m) => DropdownMenuItem(value: m, child: Text(m.nazwa)),
-                  )
+                  .map((m) => DropdownMenuItem(value: m, child: Text(m.nazwa)))
                   .toList(),
-              onChanged: (v) => setState(() => _maszyna = v),
+              onChanged: _dzial == null ? null : (v) => setState(() => _maszyna = v),
               validator: (v) => v == null ? 'Wybierz maszynę' : null,
             ),
             const SizedBox(height: 16),
@@ -267,14 +357,12 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
               items: [
                 const DropdownMenuItem<Osoba>(value: null, child: Text('Brak')),
                 ...osoby.map(
-                  (o) =>
-                      DropdownMenuItem(value: o, child: Text(o.imieNazwisko)),
+                  (o) => DropdownMenuItem(value: o, child: Text(o.imieNazwisko)),
                 ),
               ],
               onChanged: (v) => setState(() => _osoba = v),
             ),
             const SizedBox(height: 16),
-
             TextFormField(
               controller: _typNaprawyCtrl,
               decoration: const InputDecoration(labelText: 'Typ naprawy'),
