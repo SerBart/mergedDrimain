@@ -313,6 +313,36 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
               onChanged: (v) => _onSelectDzial(v),
               validator: (v) => v == null ? 'Wybierz dział' : null,
             ),
+            // DEBUG / DIAGNOSTYKA DZIAŁÓW
+            Padding(
+              padding: const EdgeInsets.only(top: 6.0, bottom: 12.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      dzialy.isEmpty
+                          ? 'Brak działów – sprawdź /api/meta/dzialy-simple lub czy jesteś zalogowany.'
+                          : 'Załadowano działów: ${dzialy.length}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: dzialy.isEmpty ? Colors.redAccent : Colors.grey.shade600,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Odśwież listę działów',
+                    icon: const Icon(Icons.refresh, size: 18),
+                    onPressed: () async {
+                      await _syncMetaFromApi();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Odświeżono meta dane')),);
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 16),
             // WYSZUKIWARKA MASZYN (aktywowana gdy wybrano dział)
             TextField(
