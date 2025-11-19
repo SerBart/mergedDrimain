@@ -6,13 +6,16 @@ import drimer.drimain.repository.*;
 import drimer.drimain.security.ModulesCatalog;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -32,6 +35,12 @@ public class AdminRestController {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    // Nowe repozytoria do walidacji zależności maszyny
+    private final RaportRepository raportRepository;
+    private final HarmonogramRepository harmonogramRepository;
+    private final ZgloszenieRepository zgloszenieRepository;
+    private final PartRepository partRepository;
+    private final InstructionRepository instructionRepository;
 
     // ========== META: MODULES (kafelki) ==========
     @GetMapping("/modules")
@@ -117,9 +126,31 @@ public class AdminRestController {
     }
 
     @DeleteMapping("/maszyny/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteMaszyna(@PathVariable Long id) {
-        maszynaRepository.deleteById(id);
+    public ResponseEntity<?> deleteMaszyna(@PathVariable Long id) {
+        var opt = maszynaRepository.findById(id);
+        if (opt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("message", "Maszyna nie znaleziona"));
+        }
+        long raportCount = raportRepository.countByMaszyna_Id(id);
+        long harmCount = harmonogramRepository.countByMaszyna_Id(id);
+        long zglCount = zgloszenieRepository.countByMaszyna_Id(id);
+        long partCount = partRepository.countByMaszyna_Id(id);
+        long instrCount = instructionRepository.countByMaszyna_Id(id);
+        if (raportCount > 0 || harmCount > 0 || zglCount > 0 || partCount > 0 || instrCount > 0) {
+            String msg = String.format(
+                "Nie można usunąć. Powiązane: raporty=%d, harmonogramy=%d, zgłoszenia=%d, części=%d, instrukcje=%d",
+                raportCount, harmCount, zglCount, partCount, instrCount
+            );
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", msg));
+        }
+        try {
+            maszynaRepository.deleteById(id);
+            return ResponseEntity.noContent().build();
+        } catch (DataIntegrityViolationException ex) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("message", "Nie można usunąć maszyny z powodu powiązań w bazie."));
+        }
     }
 
     // ========== OSOBY ==========
