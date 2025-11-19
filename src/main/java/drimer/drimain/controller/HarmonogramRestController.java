@@ -35,9 +35,24 @@ public class HarmonogramRestController {
     @GetMapping
     public List<HarmonogramDTO> list(@RequestParam Optional<Integer> year,
                                    @RequestParam Optional<Integer> month) {
-        return harmonogramRepository.findAll().stream()
-                .filter(h -> year.map(y -> h.getData() != null && h.getData().getYear() == y).orElse(true))
-                .filter(h -> month.map(m -> h.getData() != null && h.getData().getMonthValue() == m).orElse(true))
+        List<Harmonogram> entities;
+        if (year.isPresent()) {
+            int y = year.get();
+            java.time.LocalDate start;
+            java.time.LocalDate end;
+            if (month.isPresent()) {
+                int m = month.get();
+                start = java.time.LocalDate.of(y, m, 1);
+                end = start.withDayOfMonth(start.lengthOfMonth());
+            } else {
+                start = java.time.LocalDate.of(y, 1, 1);
+                end = java.time.LocalDate.of(y, 12, 31);
+            }
+            entities = harmonogramRepository.findByDataBetweenWithJoins(start, end);
+        } else {
+            entities = harmonogramRepository.findAllWithJoins();
+        }
+        return entities.stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
