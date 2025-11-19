@@ -10,6 +10,7 @@ import '../../core/models/dzial.dart'; // nowy import
 import '../../core/providers/app_providers.dart';
 import '../../core/repositories/meta_api_repository.dart';
 import '../../widgets/photo_picker_field.dart';
+import '../../core/constants/naprawy_constants.dart';
 
 /// Formularz tworzenia / edycji raportu.
 /// Możesz wejść tu:
@@ -51,12 +52,8 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
   String? _photoBase64;
 
   // Lista typów jak w nowych zgłoszeniach
-  static const List<String> _typyNapraw = [
-    'Usterka',
-    'Awaria',
-    'Przezbrojenie',
-    'Modernizacja',
-  ];
+  static const List<String> _typyNapraw = NaprawyConstants.typyNapraw;
+  bool _saving = false;
 
   // Załadowany (jeśli edycja przez ID)
   Raport? _loaded;
@@ -249,7 +246,8 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
     }
   }
 
-  void _save() {
+  void _save() async {
+    if (_saving) return;
     final timesError = _validateTimes();
     if (timesError != null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -268,49 +266,72 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
       return;
     }
 
-    final repo = ref.read(mockRepoProvider);
-
-    final dtOd = DateTime(
-      _dataNaprawy!.year,
-      _dataNaprawy!.month,
-      _dataNaprawy!.day,
-      _czasOd!.hour,
-      _czasOd!.minute,
-    );
-    final dtDo = DateTime(
-      _dataNaprawy!.year,
-      _dataNaprawy!.month,
-      _dataNaprawy!.day,
-      _czasDo!.hour,
-      _czasDo!.minute,
-    );
-
-    final int id =
-        _loaded?.id ?? widget.existing?.id ?? 0; // 0 => repo nada nowe ID
-    final partUsages = _loaded?.partUsages ??
-        widget.existing?.partUsages ??
-        []; // zachowaj jeśli edycja
-
-    final raport = Raport(
-      id: id,
-      maszyna: _maszyna!,
-      typNaprawy: _typNaprawyCtrl.text.trim(),
-      opis: _opisCtrl.text.trim(),
-      osoba: _osoba,
-      status: _status,
-      dataNaprawy: _dataNaprawy!,
-      czasOd: dtOd,
-      czasDo: dtDo,
-      partUsages: partUsages,
-      photoBase64: _photoBase64,
-    );
-
-    repo.upsertRaport(raport);
-    widget.onSaved?.call(raport);
-    if (widget.embedInDialog) {
-      Navigator.pop(context, true);
-    } else {
-      Navigator.pop(context);
+    setState(() => _saving = true);
+    try {
+      final api = ref.read(raportyApiRepositoryProvider);
+      final mock = ref.read(mockRepoProvider);
+      final dtOd = DateTime(
+        _dataNaprawy!.year,
+        _dataNaprawy!.month,
+        _dataNaprawy!.day,
+        _czasOd!.hour,
+        _czasOd!.minute,
+      );
+      final dtDo = DateTime(
+        _dataNaprawy!.year,
+        _dataNaprawy!.month,
+        _dataNaprawy!.day,
+        _czasDo!.hour,
+        _czasDo!.minute,
+      );
+      final partUsages = _loaded?.partUsages ?? widget.existing?.partUsages ?? [];
+      Raport saved;
+      if (_isEdit) {
+        final id = _loaded?.id ?? widget.existing!.id;
+        saved = await api.update(
+          id: id,
+          maszynaId: _maszyna!.id,
+          typNaprawy: _typNaprawyCtrl.text.trim(),
+          opis: _opisCtrl.text.trim(),
+          osobaId: _osoba?.id,
+          status: _status,
+          data: _dataNaprawy!,
+          czasOd: dtOd,
+          czasDo: dtDo,
+          partUsages: partUsages,
+        );
+      } else {
+        saved = await api.create(
+          maszynaId: _maszyna!.id,
+          typNaprawy: _typNaprawyCtrl.text.trim(),
+          opis: _opisCtrl.text.trim(),
+          osobaId: _osoba?.id,
+          status: _status,
+          data: _dataNaprawy!,
+          czasOd: dtOd,
+          czasDo: dtDo,
+          partUsages: partUsages,
+        );
+      }
+      // Zachowaj lokalnie photoBase64 (backend jeszcze może nie zwracać)
+      if (_photoBase64 != null) {
+        saved = saved.copyWith(photoBase64: _photoBase64);
+      }
+      mock.upsertRaport(saved);
+      widget.onSaved?.call(saved);
+      if (widget.embedInDialog) {
+        Navigator.pop(context, true);
+      } else {
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Błąd zapisu raportu: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 

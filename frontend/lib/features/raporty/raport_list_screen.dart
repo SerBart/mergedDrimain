@@ -11,6 +11,7 @@ import '../../core/models/maszyna.dart';
 import '../../core/models/osoba.dart';
 import '../../widgets/centered_scroll_card.dart';
 import 'raport_form_screen.dart';
+import '../../core/constants/naprawy_constants.dart';
 
 class RaportyListScreen extends ConsumerStatefulWidget {
   const RaportyListScreen({super.key});
@@ -25,7 +26,7 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
   bool _sortAsc = true;
   bool _busy = false;
 
-  static const List<String> _typyNapraw = ['Awaria', 'Usterka', 'Przebudowa'];
+  static const List<String> _typyNapraw = NaprawyConstants.typyNapraw;
 
   @override
   void initState() {
@@ -244,6 +245,7 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                 if (ok == true && mounted) {
                   await _loadFromApi();
                   await showSuccessDialog(context, 'OK', 'Raport dodany');
+                  setState(() {});
                 }
               },
         icon: const Icon(FontAwesomeIcons.plus),

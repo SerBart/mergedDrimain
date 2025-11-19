@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import '../models/raport.dart';
 import '../models/maszyna.dart';
 import '../models/osoba.dart';
+import '../models/part.dart';
+import '../models/part_usage.dart';
 import '../services/secure_storage_service.dart';
 
 class RaportyApiRepository {
@@ -26,9 +28,11 @@ class RaportyApiRepository {
     String? typNaprawy,
     String? opis,
     int? osobaId,
+    required String status,
     required DateTime data,
     required DateTime czasOd,
     required DateTime czasDo,
+    List<PartUsage>? partUsages,
   }) async {
     final token = await _token();
     String fmtDate(DateTime d) => '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -39,12 +43,60 @@ class RaportyApiRepository {
       if (typNaprawy != null) 'typNaprawy': typNaprawy,
       if (opis != null) 'opis': opis,
       if (osobaId != null) 'osobaId': osobaId,
+      'status': status,
       'dataNaprawy': fmtDate(data),
       'czasOd': fmtTime(czasOd),
       'czasDo': fmtTime(czasDo),
+      if (partUsages != null && partUsages.isNotEmpty)
+        'partUsages': partUsages
+            .map((pu) => {
+                  'partId': pu.part.id,
+                  'ilosc': pu.ilosc,
+                })
+            .toList(),
     };
     final resp = await _dio.post(
       '/api/raporty',
+      data: body,
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    return _fromDto((resp.data as Map).cast<String, dynamic>());
+  }
+
+  Future<Raport> update({
+    required int id,
+    required int maszynaId,
+    String? typNaprawy,
+    String? opis,
+    int? osobaId,
+    required String status,
+    required DateTime data,
+    required DateTime czasOd,
+    required DateTime czasDo,
+    List<PartUsage>? partUsages,
+  }) async {
+    final token = await _token();
+    String fmtDate(DateTime d) => '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    String fmtTime(DateTime d) => '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+    final body = {
+      'maszynaId': maszynaId,
+      if (typNaprawy != null) 'typNaprawy': typNaprawy,
+      if (opis != null) 'opis': opis,
+      if (osobaId != null) 'osobaId': osobaId,
+      'status': status,
+      'dataNaprawy': fmtDate(data),
+      'czasOd': fmtTime(czasOd),
+      'czasDo': fmtTime(czasDo),
+      if (partUsages != null && partUsages.isNotEmpty)
+        'partUsages': partUsages
+            .map((pu) => {
+                  'partId': pu.part.id,
+                  'ilosc': pu.ilosc,
+                })
+            .toList(),
+    };
+    final resp = await _dio.put(
+      '/api/raporty/$id',
       data: body,
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
@@ -66,7 +118,6 @@ class RaportyApiRepository {
     if (j['maszyna'] is Map) {
       final m = (j['maszyna'] as Map).cast<String, dynamic>();
       maszyna = Maszyna(id: (m['id'] as num?)?.toInt() ?? 0, nazwa: (m['nazwa'] ?? '').toString());
-    }
     Osoba? osoba;
     if (j['osoba'] is Map) {
       final o = (j['osoba'] as Map).cast<String, dynamic>();
@@ -78,6 +129,18 @@ class RaportyApiRepository {
     final dn = (j['dataNaprawy'] ?? '').toString();
     final co = (j['czasOd'] ?? '').toString();
     final cd = (j['czasDo'] ?? '').toString();
+    final partUsagesJson = j['partUsages'];
+    List<PartUsage> partUsages = [];
+    if (partUsagesJson is List) {
+      for (final raw in partUsagesJson) {
+        if (raw is Map) {
+          final r = raw.cast<String, dynamic>();
+          final pid = (r['partId'] as num?)?.toInt() ?? 0;
+          final ilosc = (r['ilosc'] as num?)?.toInt() ?? 0;
+          partUsages.add(PartUsage(part: Part(id: pid, nazwa: 'ID:$pid'), ilosc: ilosc));
+        }
+      }
+    }
 
     DateTime parseDate(String s) {
       // yyyy-MM-dd
@@ -106,7 +169,7 @@ class RaportyApiRepository {
       dataNaprawy: data,
       czasOd: czasOd,
       czasDo: czasDo,
-      partUsages: const [],
+      partUsages: partUsages,
     );
   }
 
@@ -116,4 +179,3 @@ class RaportyApiRepository {
     return t;
   }
 }
-
