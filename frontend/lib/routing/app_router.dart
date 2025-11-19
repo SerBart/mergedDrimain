@@ -38,7 +38,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, state) {
           final idStr = state.pathParameters['id'] ?? '';
           final id = int.tryParse(idStr);
-          return RaportFormScreen(raportId: id);
+          // Zwracamy listę z automatycznym otwarciem dialogu edycji
+          return RaportyListScreen(editRaportId: id);
         },
       ),
       GoRoute(path: '/czesci', builder: (_, __) => const CzesciListScreen()),

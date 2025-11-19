@@ -18,7 +18,8 @@ import '../../core/constants/naprawy_constants.dart';
 import 'package:collection/collection.dart';
 
 class RaportyListScreen extends ConsumerStatefulWidget {
-  const RaportyListScreen({super.key});
+  const RaportyListScreen({super.key, this.editRaportId});
+  final int? editRaportId; // jeśli ustawione, po załadowaniu danych otwórz dialog edycji
 
   @override
   ConsumerState<RaportyListScreen> createState() => _RaportyListScreenState();
@@ -36,6 +37,8 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
   int _pageSize = 25;
   static const List<int> _pageSizes = [10, 25, 50, 100];
 
+  bool _editDialogAttempted = false; // aby nie otwierać wielokrotnie
+
   @override
   void initState() {
     super.initState();
@@ -43,8 +46,46 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _syncMetaFromApi();
       await _loadFromApi();
+      // Po załadowaniu spróbuj otworzyć dialog edycji jeśli przyszliśmy z trasy edycji
+      if (mounted && !_editDialogAttempted && widget.editRaportId != null) {
+        _editDialogAttempted = true;
+        _openEditDialog(widget.editRaportId!);
+      }
       if (mounted) setState(() {});
     });
+  }
+
+  void _openEditDialog(int id) async {
+    final repo = ref.read(mockRepoProvider);
+    final raport = repo.getRaportById(id);
+    if (raport == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Nie znaleziono raportu ID $id')),
+      );
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: RaportFormScreen(
+          existing: raport,
+          embedInDialog: true,
+          onSaved: (r) {
+            // Formularz już upsertuje w repo
+          },
+        ),
+      ),
+    );
+    // Po zamknięciu wróć na /raporty (czyści URL edycji) i ewentualnie odśwież dane
+    if (ok == true) {
+      await _loadFromApi();
+    }
+    if (mounted) {
+      try { context.go('/raporty'); } catch (_) {}
+    }
   }
 
   Future<void> _syncMetaFromApi() async {
