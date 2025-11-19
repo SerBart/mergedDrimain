@@ -61,6 +61,12 @@ String routeFromNotificationModel(NotificationModel n) {
     if (path.contains('/przegl')) {
       return (path.contains('/przeglady/') || path.contains('/przeglad/')) ? path : '/przeglady';
     }
+    // Nowe: obsługa raportów
+    if (path.contains('/raport')) {
+      // jeśli wskazuje na konkretny raport lub edycję, zachowaj całą ścieżkę
+      if (path.contains('/raport/')) return path;
+      return '/raporty';
+    }
     if (path.startsWith('/')) return path;
   }
 
@@ -68,6 +74,8 @@ String routeFromNotificationModel(NotificationModel n) {
   if (normalized.contains('zglos')) return '/zgloszenia';
   if (normalized.contains('harmonogram')) return '/harmonogramy';
   if (normalized.contains('przegl')) return '/przeglady';
+  // Nowe: heurystyka dla „raport”
+  if (normalized.contains('raport')) return '/raporty';
 
   return '/notifications';
 }

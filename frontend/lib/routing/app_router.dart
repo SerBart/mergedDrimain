@@ -33,6 +33,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(name: 'dashboard', path: '/dashboard', builder: (_, __) => const DashboardScreen()),
       GoRoute(path: '/raporty', builder: (_, __) => const RaportyListScreen()),
       GoRoute(path: '/raport/nowy', builder: (_, __) => const RaportFormScreen()),
+      GoRoute(
+        path: '/raport/edytuj/:id',
+        builder: (_, state) {
+          final idStr = state.pathParameters['id'] ?? '';
+          final id = int.tryParse(idStr);
+          return RaportFormScreen(raportId: id);
+        },
+      ),
       GoRoute(path: '/czesci', builder: (_, __) => const CzesciListScreen()),
       GoRoute(path: '/zgloszenia', builder: (_, __) => const ZgloszeniaScreenModern()),
       GoRoute(path: '/harmonogramy', builder: (_, __) => const HarmonogramyScreen()),

@@ -11,9 +11,11 @@ import '../../widgets/status_chip.dart';
 import '../../widgets/dialogs.dart';
 import '../../core/models/maszyna.dart';
 import '../../core/models/osoba.dart';
+import '../../core/models/part_usage.dart';
 import '../../widgets/centered_scroll_card.dart';
 import 'raport_form_screen.dart';
 import '../../core/constants/naprawy_constants.dart';
+import 'package:collection/collection.dart';
 
 class RaportyListScreen extends ConsumerStatefulWidget {
   const RaportyListScreen({super.key});
@@ -57,6 +59,21 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
       mock.osoby
         ..clear()
         ..addAll(fetchedOsoby);
+      // NOWE: doładuj pełną listę części
+      try {
+        final partsRepo = ref.read(partsApiRepositoryProvider);
+        final parts = await partsRepo.listFull();
+        mock.parts
+          ..clear()
+          ..addAll(parts);
+      } catch (e) {
+        // ciche ostrzeżenie
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Nie udało się pobrać części: $e')),
+          );
+        }
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -71,9 +88,33 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
       final api = ref.read(raportyApiRepositoryProvider);
       final items = await api.fetchAll();
       final mock = ref.read(mockRepoProvider);
+      // Wzbogacenie maszyn o działy jeśli API zwróciło tylko id+nazwa
+      final enriched = items.map((r) {
+        var rr = r;
+        final m = r.maszyna;
+        if (m != null && m.dzial == null) {
+          final known = mock.maszyny.firstWhereOrNull((km) => km.id == m.id);
+          if (known != null && known.dzial != null) {
+            final enrichedMaszyna = Maszyna(id: m.id, nazwa: m.nazwa, dzial: known.dzial);
+            rr = rr.copyWith(maszyna: enrichedMaszyna);
+          }
+        }
+        // Wzbogacenie partUsages o pełne części z mock.parts
+        if (rr.partUsages.isNotEmpty) {
+          final pu = rr.partUsages.map<PartUsage>((u) {
+            final knownPart = mock.parts.firstWhereOrNull((p) => p.id == u.part.id);
+            if (knownPart != null) {
+              return PartUsage(part: knownPart, ilosc: u.ilosc);
+            }
+            return u; // już PartUsage
+          }).toList();
+          rr = rr.copyWith(partUsages: pu);
+        }
+        return rr;
+      }).toList();
       mock.raporty
         ..clear()
-        ..addAll(items);
+        ..addAll(enriched);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -238,6 +279,22 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
               Text('Opis:', style: Theme.of(context).textTheme.labelLarge),
               const SizedBox(height: 4),
               Text(r.opis.isEmpty ? '(brak)' : r.opis),
+              const SizedBox(height: 12),
+              Text('Części:', style: Theme.of(context).textTheme.labelLarge),
+              const SizedBox(height: 4),
+              if (r.partUsages.isEmpty)
+                const Text('(brak)')
+              else
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: r.partUsages.map((u) {
+                    final p = u.part;
+                    final name = p.nazwa;
+                    final kod = p.kod;
+                    final unit = p.jednostka;
+                    return Text('• $name${kod.isNotEmpty ? ' ($kod)' : ''} × ${u.ilosc}${unit.isNotEmpty ? ' $unit' : ''}');
+                  }).toList(),
+                ),
             ],
           ),
         ),
@@ -336,6 +393,7 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                       DataColumn(label: const Text('Osoba'), onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; })),
                       DataColumn(label: const Text('Dział'), onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; })),
                       DataColumn(label: const Text('Opis'), onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; })),
+                      DataColumn(label: const Text('Części'), onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; })),
                       const DataColumn(label: Text('Foto')),
                       const DataColumn(label: Text('Akcje')),
                     ],
@@ -367,6 +425,14 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                                   child: Text((r.opis.isEmpty ? '(brak)' : (isExpanded ? r.opis : short)), overflow: TextOverflow.fade),
                                 ),
                               ),
+                            ),
+                          ),
+                          DataCell(
+                            Tooltip(
+                              message: r.partUsages.isEmpty
+                                  ? '(brak)'
+                                  : r.partUsages.map((u) => u.part.nazwa).join(', '),
+                              child: Text(r.partUsages.isEmpty ? '0' : r.partUsages.length.toString()),
                             ),
                           ),
                           DataCell(
