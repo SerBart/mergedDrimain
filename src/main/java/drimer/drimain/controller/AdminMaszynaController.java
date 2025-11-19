@@ -7,7 +7,11 @@ import drimer.drimain.repository.MaszynaRepository;
 import drimer.drimain.repository.DzialRepository;
 import drimer.drimain.repository.RaportRepository;
 import drimer.drimain.repository.HarmonogramRepository;
+import drimer.drimain.repository.ZgloszenieRepository;
+import drimer.drimain.repository.PartRepository;
+import drimer.drimain.repository.InstructionRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -27,6 +31,9 @@ public class AdminMaszynaController {
     private final DzialRepository dzialRepository;
     private final RaportRepository raportRepository;
     private final HarmonogramRepository harmonogramRepository;
+    private final ZgloszenieRepository zgloszenieRepository;
+    private final PartRepository partRepository;
+    private final InstructionRepository instructionRepository;
 
     @GetMapping
     public List<SimpleMaszynaDTO> list() {
@@ -66,13 +73,25 @@ public class AdminMaszynaController {
     public void delete(@PathVariable Long id) {
         Maszyna m = maszynaRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Maszyna nie znaleziona"));
+
         long raportCount = raportRepository.countByMaszyna_Id(id);
         long harmCount = harmonogramRepository.countByMaszyna_Id(id);
-        if (raportCount > 0 || harmCount > 0) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    String.format("Nie można usunąć. Powiązane raporty: %d, harmonogramy: %d", raportCount, harmCount));
+        long zglCount = zgloszenieRepository.countByMaszyna_Id(id);
+        long partCount = partRepository.countByMaszyna_Id(id);
+        long instrCount = instructionRepository.countByMaszyna_Id(id);
+
+        if (raportCount > 0 || harmCount > 0 || zglCount > 0 || partCount > 0 || instrCount > 0) {
+            String msg = String.format(
+                    "Nie można usunąć. Powiązane: raporty=%d, harmonogramy=%d, zgłoszenia=%d, części=%d, instrukcje=%d",
+                    raportCount, harmCount, zglCount, partCount, instrCount
+            );
+            throw new ResponseStatusException(HttpStatus.CONFLICT, msg);
         }
-        maszynaRepository.delete(m);
+        try {
+            maszynaRepository.delete(m);
+        } catch (DataIntegrityViolationException ex) {
+            // Fallback, gdyby jakieś ukryte FK nadal blokowało
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Nie można usunąć maszyny z powodu powiązań w bazie.");
+        }
     }
 }
-

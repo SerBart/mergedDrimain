@@ -59,4 +59,7 @@ public interface ZgloszenieRepository extends JpaRepository<Zgloszenie, Long>, J
                                      @Param("autorId") Long autorId,
                                      @Param("q") String q,
                                      Pageable pageable);
+
+    // Liczba zgłoszeń powiązanych z maszyną
+    long countByMaszyna_Id(Long maszynaId);
 }
