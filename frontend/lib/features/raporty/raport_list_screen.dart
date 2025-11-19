@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -26,7 +28,11 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
   bool _sortAsc = true;
   bool _busy = false;
   static const List<String> _typyNapraw = NaprawyConstants.typyNapraw;
-  final Set<int> _expandedOpis = <int>{}; // które opisy są rozwinięte
+  final Set<int> _expandedOpis = <int>{};
+  // NOWE: paginacja
+  int _page = 0;
+  int _pageSize = 25;
+  static const List<int> _pageSizes = [10, 25, 50, 100];
 
   @override
   void initState() {
@@ -90,37 +96,125 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
           (r.maszyna?.dzial?.nazwa.toLowerCase().contains(q) ?? false) ||
           r.opis.toLowerCase().contains(q);
     }).toList();
+    // Korekta strony jeśli poza zakresem po filtracji
+    final totalPages = (list.length / _pageSize).ceil();
+    if (_page >= totalPages && totalPages > 0) {
+      _page = totalPages - 1;
+    }
 
     list.sort((a, b) {
       int cmp;
       switch (_sortColumnIndex) {
-        case 0: // Maszyna
-          cmp = (a.maszyna?.nazwa ?? '').compareTo(b.maszyna?.nazwa ?? '');
-          break;
-        case 1: // Typ
-          cmp = a.typNaprawy.compareTo(b.typNaprawy);
-          break;
-        case 2: // Status
-          cmp = a.status.compareTo(b.status);
-          break;
-        case 3: // Data
-          cmp = a.dataNaprawy.compareTo(b.dataNaprawy);
-          break;
-        case 4: // Osoba
-          cmp = (a.osoba?.imieNazwisko ?? '').compareTo(b.osoba?.imieNazwisko ?? '');
-          break;
-        case 5: // Dział
-          cmp = (a.maszyna?.dzial?.nazwa ?? '').compareTo(b.maszyna?.dzial?.nazwa ?? '');
-          break;
-        case 6: // Opis (alfabetycznie po skrócie)
-          cmp = a.opis.compareTo(b.opis);
-          break;
-        default:
-          cmp = a.id.compareTo(b.id);
+        case 0: cmp = (a.maszyna?.nazwa ?? '').compareTo(b.maszyna?.nazwa ?? ''); break; // Maszyna
+        case 1: cmp = a.typNaprawy.compareTo(b.typNaprawy); break; // Typ
+        case 2: cmp = a.status.compareTo(b.status); break; // Status
+        case 3: cmp = a.dataNaprawy.compareTo(b.dataNaprawy); break; // Data
+        case 4: cmp = (a.osoba?.imieNazwisko ?? '').compareTo(b.osoba?.imieNazwisko ?? ''); break; // Osoba
+        case 5: cmp = (a.maszyna?.dzial?.nazwa ?? '').compareTo(b.maszyna?.dzial?.nazwa ?? ''); break; // Dzial
+        case 6: cmp = a.opis.compareTo(b.opis); break; // Opis
+        default: cmp = a.id.compareTo(b.id);
       }
       return _sortAsc ? cmp : -cmp;
     });
     return list;
+  }
+
+  // NOWE: pobranie wycinka stronowego
+  List<Raport> _pageSlice(List<Raport> all) {
+    final start = _page * _pageSize;
+    final end = (start + _pageSize) > all.length ? all.length : (start + _pageSize);
+    if (start >= all.length) return [];
+    return all.sublist(start, end);
+  }
+
+  // NOWE: eksport CSV aktualnie filtrowanych danych (pełna lista, nie tylko bieżąca strona)
+  void _exportCsv(List<Raport> all) async {
+    final header = ['ID','Maszyna','Dzial','Typ','Status','Data','CzasOd','CzasDo','Osoba','Opis'];
+    final rows = all.map((r) => [
+      r.id.toString(),
+      r.maszyna?.nazwa ?? '',
+      r.maszyna?.dzial?.nazwa ?? '',
+      r.typNaprawy,
+      r.status,
+      '${r.dataNaprawy.year}-${r.dataNaprawy.month.toString().padLeft(2,'0')}-${r.dataNaprawy.day.toString().padLeft(2,'0')}',
+      '${r.czasOd.hour.toString().padLeft(2,'0')}:${r.czasOd.minute.toString().padLeft(2,'0')}',
+      '${r.czasDo.hour.toString().padLeft(2,'0')}:${r.czasDo.minute.toString().padLeft(2,'0')}',
+      r.osoba?.imieNazwisko ?? '',
+      r.opis.replaceAll('\n',' ').replaceAll('\r',' '),
+    ]).toList();
+    final csv = StringBuffer();
+    csv.writeln(header.join(';'));
+    for (final row in rows) {
+      csv.writeln(row.map(_escapeCsv).join(';'));
+    }
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Eksport CSV'),
+        content: SingleChildScrollView(child: SelectableText(csv.toString())),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Zamknij')),
+          TextButton(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: csv.toString()));
+              if (mounted) Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('CSV skopiowany do schowka')));
+            },
+            child: const Text('Kopiuj do schowka'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _escapeCsv(String v) {
+    final needsQuotes = v.contains(';') || v.contains('"') || v.contains('\n');
+    var out = v.replaceAll('"','""');
+    if (needsQuotes) out = '"$out"';
+    return out;
+  }
+
+  // NOWE: kolory wierszy wg statusu
+  Color _rowColor(String status) {
+    switch (status.toUpperCase()) {
+      case 'NOWY': return Colors.yellow.shade50;
+      case 'W TOKU': return Colors.lightBlue.shade50;
+      case 'OCZEKUJE': return Colors.orange.shade50;
+      case 'ZAKOŃCZONY': return Colors.green.shade50;
+      default: return Colors.grey.shade50;
+    }
+  }
+
+  void _showPhoto(Raport r) {
+    if (r.photoBase64 == null || r.photoBase64!.isEmpty) return;
+    try {
+      final bytes = base64Decode(r.photoBase64!);
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('Zdjęcie raportu #${r.id}'),
+          content: InteractiveViewer(child: Image.memory(bytes, fit: BoxFit.contain)),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Zamknij')),
+          ],
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Nie można wyświetlić zdjęcia: $e')));
+    }
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 90, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
   }
 
   void _showRaportDetails(Raport r) {
@@ -161,19 +255,6 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
     );
   }
 
-  Widget _detailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(width: 90, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
-          Expanded(child: Text(value)),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final repo = ref.watch(mockRepoProvider);
@@ -187,12 +268,51 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.all(12),
-              child: TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Szukaj (maszyna / typ / status)',
-                  prefixIcon: Icon(Icons.search),
-                ),
-                onChanged: (v) => setState(() => _query = v),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          decoration: const InputDecoration(
+                            labelText: 'Szukaj (maszyna / typ / status / osoba / dział / opis)',
+                            prefixIcon: Icon(Icons.search),
+                          ),
+                          onChanged: (v) => setState(() => _query = v),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.download),
+                        label: const Text('Eksport CSV'),
+                        onPressed: _busy ? null : () {
+                          final repoAll = _apply(ref.read(mockRepoProvider).getRaporty());
+                          _exportCsv(repoAll);
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Text('Rozmiar strony:'),
+                      const SizedBox(width: 8),
+                      DropdownButton<int>(
+                        value: _pageSize,
+                        items: _pageSizes.map((s) => DropdownMenuItem(value: s, child: Text(s.toString()))).toList(),
+                        onChanged: (v) => setState(() { if (v != null) { _pageSize = v; _page = 0; } }),
+                      ),
+                      const SizedBox(width: 24),
+                      _PageControls(
+                        page: _page,
+                        totalItems: _apply(ref.read(mockRepoProvider).getRaporty()).length,
+                        pageSize: _pageSize,
+                        onPageChanged: (p) => setState(() => _page = p),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
             Padding(
@@ -209,41 +329,21 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                     sortColumnIndex: _sortColumnIndex,
                     sortAscending: _sortAsc,
                     columns: [
-                      DataColumn(
-                        label: const Text('Maszyna'),
-                        onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; }),
-                      ),
-                      DataColumn(
-                        label: const Text('Typ'),
-                        onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; }),
-                      ),
-                      DataColumn(
-                        label: const Text('Status'),
-                        onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; }),
-                      ),
-                      DataColumn(
-                        numeric: true,
-                        label: const Text('Data'),
-                        onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; }),
-                      ),
-                      DataColumn(
-                        label: const Text('Osoba'),
-                        onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; }),
-                      ),
-                      DataColumn(
-                        label: const Text('Dział'),
-                        onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; }),
-                      ),
-                      DataColumn(
-                        label: const Text('Opis'),
-                        onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; }),
-                      ),
+                      DataColumn(label: const Text('Maszyna'), onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; })),
+                      DataColumn(label: const Text('Typ'), onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; })),
+                      DataColumn(label: const Text('Status'), onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; })),
+                      DataColumn(numeric: true, label: const Text('Data'), onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; })),
+                      DataColumn(label: const Text('Osoba'), onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; })),
+                      DataColumn(label: const Text('Dział'), onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; })),
+                      DataColumn(label: const Text('Opis'), onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; })),
+                      const DataColumn(label: Text('Foto')),
                       const DataColumn(label: Text('Akcje')),
                     ],
-                    rows: raporty.map((r) {
+                    rows: _pageSlice(raporty).map((r) {
                       final isExpanded = _expandedOpis.contains(r.id);
                       final short = r.opis.length <= 15 ? r.opis : r.opis.substring(0, 15) + '…';
                       return DataRow(
+                        color: MaterialStateProperty.resolveWith((_) => _rowColor(r.status)),
                         cells: [
                           DataCell(Text(r.maszyna?.nazwa ?? '-')),
                           DataCell(Text(r.typNaprawy)),
@@ -264,12 +364,16 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                                 constraints: const BoxConstraints(maxWidth: 160),
                                 child: Tooltip(
                                   message: r.opis.isEmpty ? '(brak)' : r.opis,
-                                  child: Text(
-                                    (r.opis.isEmpty ? '(brak)' : (isExpanded ? r.opis : short)),
-                                    overflow: TextOverflow.fade,
-                                  ),
+                                  child: Text((r.opis.isEmpty ? '(brak)' : (isExpanded ? r.opis : short)), overflow: TextOverflow.fade),
                                 ),
                               ),
+                            ),
+                          ),
+                          DataCell(
+                            IconButton(
+                              tooltip: r.photoBase64 != null && r.photoBase64!.isNotEmpty ? 'Podgląd zdjęcia' : 'Brak zdjęcia',
+                              icon: Icon(Icons.image, color: (r.photoBase64 != null && r.photoBase64!.isNotEmpty) ? Colors.teal : Colors.grey),
+                              onPressed: (r.photoBase64 != null && r.photoBase64!.isNotEmpty) ? () => _showPhoto(r) : null,
                             ),
                           ),
                           DataCell(
@@ -290,11 +394,7 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                                   tooltip: 'Usuń',
                                   icon: const Icon(Icons.delete, color: Colors.redAccent),
                                   onPressed: _busy ? null : () async {
-                                    final confirm = await showConfirmDialog(
-                                      context,
-                                      'Usuń raport',
-                                      'Czy na pewno usunąć?'
-                                    );
+                                    final confirm = await showConfirmDialog(context, 'Usuń raport', 'Czy na pewno usunąć?');
                                     if (confirm == true) {
                                       setState(() => _busy = true);
                                       try {
@@ -306,9 +406,7 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                                         }
                                       } catch (e) {
                                         if (mounted) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(content: Text('Błąd usuwania: $e')),
-                                          );
+                                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Błąd usuwania: $e')));
                                         }
                                       } finally {
                                         if (mounted) setState(() => _busy = false);
@@ -357,6 +455,40 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
         icon: const Icon(FontAwesomeIcons.plus),
         label: const Text('Nowy'),
       ),
+    );
+  }
+}
+
+// NOWE: widget kontroli stron
+class _PageControls extends StatelessWidget {
+  final int page;
+  final int totalItems;
+  final int pageSize;
+  final ValueChanged<int> onPageChanged;
+  const _PageControls({required this.page, required this.totalItems, required this.pageSize, required this.onPageChanged});
+  @override
+  Widget build(BuildContext context) {
+    final totalPages = (totalItems / pageSize).ceil();
+    return Row(
+      children: [
+        Text('Strona ${totalPages == 0 ? 0 : page + 1}/$totalPages'),
+        IconButton(
+          icon: const Icon(Icons.first_page),
+          onPressed: page > 0 ? () => onPageChanged(0) : null,
+        ),
+        IconButton(
+          icon: const Icon(Icons.chevron_left),
+          onPressed: page > 0 ? () => onPageChanged(page - 1) : null,
+        ),
+        IconButton(
+          icon: const Icon(Icons.chevron_right),
+          onPressed: (page + 1) < totalPages ? () => onPageChanged(page + 1) : null,
+        ),
+        IconButton(
+          icon: const Icon(Icons.last_page),
+          onPressed: (page + 1) < totalPages ? () => onPageChanged(totalPages - 1) : null,
+        ),
+      ],
     );
   }
 }
