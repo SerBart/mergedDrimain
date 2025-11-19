@@ -118,6 +118,7 @@ class RaportyApiRepository {
     if (j['maszyna'] is Map) {
       final m = (j['maszyna'] as Map).cast<String, dynamic>();
       maszyna = Maszyna(id: (m['id'] as num?)?.toInt() ?? 0, nazwa: (m['nazwa'] ?? '').toString());
+    }
     Osoba? osoba;
     if (j['osoba'] is Map) {
       final o = (j['osoba'] as Map).cast<String, dynamic>();
@@ -137,7 +138,19 @@ class RaportyApiRepository {
           final r = raw.cast<String, dynamic>();
           final pid = (r['partId'] as num?)?.toInt() ?? 0;
           final ilosc = (r['ilosc'] as num?)?.toInt() ?? 0;
-          partUsages.add(PartUsage(part: Part(id: pid, nazwa: 'ID:$pid'), ilosc: ilosc));
+          partUsages.add(
+            PartUsage(
+              part: Part(
+                id: pid,
+                nazwa: 'ID:$pid',
+                kod: '',
+                iloscMagazyn: 0,
+                minIlosc: 0,
+                jednostka: '',
+              ),
+              ilosc: ilosc,
+            ),
+          );
         }
       }
     }
