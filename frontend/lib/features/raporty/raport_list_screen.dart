@@ -25,8 +25,8 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
   int _sortColumnIndex = 0;
   bool _sortAsc = true;
   bool _busy = false;
-
   static const List<String> _typyNapraw = NaprawyConstants.typyNapraw;
+  final Set<int> _expandedOpis = <int>{}; // które opisy są rozwinięte
 
   @override
   void initState() {
@@ -82,25 +82,38 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
   List<Raport> _apply(List<Raport> source) {
     var list = source.where((r) {
       final q = _query.toLowerCase();
+      if (q.isEmpty) return true;
       return r.typNaprawy.toLowerCase().contains(q) ||
           (r.maszyna?.nazwa.toLowerCase().contains(q) ?? false) ||
-          r.status.toLowerCase().contains(q);
+          r.status.toLowerCase().contains(q) ||
+          (r.osoba?.imieNazwisko.toLowerCase().contains(q) ?? false) ||
+          (r.maszyna?.dzial?.nazwa.toLowerCase().contains(q) ?? false) ||
+          r.opis.toLowerCase().contains(q);
     }).toList();
 
     list.sort((a, b) {
       int cmp;
       switch (_sortColumnIndex) {
-        case 0:
+        case 0: // Maszyna
           cmp = (a.maszyna?.nazwa ?? '').compareTo(b.maszyna?.nazwa ?? '');
           break;
-        case 1:
+        case 1: // Typ
           cmp = a.typNaprawy.compareTo(b.typNaprawy);
           break;
-        case 2:
+        case 2: // Status
           cmp = a.status.compareTo(b.status);
           break;
-        case 3:
+        case 3: // Data
           cmp = a.dataNaprawy.compareTo(b.dataNaprawy);
+          break;
+        case 4: // Osoba
+          cmp = (a.osoba?.imieNazwisko ?? '').compareTo(b.osoba?.imieNazwisko ?? '');
+          break;
+        case 5: // Dział
+          cmp = (a.maszyna?.dzial?.nazwa ?? '').compareTo(b.maszyna?.dzial?.nazwa ?? '');
+          break;
+        case 6: // Opis (alfabetycznie po skrócie)
+          cmp = a.opis.compareTo(b.opis);
           break;
         default:
           cmp = a.id.compareTo(b.id);
@@ -108,6 +121,57 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
       return _sortAsc ? cmp : -cmp;
     });
     return list;
+  }
+
+  void _showRaportDetails(Raport r) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Raport #${r.id}'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _detailRow('Maszyna', r.maszyna?.nazwa ?? '-'),
+              _detailRow('Dział', r.maszyna?.dzial?.nazwa ?? '-'),
+              _detailRow('Typ', r.typNaprawy),
+              _detailRow('Status', r.status),
+              _detailRow('Data', '${r.dataNaprawy.year}-${r.dataNaprawy.month.toString().padLeft(2, '0')}-${r.dataNaprawy.day.toString().padLeft(2, '0')}'),
+              _detailRow('Od', '${r.czasOd.hour.toString().padLeft(2,'0')}:${r.czasOd.minute.toString().padLeft(2,'0')}'),
+              _detailRow('Do', '${r.czasDo.hour.toString().padLeft(2,'0')}:${r.czasDo.minute.toString().padLeft(2,'0')}'),
+              _detailRow('Osoba', r.osoba?.imieNazwisko ?? '-'),
+              const SizedBox(height: 12),
+              Text('Opis:', style: Theme.of(context).textTheme.labelLarge),
+              const SizedBox(height: 4),
+              Text(r.opis.isEmpty ? '(brak)' : r.opis),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Zamknij')),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.go('/raport/edytuj/${r.id}');
+            },
+            child: const Text('Edytuj'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 90, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
   }
 
   @override
@@ -162,19 +226,61 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                         label: const Text('Data'),
                         onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; }),
                       ),
+                      DataColumn(
+                        label: const Text('Osoba'),
+                        onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; }),
+                      ),
+                      DataColumn(
+                        label: const Text('Dział'),
+                        onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; }),
+                      ),
+                      DataColumn(
+                        label: const Text('Opis'),
+                        onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; }),
+                      ),
                       const DataColumn(label: Text('Akcje')),
                     ],
                     rows: raporty.map((r) {
+                      final isExpanded = _expandedOpis.contains(r.id);
+                      final short = r.opis.length <= 15 ? r.opis : r.opis.substring(0, 15) + '…';
                       return DataRow(
                         cells: [
                           DataCell(Text(r.maszyna?.nazwa ?? '-')),
                           DataCell(Text(r.typNaprawy)),
                           DataCell(StatusChip(status: r.status)),
                           DataCell(Text('${r.dataNaprawy.year}-${r.dataNaprawy.month.toString().padLeft(2, '0')}-${r.dataNaprawy.day.toString().padLeft(2, '0')}')),
+                          DataCell(Text(r.osoba?.imieNazwisko ?? '-')),
+                          DataCell(Text(r.maszyna?.dzial?.nazwa ?? '-')),
+                          DataCell(
+                            InkWell(
+                              onTap: () => setState(() {
+                                if (isExpanded) {
+                                  _expandedOpis.remove(r.id);
+                                } else {
+                                  _expandedOpis.add(r.id);
+                                }
+                              }),
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 160),
+                                child: Tooltip(
+                                  message: r.opis.isEmpty ? '(brak)' : r.opis,
+                                  child: Text(
+                                    (r.opis.isEmpty ? '(brak)' : (isExpanded ? r.opis : short)),
+                                    overflow: TextOverflow.fade,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
                           DataCell(
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
+                                IconButton(
+                                  tooltip: 'Podgląd',
+                                  icon: const Icon(Icons.visibility, color: Colors.deepPurple),
+                                  onPressed: () => _showRaportDetails(r),
+                                ),
                                 IconButton(
                                   tooltip: 'Edytuj',
                                   icon: const Icon(Icons.edit, color: Colors.blueAccent),
