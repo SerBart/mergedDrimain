@@ -20,4 +20,7 @@ public interface HarmonogramRepository extends JpaRepository<Harmonogram, Long> 
     // Filtrowanie po dacie z join fetchami
     @Query("select distinct h from Harmonogram h left join fetch h.dzial left join fetch h.maszyna left join fetch h.osoba where h.data between :start and :end")
     List<Harmonogram> findByDataBetweenWithJoins(@Param("start") LocalDate start, @Param("end") LocalDate end);
+
+    // Liczba harmonogramów powiązanych z maszyną
+    long countByMaszyna_Id(Long maszynaId);
 }

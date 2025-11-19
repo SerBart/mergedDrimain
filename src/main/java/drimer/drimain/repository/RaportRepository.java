@@ -21,4 +21,7 @@ public interface RaportRepository extends JpaRepository<Raport, Long>, JpaSpecif
     Optional<Raport> findById(Long id);
 
     Optional<Raport> findByZgloszenieId(Long zgloszenieId);
+
+    // Liczba raportów powiązanych z maszyną
+    long countByMaszyna_Id(Long maszynaId);
 }

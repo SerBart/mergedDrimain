@@ -140,10 +140,20 @@ class AdminApiRepository {
 
   Future<void> deleteMaszyna(int id) async {
     final token = await _token();
-    await _dio.delete(
-      '/api/admin/maszyny/$id',
-      options: Options(headers: {'Authorization': 'Bearer $token'}),
-    );
+    try {
+      await _dio.delete(
+        '/api/admin/maszyny/$id',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 409) {
+        final msg = e.response?.data is Map && (e.response?.data['message'] != null)
+            ? e.response?.data['message'].toString()
+            : 'Maszyna ma powiązane rekordy (raporty lub harmonogramy) i nie może zostać usunięta.';
+        throw Exception(msg);
+      }
+      rethrow;
+    }
   }
 
   Future<List<Osoba>> getOsoby() async {
