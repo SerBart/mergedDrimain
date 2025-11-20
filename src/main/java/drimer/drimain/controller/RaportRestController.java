@@ -44,7 +44,7 @@ public class RaportRestController {
     private final ZgloszenieRepository zgloszenieRepository;
 
     @GetMapping
-    @PreAuthorize("@moduleGuard.has('Raporty')")
+    @PreAuthorize("hasAnyRole('ADMIN','BIURO','USER')")
     public Page<RaportDTO> list(@RequestParam(required = false) String status,
                                 @RequestParam(required = false) Long maszynaId,
                                 @RequestParam(required = false) LocalDate from,
@@ -107,7 +107,7 @@ public class RaportRestController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("@moduleGuard.has('Raporty')")
+    @PreAuthorize("hasAnyRole('ADMIN','BIURO','USER')")
     public RaportDTO get(@PathVariable Long id) {
         Raport r = raportRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Raport not found"));
         return raportMapper.toDto(r);
@@ -116,7 +116,7 @@ public class RaportRestController {
     // Create report: require module AND role (ADMIN or BIURO)
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("@moduleGuard.has('Raporty') and hasAnyRole('ADMIN','BIURO','USER')")
+    @PreAuthorize("hasAnyRole('ADMIN','BIURO','USER')")
     public RaportDTO create(@RequestBody RaportCreateRequest req,
                            @AuthenticationPrincipal UserDetails userDetails) {
         Raport r = new Raport();
@@ -152,7 +152,7 @@ public class RaportRestController {
 
     // Update report: require module AND role (ADMIN or BIURO)
     @PutMapping("/{id}")
-    @PreAuthorize("@moduleGuard.has('Raporty') and hasAnyRole('ADMIN','BIURO','USER')")
+    @PreAuthorize("hasAnyRole('ADMIN','BIURO','USER')")
     public RaportDTO update(@PathVariable Long id, @RequestBody RaportUpdateRequest req,
                            @AuthenticationPrincipal UserDetails userDetails) {
         Raport r = raportRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Raport not found"));
