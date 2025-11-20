@@ -60,11 +60,7 @@ public class SecurityConfig {
                     reg.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
 
                     reg.requestMatchers("/api/auth/**").permitAll();
-
-                    // Actuator (health/info) for platform probes
                     reg.requestMatchers("/actuator/**").permitAll();
-
-                    // Statyki Fluttera (jak wcześniej)
                     reg.requestMatchers(
                             "/", "/index.html",
                             "/css/**", "/js/**", "/img/**",
@@ -75,16 +71,8 @@ public class SecurityConfig {
                             "/version.json",
                             "/favicon.ico", "/favicon.png"
                     ).permitAll();
-
-                    // H2 Console (tylko jeśli włączone)
-                    if (h2ConsoleEnabled) {
-                        reg.requestMatchers("/h2-console/**").permitAll();
-                    }
-
-                    // Swagger (tylko jeśli włączone)
-                    if (swaggerEnabled) {
-                        reg.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll();
-                    }
+                    if (h2ConsoleEnabled) { reg.requestMatchers("/h2-console/**").permitAll(); }
+                    if (swaggerEnabled) { reg.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll(); }
 
                     // Public GET endpoints for machine lists used by forms
                     reg.requestMatchers(HttpMethod.GET,
@@ -94,15 +82,14 @@ public class SecurityConfig {
                             "/api/maszyny/select"
                     ).permitAll();
 
-                    // RBAC: tylko ADMIN może tworzyć/aktualizować/usuwać raporty
-                    reg.requestMatchers(HttpMethod.POST, "/api/raporty/**").hasRole("ADMIN");
-                    reg.requestMatchers(HttpMethod.PUT, "/api/raporty/**").hasRole("ADMIN");
-                    reg.requestMatchers(HttpMethod.PATCH, "/api/raporty/**").hasRole("ADMIN");
+                    // Raporty: tworzenie / edycja dla każdego zalogowanego użytkownika (rola USER/BIURO/ADMIN), kasowanie tylko ADMIN
+                    reg.requestMatchers(HttpMethod.POST, "/api/raporty/**").authenticated();
+                    reg.requestMatchers(HttpMethod.PUT, "/api/raporty/**").authenticated();
+                    reg.requestMatchers(HttpMethod.PATCH, "/api/raporty/**").authenticated();
                     reg.requestMatchers(HttpMethod.DELETE, "/api/raporty/**").hasRole("ADMIN");
 
-                    // API wymaga auth (pozostałe)
+                    // Pozostałe API wymagają uwierzytelnienia
                     reg.requestMatchers("/api/**").authenticated();
-
                     reg.anyRequest().authenticated();
                 })
                 .exceptionHandling(e -> e
@@ -222,4 +209,3 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 }
-
