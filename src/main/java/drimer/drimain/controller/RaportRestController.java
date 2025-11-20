@@ -116,7 +116,7 @@ public class RaportRestController {
     // Create report: require module AND role (ADMIN or BIURO)
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("@moduleGuard.has('Raporty') and hasAnyRole('ADMIN','BIURO')")
+    @PreAuthorize("@moduleGuard.has('Raporty') and hasAnyRole('ADMIN','BIURO','USER')")
     public RaportDTO create(@RequestBody RaportCreateRequest req,
                            @AuthenticationPrincipal UserDetails userDetails) {
         Raport r = new Raport();
@@ -152,7 +152,7 @@ public class RaportRestController {
 
     // Update report: require module AND role (ADMIN or BIURO)
     @PutMapping("/{id}")
-    @PreAuthorize("@moduleGuard.has('Raporty') and hasAnyRole('ADMIN','BIURO')")
+    @PreAuthorize("@moduleGuard.has('Raporty') and hasAnyRole('ADMIN','BIURO','USER')")
     public RaportDTO update(@PathVariable Long id, @RequestBody RaportUpdateRequest req,
                            @AuthenticationPrincipal UserDetails userDetails) {
         Raport r = raportRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Raport not found"));
@@ -209,4 +209,3 @@ public class RaportRestController {
         return created;
     }
 }
-
