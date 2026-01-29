@@ -12,7 +12,12 @@ import '../../widgets/centered_scroll_card.dart';
 import '../../widgets/top_app_bar.dart';
 
 class ZgloszeniaScreenModern extends ConsumerStatefulWidget {
-  const ZgloszeniaScreenModern({super.key});
+  final int? selectedZgloszenieId; // Nowy parametr dla powiadomień
+
+  const ZgloszeniaScreenModern({
+    super.key,
+    this.selectedZgloszenieId,
+  });
 
   @override
   ConsumerState<ZgloszeniaScreenModern> createState() =>
@@ -58,6 +63,20 @@ class _ZgloszeniaScreenModernState
 
   @override
   void initState() {
+
+      // NOWE: Jeśli mamy selectedZgloszenieId z powiadomienia, pokaż szczegóły
+      if (widget.selectedZgloszenieId != null && widget.selectedZgloszenieId! > 0) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          final zgloszenie = ref.read(mockRepoProvider).getZgloszenia()
+              .firstWhere(
+                (z) => z.id == widget.selectedZgloszenieId,
+                orElse: () => null as dynamic,
+              );
+          if (zgloszenie != null && mounted) {
+            _showDetails(zgloszenie);
+          }
+        });
+      }
     super.initState();
     _loadFromApi();
     // Po zbudowaniu kontekstu dociągnij metadane (maszyny/działy) z backendu

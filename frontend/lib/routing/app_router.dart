@@ -44,6 +44,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/czesci', builder: (_, __) => const CzesciListScreen()),
       GoRoute(path: '/zgloszenia', builder: (_, __) => const ZgloszeniaScreenModern()),
+      GoRoute(
+        path: '/zgloszenia/:id',
+        builder: (_, state) {
+          final idStr = state.pathParameters['id'] ?? '';
+          final id = int.tryParse(idStr);
+          // Zwracamy ekran zgłoszeń z automatycznym pokazaniem detali zgłoszenia
+          return ZgloszeniaScreenModern(selectedZgloszenieId: id);
+        },
+      ),
       GoRoute(path: '/harmonogramy', builder: (_, __) => const HarmonogramyScreen()),
       GoRoute(path: '/przeglady', builder: (_, __) => const PrzegladyScreen()),
       GoRoute(path: '/instrukcje', builder: (_, __) => const instrukcje_list.InstrukcjeListScreen()),

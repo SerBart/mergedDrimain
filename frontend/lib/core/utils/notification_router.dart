@@ -52,30 +52,36 @@ String routeFromNotificationModel(NotificationModel n) {
 
   // prefer explicit path when present
   if (path.isNotEmpty) {
+    // Obsługa zgłoszeń - jeśli jest konkretne ID, przejdź do edycji
     if (path.contains('/zglos')) {
-      return path.contains('/zgloszenia/') ? path : '/zgloszenia';
+      if (path.contains('/zgloszenia/')) {
+        return path; // np. /zgloszenia/123 - przejdź bezpośrednio
+      }
+      return '/zgloszenia';
     }
+
+    // Obsługa raportów - jeśli jest konkretne ID, przejdź do edycji
+    if (path.contains('/raport')) {
+      if (path.contains('/raporty/')) {
+        return path; // np. /raporty/123 - przejdź bezpośrednio
+      }
+      return '/raporty';
+    }
+
     if (path.contains('/harmonogram')) {
       return path.contains('/harmonogramy/') ? path : '/harmonogramy';
     }
     if (path.contains('/przegl')) {
       return (path.contains('/przeglady/') || path.contains('/przeglad/')) ? path : '/przeglady';
     }
-    // Nowe: obsługa raportów
-    if (path.contains('/raport')) {
-      // jeśli wskazuje na konkretny raport lub edycję, zachowaj całą ścieżkę
-      if (path.contains('/raport/')) return path;
-      return '/raporty';
-    }
     if (path.startsWith('/')) return path;
   }
 
   // heuristic fallback by content (normalized diacritics)
   if (normalized.contains('zglos')) return '/zgloszenia';
+  if (normalized.contains('raport')) return '/raporty';
   if (normalized.contains('harmonogram')) return '/harmonogramy';
   if (normalized.contains('przegl')) return '/przeglady';
-  // Nowe: heurystyka dla „raport”
-  if (normalized.contains('raport')) return '/raporty';
 
   return '/notifications';
 }
