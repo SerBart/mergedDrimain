@@ -774,249 +774,267 @@ class _ZgloszeniaScreenModernState
 
   // Nowy helper: otwiera dialog dodawania zgłoszenia (wydzielone by uniknąć zamieszania w nawiasach)
   void _openAddDialog() {
-    final maszyny = ref.read(mockRepoProvider).getMaszyny();
     final dzialy = ref.read(mockRepoProvider).getDzialy();
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) {
-        return AlertDialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          title: const Text('Nowe zgłoszenie'),
-          content: SizedBox(
-            width: _dialogWidth,
-            child: Form(
-              key: _formKey,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (maszyny.isEmpty)
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        margin: const EdgeInsets.only(bottom: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.withOpacity(.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text('Brak maszyn – kliknij Odśwież lub dodaj w Panelu Admina.'),
-                      ),
-                    DropdownButtonFormField<Dzial>(
-                      value: _selectedDzial,
-                      decoration: const InputDecoration(
-                        labelText: 'Dział',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: dzialy
-                          .map((d) => DropdownMenuItem(
-                                value: d,
-                                child: Text(d.nazwa),
-                              ))
-                          .toList(),
-                      onChanged: (v) => setState(() {
-                        _selectedDzial = v;
-                        _selectedMaszyna = null; // Reset maszyny przy zmianie działu
-                      }),
-                    ),
-                    const SizedBox(height: 12),
-                    // Autocomplete dla maszyn (dynamiczne ładowanie)
-                    FormField<void>(
-                      validator: (_) => _selectedMaszyna == null ? 'Wybierz maszynę' : null,
-                      builder: (state) => Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Maszyna',
-                            style: Theme.of(context).inputDecorationTheme.labelStyle ??
-                                const TextStyle(fontSize: 12, color: Colors.black54),
-                          ),
-                          const SizedBox(height: 8),
-                          Autocomplete<Maszyna>(
-                            displayStringForOption: (o) => o.nazwa,
-                            initialValue: TextEditingValue(text: _maszynaSearchText),
-                            optionsBuilder: (TextEditingValue tev) {
-                              if (_selectedDzial == null || _loadingMaszyny) {
-                                return const Iterable<Maszyna>.empty();
-                              }
-                              final q = tev.text.trim().toLowerCase();
-                              final all = ref.read(mockRepoProvider).getMaszyny();
-                              // POPRAWKA: filtruj tylko maszyny z wybranego działu
-                              final filtered = all.where((m) => m.dzial?.id == _selectedDzial!.id).toList();
-                              if (q.isEmpty) return filtered; // pełna lista bez wpisywania
-                              return filtered.where((m) => m.nazwa.toLowerCase().contains(q));
-                            },
-                            onSelected: (Maszyna sel) {
-                              setState(() {
-                                _selectedMaszyna = sel;
-                                _maszynaSearchText = sel.nazwa;
-                              });
-                            },
-                            fieldViewBuilder: (ctx, textCtrl, focusNode, onFieldSubmitted) {
-                              return TextField(
-                                controller: textCtrl,
-                                focusNode: focusNode,
-                                enabled: _selectedDzial != null && !_loadingMaszyny,
-                                decoration: InputDecoration(
-                                  hintText: 'Wpisz literę lub rozwiń listę',
-                                  prefixIcon: const Icon(Icons.search),
-                                  suffixIcon: IconButton(
-                                    tooltip: 'Pokaż pełną listę',
-                                    icon: const Icon(Icons.arrow_drop_down),
-                                    onPressed: _selectedDzial != null && !_loadingMaszyny
-                                        ? () {
-                                            // Wymuś otwarcie listy bez wpisywania
-                                            focusNode.requestFocus();
-                                            textCtrl.text = textCtrl.text + ' ';
-                                            textCtrl.text = textCtrl.text.trimRight();
-                                          }
-                                        : null,
-                                  ),
-                                ),
-                                onChanged: (v) => setState(() {
-                                  _maszynaSearchText = v;
-                                  if (_selectedMaszyna != null && _selectedMaszyna!.nazwa != v) {
-                                    _selectedMaszyna = null;
-                                  }
-                                }),
-                                onSubmitted: (_) => onFieldSubmitted(),
-                              );
-                            },
-                            optionsViewBuilder: (ctx, onSelected, options) {
-                              return Align(
-                                alignment: Alignment.topLeft,
-                                child: Material(
-                                  elevation: 4,
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: ConstrainedBox(
-                                    constraints: const BoxConstraints(maxHeight: 300),
-                                    child: ListView.builder(
-                                      padding: EdgeInsets.zero,
-                                      shrinkWrap: true,
-                                      itemCount: options.length,
-                                      itemBuilder: (ctx, i) {
-                                        final m = options.elementAt(i);
-                                        return ListTile(
-                                          dense: true,
-                                          title: Text(m.nazwa),
-                                          onTap: () => onSelected(m),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                          if (state.hasError)
-                            const SizedBox(height: 6),
-                          if (state.hasError)
-                            Text(state.errorText!, style: const TextStyle(color: Colors.red, fontSize: 12)),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
+        return StatefulBuilder(
+          builder: (context, setLocalState) {
+            // Pobierz aktualne maszyny
+            final maszyny = ref.read(mockRepoProvider).getMaszyny();
+            // Filtruj maszyny dla wybranego działu
+            final maszynyDlaDzialu = _selectedDzial != null
+                ? maszyny.where((m) => m.dzial?.id == _selectedDzial!.id).toList()
+                : <Maszyna>[];
+
+            return AlertDialog(
+              insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              title: const Text('Nowe zgłoszenie'),
+              content: SizedBox(
+                width: _dialogWidth,
+                child: Form(
+                  key: _formKey,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: _imieCtrl,
-                            decoration: const InputDecoration(
-                              labelText: 'Imię',
-                              border: OutlineInputBorder(),
+                        if (maszyny.isEmpty)
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(.1),
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                            validator: (v) => (v == null || v.isEmpty) ? 'Podaj imię' : null,
+                            child: const Text('Brak maszyn – kliknij Odśwież lub dodaj w Panelu Admina.'),
+                          ),
+                        DropdownButtonFormField<Dzial>(
+                          value: _selectedDzial,
+                          decoration: const InputDecoration(
+                            labelText: 'Dział',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: dzialy
+                              .map((d) => DropdownMenuItem(
+                                    value: d,
+                                    child: Text(d.nazwa),
+                                  ))
+                              .toList(),
+                          onChanged: (v) async {
+                            setLocalState(() {
+                              _selectedDzial = v;
+                              _selectedMaszyna = null; // Reset maszyny przy zmianie działu
+                              _maszynaSearchText = '';
+                              _loadingMaszyny = true;
+                            });
+                            if (v != null) {
+                              await _fetchMaszynyForDzial();
+                              setLocalState(() {
+                                _loadingMaszyny = false;
+                              });
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        // Autocomplete dla maszyn (dynamiczne ładowanie)
+                        FormField<void>(
+                          validator: (_) => _selectedMaszyna == null ? 'Wybierz maszynę' : null,
+                          builder: (state) => Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Maszyna',
+                                style: Theme.of(context).inputDecorationTheme.labelStyle ??
+                                    const TextStyle(fontSize: 12, color: Colors.black54),
+                              ),
+                              const SizedBox(height: 8),
+                              Autocomplete<Maszyna>(
+                                displayStringForOption: (o) => o.nazwa,
+                                initialValue: TextEditingValue(text: _maszynaSearchText),
+                                optionsBuilder: (TextEditingValue tev) {
+                                  if (_selectedDzial == null) {
+                                    return const Iterable<Maszyna>.empty();
+                                  }
+                                  final q = tev.text.trim().toLowerCase();
+                                  if (q.isEmpty) return maszynyDlaDzialu; // pełna lista bez wpisywania
+                                  return maszynyDlaDzialu.where((m) => m.nazwa.toLowerCase().contains(q));
+                                },
+                                onSelected: (Maszyna sel) {
+                                  setLocalState(() {
+                                    _selectedMaszyna = sel;
+                                    _maszynaSearchText = sel.nazwa;
+                                  });
+                                },
+                                fieldViewBuilder: (ctx, textCtrl, focusNode, onFieldSubmitted) {
+                                  return TextField(
+                                    controller: textCtrl,
+                                    focusNode: focusNode,
+                                    enabled: _selectedDzial != null,
+                                    decoration: InputDecoration(
+                                      hintText: _selectedDzial == null
+                                          ? 'Najpierw wybierz dział'
+                                          : 'Wpisz literę lub rozwiń listę',
+                                      prefixIcon: const Icon(Icons.search),
+                                      suffixIcon: IconButton(
+                                        tooltip: 'Pokaż pełną listę',
+                                        icon: const Icon(Icons.arrow_drop_down),
+                                        onPressed: _selectedDzial != null
+                                            ? () {
+                                                // Wymuś otwarcie listy bez wpisywania
+                                                focusNode.requestFocus();
+                                                textCtrl.text = textCtrl.text + ' ';
+                                                textCtrl.text = textCtrl.text.trimRight();
+                                              }
+                                            : null,
+                                      ),
+                                    ),
+                                    onChanged: (v) => setLocalState(() {
+                                      _maszynaSearchText = v;
+                                      if (_selectedMaszyna != null && _selectedMaszyna!.nazwa != v) {
+                                        _selectedMaszyna = null;
+                                      }
+                                    }),
+                                    onSubmitted: (_) => onFieldSubmitted(),
+                                  );
+                                },
+                                optionsViewBuilder: (ctx, onSelected, options) {
+                                  return Align(
+                                    alignment: Alignment.topLeft,
+                                    child: Material(
+                                      elevation: 4,
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: ConstrainedBox(
+                                        constraints: const BoxConstraints(maxHeight: 300),
+                                        child: ListView.builder(
+                                          padding: EdgeInsets.zero,
+                                          shrinkWrap: true,
+                                          itemCount: options.length,
+                                          itemBuilder: (ctx, i) {
+                                            final m = options.elementAt(i);
+                                            return ListTile(
+                                              dense: true,
+                                              title: Text(m.nazwa),
+                                              onTap: () => onSelected(m),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                              if (state.hasError)
+                                const SizedBox(height: 6),
+                              if (state.hasError)
+                                Text(state.errorText!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                            ],
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextFormField(
-                            controller: _nazCtrl,
-                            decoration: const InputDecoration(
-                              labelText: 'Nazwisko',
-                              border: OutlineInputBorder(),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _imieCtrl,
+                                decoration: const InputDecoration(
+                                  labelText: 'Imię',
+                                  border: OutlineInputBorder(),
+                                ),
+                                validator: (v) => (v == null || v.isEmpty) ? 'Podaj imię' : null,
+                              ),
                             ),
-                            validator: (v) => (v == null || v.isEmpty) ? 'Podaj nazwisko' : null,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _nazCtrl,
+                                decoration: const InputDecoration(
+                                  labelText: 'Nazwisko',
+                                  border: OutlineInputBorder(),
+                                ),
+                                validator: (v) => (v == null || v.isEmpty) ? 'Podaj nazwisko' : null,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          value: _typSelected,
+                          decoration: const InputDecoration(
+                            labelText: 'Typ',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: types
+                              .map((e) => DropdownMenuItem(
+                                    value: e,
+                                    child: Text(e),
+                                  ))
+                              .toList(),
+                          onChanged: (v) => setLocalState(() => _typSelected = v ?? _typSelected),
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _opisCtrl,
+                          maxLines: 3,
+                          decoration: const InputDecoration(
+                            labelText: 'Opis',
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (v) {
+                            final txt = v?.trim() ?? '';
+                            if (txt.isEmpty) return 'Opis jest wymagany';
+                            if (txt.length < 10) return 'Opis musi mieć co najmniej 10 znaków';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          value: _status,
+                          decoration: const InputDecoration(
+                            labelText: 'Status',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: statusy
+                              .map((s) => DropdownMenuItem(
+                                    value: s,
+                                    child: Text(s),
+                                  ))
+                              .toList(),
+                          onChanged: (v) => setLocalState(() => _status = v ?? _status),
+                        ),
+                        const SizedBox(height: 12),
+                        PhotoPickerField(
+                          label: 'Zdjęcie (opcjonalne)',
+                          initialBase64: _photoBase64,
+                          onChanged: (b64) => setLocalState(() => _photoBase64 = b64),
+                        ),
+                        const SizedBox(height: 16),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              TextButton(
+                                onPressed: () { Navigator.of(context).pop(); },
+                                child: const Text('Anuluj'),
+                              ),
+                              const SizedBox(width: 8),
+                              FilledButton(
+                                onPressed: _busy ? null : _add,
+                                child: const Text('Dodaj'),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: _typSelected,
-                      decoration: const InputDecoration(
-                        labelText: 'Typ',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: types
-                          .map((e) => DropdownMenuItem(
-                                value: e,
-                                child: Text(e),
-                              ))
-                          .toList(),
-                      onChanged: (v) => setState(() => _typSelected = v ?? _typSelected),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _opisCtrl,
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                        labelText: 'Opis',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (v) {
-                        final txt = v?.trim() ?? '';
-                        if (txt.isEmpty) return 'Opis jest wymagany';
-                        if (txt.length < 10) return 'Opis musi mieć co najmniej 10 znaków';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: _status,
-                      decoration: const InputDecoration(
-                        labelText: 'Status',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: statusy
-                          .map((s) => DropdownMenuItem(
-                                value: s,
-                                child: Text(s),
-                              ))
-                          .toList(),
-                      onChanged: (v) => setState(() => _status = v ?? _status),
-                    ),
-                    const SizedBox(height: 12),
-                    PhotoPickerField(
-                      label: 'Zdjęcie (opcjonalne)',
-                      initialBase64: _photoBase64,
-                      onChanged: (b64) => _photoBase64 = b64,
-                    ),
-                    const SizedBox(height: 16),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          TextButton(
-                            onPressed: () { Navigator.of(context).pop(); },
-                            child: const Text('Anuluj'),
-                          ),
-                          const SizedBox(width: 8),
-                          FilledButton(
-                            onPressed: _busy ? null : _add,
-                            child: const Text('Dodaj'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-          ), // <-- poprawne zamknięcie SizedBox zamiast ;
-        ); // <-- zamknięcie AlertDialog
+              );
+          },
+        );
       },
-    ); // <-- zamknięcie showDialog
+    );
   }
 
   Future<void> _fetchMaszynyForDzial() async {
