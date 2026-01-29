@@ -840,8 +840,10 @@ class _ZgloszeniaScreenModernState
                               }
                               final q = tev.text.trim().toLowerCase();
                               final all = ref.read(mockRepoProvider).getMaszyny();
-                              if (q.isEmpty) return all; // pełna lista bez wpisywania
-                              return all.where((m) => m.nazwa.toLowerCase().contains(q));
+                              // POPRAWKA: filtruj tylko maszyny z wybranego działu
+                              final filtered = all.where((m) => m.dzial?.id == _selectedDzial!.id).toList();
+                              if (q.isEmpty) return filtered; // pełna lista bez wpisywania
+                              return filtered.where((m) => m.nazwa.toLowerCase().contains(q));
                             },
                             onSelected: (Maszyna sel) {
                               setState(() {
