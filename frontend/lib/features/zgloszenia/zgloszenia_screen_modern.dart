@@ -39,7 +39,7 @@ class _ZgloszeniaScreenModernState
   String _query = '';
   String _statusFilter = 'WSZYSTKIE';
   final _dtf = DateFormat('yyyy-MM-dd HH:mm');
-  int _sortCol = 0; // 0: Data, 1: Start, 2: Koniec, 3: Typ, 4: Status, 5: Osoba
+  int _sortCol = 0; // 0: Data, 1: Typ, 2: Status, 3: Maszyna, 4: Dział, 5: Osoba
   bool _asc = false;
 
   bool _busy = false;
@@ -154,13 +154,11 @@ class _ZgloszeniaScreenModernState
         case 2: // Status
           cmp = a.status.compareTo(b.status);
           break;
-        case 3: // Start
-          cmp = (a.acceptedAt ?? DateTime.fromMillisecondsSinceEpoch(0))
-              .compareTo(b.acceptedAt ?? DateTime.fromMillisecondsSinceEpoch(0));
+        case 3: // Maszyna (nazwa)
+          cmp = (a.maszyna?.nazwa ?? '').compareTo(b.maszyna?.nazwa ?? '');
           break;
-        case 4: // Koniec
-          cmp = (a.completedAt ?? DateTime.fromMillisecondsSinceEpoch(0))
-              .compareTo(b.completedAt ?? DateTime.fromMillisecondsSinceEpoch(0));
+        case 4: // Dział (nazwa działu powiązanego z maszyną)
+          cmp = (a.maszyna?.dzial?.nazwa ?? '').compareTo(b.maszyna?.dzial?.nazwa ?? '');
           break;
         case 5: // Osoba (nazwisko potem imię)
           cmp = (a.nazwisko + a.imie).compareTo(b.nazwisko + b.imie);
@@ -985,67 +983,120 @@ class _ZgloszeniaScreenModernState
                       final double targetHeight = desiredHeight.clamp(220.0, maxHeight); // ensure double
                       final needsVerticalScroll = desiredHeight > maxHeight;
 
-                      Widget table = DataTable(
-                        sortColumnIndex: _sortCol,
-                        sortAscending: _asc,
-                        columns: [
-                          DataColumn(
-                            label: const Text('Data'),
-                            onSort: (i, asc) => _onSort(i, asc),
-                          ),
-                          DataColumn(
-                            label: const Text('Typ'),
-                            onSort: (i, asc) => _onSort(i, asc),
-                          ),
-                          DataColumn(
-                            label: const Text('Status'),
-                            onSort: (i, asc) => _onSort(i, asc),
-                          ),
-                          DataColumn(
-                            label: const Text('Start'),
-                            onSort: (i, asc) => _onSort(i, asc),
-                          ),
-                          DataColumn(
-                            label: const Text('Koniec'),
-                            onSort: (i, asc) => _onSort(i, asc),
-                          ),
-                          DataColumn(
-                            label: const Text('Osoba'),
-                            onSort: (i, asc) => _onSort(i, asc),
-                          ),
-                        ],
-                        rows: data.map((z) {
-                          String fmt(DateTime? d) => d == null ? '-' : _dtf.format(d);
-                          final typeColor = _typeColor(z.typ);
-                          return DataRow(
-                            onSelectChanged: (_) => _showDetails(z),
-                            cells: [
-                              DataCell(Text(_dtf.format(z.dataGodzina))), // Data
-                              DataCell(
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: typeColor.withOpacity(.12),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: typeColor.withOpacity(.5)),
-                                    ),
-                                    child: Text(
-                                      z.typ,
-                                      style: TextStyle(color: typeColor, fontWeight: FontWeight.w600),
-                                    ),
+                      final isMobile = MediaQuery.of(context).size.width < 720;
+
+                      Widget table;
+                      if (isMobile) {
+                        // Mobile: pokaż listę kart (bardziej czytelne na małych ekranach)
+                        table = ListView.separated(
+                          shrinkWrap: true,
+                          physics: needsVerticalScroll ? const AlwaysScrollableScrollPhysics() : const NeverScrollableScrollPhysics(),
+                          itemCount: data.length,
+                          itemBuilder: (ctx, idx) {
+                            final z = data[idx];
+                            final typeColor = _typeColor(z.typ);
+                            return Card(
+                              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                              child: InkWell(
+                                onTap: () => _showDetails(z),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Expanded(child: Text(_dtf.format(z.dataGodzina), style: const TextStyle(fontWeight: FontWeight.w600))),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: typeColor.withOpacity(.12),
+                                              borderRadius: BorderRadius.circular(12),
+                                              border: Border.all(color: typeColor.withOpacity(.5)),
+                                            ),
+                                            child: Text(z.typ, style: TextStyle(color: typeColor, fontWeight: FontWeight.w600)),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      _statusChip(z.status),
+                                      const SizedBox(height: 8),
+                                      Text('Maszyna: ${z.maszyna?.nazwa ?? '-'}'),
+                                      Text('Dział: ${z.maszyna?.dzial?.nazwa ?? '-'}'),
+                                      const SizedBox(height: 6),
+                                      Text('Osoba: ${z.imie} ${z.nazwisko}'),
+                                    ],
                                   ),
                                 ),
-                              ), // Typ (colored)
-                              DataCell(_statusChip(z.status)),             // Status
-                              DataCell(Text(fmt(z.acceptedAt))),           // Start
-                              DataCell(Text(fmt(z.completedAt))),          // Koniec
-                              DataCell(Text('${z.imie} ${z.nazwisko}')),   // Osoba
-                            ],
-                          );
-                        }).toList(),
-                      );
+                              ),
+                            );
+                          },
+                          separatorBuilder: (_, __) => const SizedBox(height: 4),
+                        );
+                      } else {
+                        // Desktop/tablet: zachowaj DataTable
+                        table = DataTable(
+                          sortColumnIndex: _sortCol,
+                          sortAscending: _asc,
+                          columns: [
+                            DataColumn(
+                              label: const Text('Data'),
+                              onSort: (i, asc) => _onSort(i, asc),
+                            ),
+                            DataColumn(
+                              label: const Text('Typ'),
+                              onSort: (i, asc) => _onSort(i, asc),
+                            ),
+                            DataColumn(
+                              label: const Text('Status'),
+                              onSort: (i, asc) => _onSort(i, asc),
+                            ),
+                            DataColumn(
+                              label: const Text('Maszyna'),
+                              onSort: (i, asc) => _onSort(i, asc),
+                            ),
+                            DataColumn(
+                              label: const Text('Dział'),
+                              onSort: (i, asc) => _onSort(i, asc),
+                            ),
+                            DataColumn(
+                              label: const Text('Osoba'),
+                              onSort: (i, asc) => _onSort(i, asc),
+                            ),
+                          ],
+                          rows: data.map((z) {
+                            String fmt(DateTime? d) => d == null ? '-' : _dtf.format(d);
+                            final typeColor = _typeColor(z.typ);
+                            return DataRow(
+                              onSelectChanged: (_) => _showDetails(z),
+                              cells: [
+                                DataCell(Text(_dtf.format(z.dataGodzina))), // Data
+                                DataCell(
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: typeColor.withOpacity(.12),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: typeColor.withOpacity(.5)),
+                                      ),
+                                      child: Text(
+                                        z.typ,
+                                        style: TextStyle(color: typeColor, fontWeight: FontWeight.w600),
+                                      ),
+                                    ),
+                                  ),
+                                ), // Typ (colored)
+                                DataCell(_statusChip(z.status)),             // Status
+                                DataCell(Text(z.maszyna?.nazwa ?? '-')),     // Maszyna
+                                DataCell(Text(z.maszyna?.dzial?.nazwa ?? '-')), // Dział
+                                DataCell(Text('${z.imie} ${z.nazwisko}')),   // Osoba
+                              ],
+                            );
+                          }).toList(),
+                        );
+                      }
 
                       return Align(
                         alignment: Alignment.topCenter,

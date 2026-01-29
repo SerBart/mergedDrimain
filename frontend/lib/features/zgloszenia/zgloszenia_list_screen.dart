@@ -110,10 +110,18 @@
 //           cmp = a.typ.compareTo(b.typ);
 //           break;
 //         case 3:
-//           cmp = ('${a.imie} ${a.nazwisko}').compareTo('${b.imie} ${b.nazwisko}');
+//           cmp = a.status.compareTo(b.status);
 //           break;
 //         case 4:
-//           cmp = a.status.compareTo(b.status);
+//           // Maszyna (po nazwie)
+//           cmp = (a.maszyna?.nazwa ?? '').compareTo(b.maszyna?.nazwa ?? '');
+//           break;
+//         case 5:
+//           // Dział (po nazwie powiązanym z maszyną)
+//           cmp = (a.maszyna?.dzial?.nazwa ?? '').compareTo(b.maszyna?.dzial?.nazwa ?? '');
+//           break;
+//         case 6:
+//           cmp = ('${a.imie} ${a.nazwisko}').compareTo('${b.imie} ${b.nazwisko}');
 //           break;
 //         default:
 //           cmp = b.id.compareTo(a.id);
@@ -423,6 +431,8 @@
 //                   DataColumn(label: const Text('Typ'), onSort: _onSort),
 //                   DataColumn(label: const Text('Zgłaszający'), onSort: _onSort),
 //                   DataColumn(label: const Text('Status'), onSort: _onSort),
+//                   DataColumn(label: const Text('Maszyna'), onSort: _onSort),
+//                   DataColumn(label: const Text('Dział'), onSort: _onSort),
 //                   const DataColumn(label: Text('Opis')),
 //                   const DataColumn(label: Text('Foto')),
 //                   const DataColumn(label: Text('Akcje')),
@@ -435,6 +445,8 @@
 //                       DataCell(Text(z.typ)),
 //                       DataCell(Text('${z.imie} ${z.nazwisko}')),
 //                       DataCell(StatusChip(status: z.status)),
+//                       DataCell(Text(z.maszyna?.nazwa ?? '-')),
+//                       DataCell(Text(z.maszyna?.dzial?.nazwa ?? '-')),
 //                       DataCell(SizedBox(
 //                         width: 200,
 //                         child: Tooltip(
