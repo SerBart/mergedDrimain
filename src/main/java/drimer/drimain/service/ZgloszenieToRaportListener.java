@@ -18,8 +18,11 @@ import java.time.LocalDate;
 
 /**
  * Listener do automatycznego tworzenia raportu gdy zgłoszenie zmieni status na DONE.
+ *
+ * DEPRECATED: Używaj drimer.drimain.events.ZgloszenieToRaportListener zamiast tego.
+ * Ta klasa jest zachowana dla kompatybilności wstecznej, ale nie jest już używana.
  */
-@Service
+@Service(value = "zgloszenieToRaportListenerDeprecated")
 @RequiredArgsConstructor
 @Slf4j
 public class ZgloszenieToRaportListener {
