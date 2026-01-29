@@ -824,7 +824,7 @@ class _ZgloszeniaScreenModernState
                           onChanged: (v) async {
                             setLocalState(() {
                               _selectedDzial = v;
-                              _selectedMaszyna = null; // Reset maszyny przy zmianie działu
+                              _selectedMaszyna = null;
                               _maszynaSearchText = '';
                               _loadingMaszyny = true;
                             });
@@ -835,6 +835,55 @@ class _ZgloszeniaScreenModernState
                               });
                             }
                           },
+                        ),
+                        // ROZSZERZONA DIAGNOSTYKA + SPINNER
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6.0, bottom: 12.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              AnimatedOpacity(
+                                opacity: _selectedDzial != null ? 1 : 0.5,
+                                duration: const Duration(milliseconds: 200),
+                                child: Row(
+                                  children: [
+                                    if (_loadingMaszyny)
+                                      const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      ),
+                                    Expanded(
+                                      child: Text(
+                                        _maszynyError != null
+                                            ? _maszynyError!
+                                            : _selectedDzial == null
+                                                ? 'Wybierz dział aby pobrać maszyny.'
+                                                : 'Maszyny dostępne.',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: _maszynyError != null
+                                              ? Colors.redAccent
+                                              : Colors.grey.shade600,
+                                        ),
+                                      ),
+                                    ),
+                                    if (_selectedDzial != null)
+                                      IconButton(
+                                        tooltip: 'Odśwież maszyny dla działu',
+                                        icon: const Icon(Icons.settings_backup_restore, size: 18),
+                                        onPressed: _loadingMaszyny
+                                            ? null
+                                            : () async {
+                                                await _fetchMaszynyForDzial();
+                                                setLocalState(() {});
+                                              },
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 12),
                         // Autocomplete dla maszyn (dynamiczne ładowanie)
@@ -853,12 +902,13 @@ class _ZgloszeniaScreenModernState
                                 displayStringForOption: (o) => o.nazwa,
                                 initialValue: TextEditingValue(text: _maszynaSearchText),
                                 optionsBuilder: (TextEditingValue tev) {
-                                  if (_selectedDzial == null) {
+                                  if (_selectedDzial == null || _loadingMaszyny) {
                                     return const Iterable<Maszyna>.empty();
                                   }
                                   final q = tev.text.trim().toLowerCase();
-                                  if (q.isEmpty) return maszynyDlaDzialu; // pełna lista bez wpisywania
-                                  return maszynyDlaDzialu.where((m) => m.nazwa.toLowerCase().contains(q));
+                                  final all = ref.read(mockRepoProvider).getMaszyny();
+                                  if (q.isEmpty) return all;
+                                  return all.where((m) => m.nazwa.toLowerCase().contains(q));
                                 },
                                 onSelected: (Maszyna sel) {
                                   setLocalState(() {
@@ -870,7 +920,7 @@ class _ZgloszeniaScreenModernState
                                   return TextField(
                                     controller: textCtrl,
                                     focusNode: focusNode,
-                                    enabled: _selectedDzial != null,
+                                    enabled: _selectedDzial != null && !_loadingMaszyny,
                                     decoration: InputDecoration(
                                       hintText: _selectedDzial == null
                                           ? 'Najpierw wybierz dział'
@@ -879,9 +929,8 @@ class _ZgloszeniaScreenModernState
                                       suffixIcon: IconButton(
                                         tooltip: 'Pokaż pełną listę',
                                         icon: const Icon(Icons.arrow_drop_down),
-                                        onPressed: _selectedDzial != null
+                                        onPressed: _selectedDzial != null && !_loadingMaszyny
                                             ? () {
-                                                // Wymuś otwarcie listy bez wpisywania
                                                 focusNode.requestFocus();
                                                 textCtrl.text = textCtrl.text + ' ';
                                                 textCtrl.text = textCtrl.text.trimRight();
