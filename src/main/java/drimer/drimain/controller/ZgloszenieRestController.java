@@ -29,7 +29,6 @@ import drimer.drimain.repository.UserRepository;
 import drimer.drimain.model.User;
 import drimer.drimain.service.NotificationService;
 import drimer.drimain.model.NotificationType;
-import drimer.drimain.service.ZgloszenieExportService;
 
 /**
  * REST controller for Zgloszenie CRUD.
@@ -54,8 +53,6 @@ public class ZgloszenieRestController {
     private final UserRepository userRepository;
     // New: notification service
     private final NotificationService notificationService;
-    // New: Excel export service
-    private final ZgloszenieExportService zgloszenieExportService;
 
     /**
      * List with simple filters.
@@ -153,6 +150,10 @@ public class ZgloszenieRestController {
 
     /**
      * Update existing (ADMIN or BIURO required).
+     *
+     * WAŻNE: Gdy zgłoszenie zostanie zmienione na status DONE (zamknięte),
+     * system automatycznie utworzy raport na podstawie tego zgłoszenia.
+     * Raport trafi do listy raportów z statusem NOWY.
      */
     @PutMapping("/{id}")
     @PreAuthorize("@moduleGuard.has('Zgloszenia')")
@@ -177,46 +178,6 @@ public class ZgloszenieRestController {
             throw new SecurityException("Brak uprawnień. Wymagana rola ADMIN lub BIURO.");
         }
         commandService.delete(id, authentication);
-    }
-
-    /**
-     * Export to Excel.
-     * - only ADMIN can export all, others get filtered by their department
-     */
-    @GetMapping("/export")
-    @PreAuthorize("@moduleGuard.has('Zgloszenia')")
-    public ResponseEntity<?> exportToExcel(Authentication authentication) {
-        List<Zgloszenie> all = zgloszenieRepository.findAll();
-
-        // If not admin, restrict to user's department if assigned
-        if (authentication != null) {
-            boolean isAdmin = authentication.getAuthorities().stream()
-                    .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-            if (!isAdmin) {
-                User u = userRepository.findByUsername(authentication.getName()).orElse(null);
-                Long dzialId = (u != null && u.getDzial() != null) ? u.getDzial().getId() : null;
-                if (dzialId != null) {
-                    all = all.stream().filter(z -> z.getDzial() != null && dzialId.equals(z.getDzial().getId()))
-                            .collect(Collectors.toList());
-                } else {
-                    // Brak przypisanego działu -> nie eksportuj nic
-                    all = List.of();
-                }
-            }
-        } else {
-            // Not authenticated -> empty
-            all = List.of();
-        }
-
-        try {
-            byte[] excelData = zgloszenieExportService.exportZgloszeniaToExcel(all);
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
-            headers.setContentDispositionFormData("attachment", "zgloszenia.xlsx");
-            return new ResponseEntity<>(excelData, headers, HttpStatus.OK);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Błąd podczas eksportu do Excela");
-        }
     }
 
     /**
@@ -264,4 +225,3 @@ public class ZgloszenieRestController {
         public ErrorResponse(String message) { this.message = message; }
     }
 }
-

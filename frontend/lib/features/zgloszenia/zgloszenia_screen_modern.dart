@@ -48,12 +48,19 @@ class _ZgloszeniaScreenModernState
   static const statusy = ['NOWE', 'W TOKU', 'WERYFIKACJA', 'ZAMKNIĘTE'];
   static const double _dialogWidth = 480; // jednolita szerokość dialogów
 
+  // Nowe: zmienne do obsługi dynamicznego ładowania maszyn dla działu
+  bool _loadingDzialy = false;
+  bool _loadingMaszyny = false;
+  String? _metaError;
+  String? _maszynyError;
+  List<Dzial> _dzialyLoaded = [];
+  String _maszynaSearchText = '';
+
   @override
   void initState() {
     super.initState();
     _loadFromApi();
-    // Po zbudowaniu kontekstu dociągnij metadane (maszyny/działy) z backendu,
-    // żeby dropdown nie korzystał z hardcodów w MockRepository
+    // Po zbudowaniu kontekstu dociągnij metadane (maszyny/działy) z backendu
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _syncMetaFromApi();
     });
@@ -775,25 +782,6 @@ class _ZgloszeniaScreenModernState
                         ),
                         child: const Text('Brak maszyn – kliknij Odśwież lub dodaj w Panelu Admina.'),
                       ),
-                    DropdownButtonFormField<Maszyna>(
-                      value: _selectedMaszyna,
-                      decoration: const InputDecoration(
-                        labelText: 'Maszyna',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: maszyny
-                          .map((m) => DropdownMenuItem(
-                                value: m,
-                                child: Text('${m.nazwa}${m.dzial != null ? ' (${m.dzial!.nazwa})' : ''}'),
-                              ))
-                          .toList(),
-                      onChanged: (v) => setState(() {
-                        _selectedMaszyna = v;
-                        // Auto-select department based on machine
-                        _selectedDzial = v?.dzial ?? _selectedDzial;
-                      }),
-                    ),
-                    const SizedBox(height: 12),
                     DropdownButtonFormField<Dzial>(
                       value: _selectedDzial,
                       decoration: const InputDecoration(
@@ -806,7 +794,104 @@ class _ZgloszeniaScreenModernState
                                 child: Text(d.nazwa),
                               ))
                           .toList(),
-                      onChanged: (v) => setState(() => _selectedDzial = v),
+                      onChanged: (v) => setState(() {
+                        _selectedDzial = v;
+                        _selectedMaszyna = null; // Reset maszyny przy zmianie działu
+                      }),
+                    ),
+                    const SizedBox(height: 12),
+                    // Autocomplete dla maszyn (dynamiczne ładowanie)
+                    FormField<void>(
+                      validator: (_) => _selectedMaszyna == null ? 'Wybierz maszynę' : null,
+                      builder: (state) => Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Maszyna',
+                            style: Theme.of(context).inputDecorationTheme.labelStyle ??
+                                const TextStyle(fontSize: 12, color: Colors.black54),
+                          ),
+                          const SizedBox(height: 8),
+                          Autocomplete<Maszyna>(
+                            displayStringForOption: (o) => o.nazwa,
+                            initialValue: TextEditingValue(text: _maszynaSearchText),
+                            optionsBuilder: (TextEditingValue tev) {
+                              if (_selectedDzial == null || _loadingMaszyny) {
+                                return const Iterable<Maszyna>.empty();
+                              }
+                              final q = tev.text.trim().toLowerCase();
+                              final all = ref.read(mockRepoProvider).getMaszyny();
+                              if (q.isEmpty) return all; // pełna lista bez wpisywania
+                              return all.where((m) => m.nazwa.toLowerCase().contains(q));
+                            },
+                            onSelected: (Maszyna sel) {
+                              setState(() {
+                                _selectedMaszyna = sel;
+                                _maszynaSearchText = sel.nazwa;
+                              });
+                            },
+                            fieldViewBuilder: (ctx, textCtrl, focusNode, onFieldSubmitted) {
+                              return TextField(
+                                controller: textCtrl,
+                                focusNode: focusNode,
+                                enabled: _selectedDzial != null && !_loadingMaszyny,
+                                decoration: InputDecoration(
+                                  hintText: 'Wpisz literę lub rozwiń listę',
+                                  prefixIcon: const Icon(Icons.search),
+                                  suffixIcon: IconButton(
+                                    tooltip: 'Pokaż pełną listę',
+                                    icon: const Icon(Icons.arrow_drop_down),
+                                    onPressed: _selectedDzial != null && !_loadingMaszyny
+                                        ? () {
+                                            // Wymuś otwarcie listy bez wpisywania
+                                            focusNode.requestFocus();
+                                            textCtrl.text = textCtrl.text + ' ';
+                                            textCtrl.text = textCtrl.text.trimRight();
+                                          }
+                                        : null,
+                                  ),
+                                ),
+                                onChanged: (v) => setState(() {
+                                  _maszynaSearchText = v;
+                                  if (_selectedMaszyna != null && _selectedMaszyna!.nazwa != v) {
+                                    _selectedMaszyna = null;
+                                  }
+                                }),
+                                onSubmitted: (_) => onFieldSubmitted(),
+                              );
+                            },
+                            optionsViewBuilder: (ctx, onSelected, options) {
+                              return Align(
+                                alignment: Alignment.topLeft,
+                                child: Material(
+                                  elevation: 4,
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: ConstrainedBox(
+                                    constraints: const BoxConstraints(maxHeight: 300),
+                                    child: ListView.builder(
+                                      padding: EdgeInsets.zero,
+                                      shrinkWrap: true,
+                                      itemCount: options.length,
+                                      itemBuilder: (ctx, i) {
+                                        final m = options.elementAt(i);
+                                        return ListTile(
+                                          dense: true,
+                                          title: Text(m.nazwa),
+                                          onTap: () => onSelected(m),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          if (state.hasError)
+                            const SizedBox(height: 6),
+                          if (state.hasError)
+                            Text(state.errorText!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -911,6 +996,58 @@ class _ZgloszeniaScreenModernState
         ); // <-- zamknięcie AlertDialog
       },
     ); // <-- zamknięcie showDialog
+  }
+
+  Future<void> _fetchMaszynyForDzial() async {
+    if (_selectedDzial == null) return;
+    setState(() {
+      _loadingMaszyny = true;
+      _maszynyError = null;
+    });
+    try {
+      final meta = ref.read(metaApiRepositoryProvider);
+      final fetchedMaszyny = await meta.fetchMaszynySimple(dzialId: _selectedDzial!.id);
+      final mock = ref.read(mockRepoProvider);
+      mock.maszyny
+        ..clear()
+        ..addAll(fetchedMaszyny);
+      // Jeżeli obecnie wybrana maszyna nie należy do nowego zestawu – wyczyść
+      if (_selectedMaszyna != null && !fetchedMaszyny.any((m) => m.id == _selectedMaszyna!.id)) {
+        _selectedMaszyna = null;
+        _maszynaSearchText = '';
+      }
+    } catch (e) {
+      _maszynyError = 'Błąd maszyn dla działu: $e';
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Nie udało się pobrać maszyn dla działu: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingMaszyny = false);
+    }
+  }
+
+  List<Maszyna> _filteredMaszyny(List<Maszyna> all) {
+    final q = _maszynaSearchText.trim().toLowerCase();
+    if (q.isEmpty) return all;
+    return all.where((m) => m.nazwa.toLowerCase().contains(q)).toList();
+  }
+
+  void _onSelectDzial(Dzial? dz) async {
+    setState(() {
+      _selectedDzial = dz;
+      _selectedMaszyna = null; // reset maszyny przy zmianie działu
+      _maszynaSearchText = '';
+    });
+    if (dz != null) {
+      await _fetchMaszynyForDzial();
+    } else {
+      // brak działu => wyczyść listę maszyn lokalnie
+      final mock = ref.read(mockRepoProvider);
+      mock.maszyny.clear();
+      setState(() {});
+    }
   }
 
   @override
