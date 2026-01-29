@@ -53,7 +53,7 @@ public class ZgloszenieExportService {
             for (Zgloszenie z : zgloszenia) {
                 Row row = sheet.createRow(rowNum++);
 
-                row.createCell(0).setCellValue(z.getId() != null ? z.getId() : "");
+                row.createCell(0).setCellValue(z.getId() != null ? z.getId().toString() : "");
                 row.createCell(1).setCellValue(z.getTyp() != null ? z.getTyp() : "");
                 row.createCell(2).setCellValue(z.getImie() != null ? z.getImie() : "");
                 row.createCell(3).setCellValue(z.getNazwisko() != null ? z.getNazwisko() : "");
