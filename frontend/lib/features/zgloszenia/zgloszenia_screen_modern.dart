@@ -1107,12 +1107,6 @@ class _ZgloszeniaScreenModernState
                   ),
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () { Navigator.of(context).pop(); },
-                  child: const Text('Anuluj'),
-                ),
-              ],
             );
           },
         );
@@ -1358,7 +1352,17 @@ class _ZgloszeniaScreenModernState
                                 DataCell(_statusChip(z.status)),             // Status
                                 DataCell(Text(z.maszyna?.nazwa ?? '-')),     // Maszyna
                                 DataCell(Text(z.maszyna?.dzial?.nazwa ?? '-')), // Dział
-                                DataCell(Text(z.temat)),                     // Temat
+                                DataCell(
+                                  Tooltip(
+                                    message: z.temat,
+                                    child: Text(
+                                      z.temat.length > 30
+                                          ? '${z.temat.substring(0, 30)}...'
+                                          : z.temat,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ), // Temat
                                 DataCell(Text('${z.imie} ${z.nazwisko}')),   // Osoba
                               ],
                             );
