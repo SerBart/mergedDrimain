@@ -74,6 +74,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       obscureText: true,
                       decoration: const InputDecoration(labelText: 'Hasło'),
                       validator: (v) => (v == null || v.isEmpty) ? 'Podaj hasło' : null,
+                      textInputAction: TextInputAction.go,
+                      onFieldSubmitted: (_) {
+                        if (!_loading) {
+                          _submit();
+                        }
+                      },
                     ),
                     const SizedBox(height: 8),
                     Row(

@@ -899,6 +899,7 @@ class _ZgloszeniaScreenModernState
                               ),
                               const SizedBox(height: 8),
                               Autocomplete<Maszyna>(
+                                key: ValueKey(_selectedDzial?.id),
                                 displayStringForOption: (o) => o.nazwa,
                                 initialValue: TextEditingValue(text: _maszynaSearchText),
                                 optionsBuilder: (TextEditingValue tev) {
@@ -911,7 +912,7 @@ class _ZgloszeniaScreenModernState
                                   return all.where((m) => m.nazwa.toLowerCase().contains(q));
                                 },
                                 onSelected: (Maszyna sel) {
-                                  setLocalState(() {
+                                  setState(() {
                                     _selectedMaszyna = sel;
                                     _maszynaSearchText = sel.nazwa;
                                   });
@@ -938,7 +939,7 @@ class _ZgloszeniaScreenModernState
                                             : null,
                                       ),
                                     ),
-                                    onChanged: (v) => setLocalState(() {
+                                    onChanged: (v) => setState(() {
                                       _maszynaSearchText = v;
                                       if (_selectedMaszyna != null && _selectedMaszyna!.nazwa != v) {
                                         _selectedMaszyna = null;
@@ -1079,7 +1080,18 @@ class _ZgloszeniaScreenModernState
                     ),
                   ),
                 ),
-              );
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () { Navigator.of(context).pop(); },
+                  child: const Text('Anuluj'),
+                ),
+                FilledButton(
+                  onPressed: _busy ? null : _add,
+                  child: const Text('Dodaj'),
+                ),
+              ],
+            );
           },
         );
       },
@@ -1104,15 +1116,19 @@ class _ZgloszeniaScreenModernState
         _selectedMaszyna = null;
         _maszynaSearchText = '';
       }
+      setState(() {
+        _loadingMaszyny = false;
+      });
     } catch (e) {
       _maszynyError = 'Błąd maszyn dla działu: $e';
       if (mounted) {
+        setState(() {
+          _loadingMaszyny = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Nie udało się pobrać maszyn dla działu: $e')),
         );
       }
-    } finally {
-      if (mounted) setState(() => _loadingMaszyny = false);
     }
   }
 
