@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/app_providers.dart';
 import 'package:go_router/go_router.dart';
+import 'package:dio/dio.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -36,7 +37,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           );
       if (mounted) context.go('/dashboard');
     } catch (e) {
-      setState(() { _error = e.toString(); });
+      String errorMessage = 'Login lub hasło są niepoprawne';
+
+      // Sprawdź typ błędu
+      if (e is DioException) {
+        if (e.response?.statusCode == 401) {
+          errorMessage = 'Login lub hasło są niepoprawne';
+        } else if (e.response?.statusCode == 400) {
+          errorMessage = 'Login lub hasło są niepoprawne';
+        } else if (e.type == DioExceptionType.connectionTimeout ||
+                   e.type == DioExceptionType.receiveTimeout) {
+          errorMessage = 'Nie można połączyć się z serwerem. Sprawdź połączenie.';
+        } else if (e.type == DioExceptionType.unknown) {
+          errorMessage = 'Błąd połączenia z serwerem';
+        }
+      }
+
+      setState(() { _error = errorMessage; });
     } finally {
       if (mounted) setState(() { _loading = false; });
     }
