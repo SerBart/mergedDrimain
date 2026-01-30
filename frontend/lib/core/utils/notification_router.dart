@@ -32,52 +32,22 @@ String _normalize(String input) {
 /// Mapuje `NotificationModel` (jego pola module/type/title/message/link)
 /// na ścieżkę w aplikacji.
 /// Zwraca domyślnie '/notifications' gdy nie rozpoznano celu.
+/// ZAWSZE kieruje do listy modułu (np. /zgloszenia, /raporty), nigdy do szczegółów
 String routeFromNotificationModel(NotificationModel n) {
   final raw = (n.link ?? '').trim();
-  String path = '';
-  if (raw.isNotEmpty) {
-    try {
-      final uri = Uri.parse(raw);
-      if (uri.hasScheme)
-        path = uri.path;
-      else
-        path = raw;
-    } catch (_) {
-      path = raw;
-    }
-  }
 
-  final combined = ('${n.module ?? ''} ${n.type ?? ''} ${n.title ?? ''} ${n.message ?? ''} ${path}').toLowerCase();
+  final combined = ('${n.module ?? ''} ${n.type ?? ''} ${n.title ?? ''} ${n.message ?? ''} ${raw}').toLowerCase();
   final normalized = _normalize(combined);
 
-  // prefer explicit path when present
-  if (path.isNotEmpty) {
-    // Obsługa zgłoszeń - jeśli jest konkretne ID, przejdź do edycji
-    if (path.contains('/zglos')) {
-      if (path.contains('/zgloszenia/')) {
-        return path; // np. /zgloszenia/123 - przejdź bezpośrednio
-      }
-      return '/zgloszenia';
-    }
-
-    // Obsługa raportów - jeśli jest konkretne ID, przejdź do edycji
-    if (path.contains('/raport')) {
-      if (path.contains('/raporty/')) {
-        return path; // np. /raporty/123 - przejdź bezpośrednio
-      }
-      return '/raporty';
-    }
-
-    if (path.contains('/harmonogram')) {
-      return path.contains('/harmonogramy/') ? path : '/harmonogramy';
-    }
-    if (path.contains('/przegl')) {
-      return (path.contains('/przeglady/') || path.contains('/przeglad/')) ? path : '/przeglady';
-    }
-    if (path.startsWith('/')) return path;
+  // Najpierw sprawdzaj moduł - zawsze kieruj do listy, ignoruj konkretne ID
+  if (raw.isNotEmpty) {
+    if (raw.contains('zglos')) return '/zgloszenia';
+    if (raw.contains('raport')) return '/raporty';
+    if (raw.contains('harmonogram')) return '/harmonogramy';
+    if (raw.contains('przegl')) return '/przeglady';
   }
 
-  // heuristic fallback by content (normalized diacritics)
+  // Heuristic fallback by content (normalized diacritics)
   if (normalized.contains('zglos')) return '/zgloszenia';
   if (normalized.contains('raport')) return '/raporty';
   if (normalized.contains('harmonogram')) return '/harmonogramy';

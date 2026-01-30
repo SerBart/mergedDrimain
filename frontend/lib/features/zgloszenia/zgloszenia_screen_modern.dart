@@ -30,6 +30,7 @@ class _ZgloszeniaScreenModernState
   final _formKey = GlobalKey<FormState>();
   final _imieCtrl = TextEditingController();
   final _nazCtrl = TextEditingController();
+  final _tematCtrl = TextEditingController();
   final _opisCtrl = TextEditingController();
   String? _photoBase64;
 
@@ -44,7 +45,7 @@ class _ZgloszeniaScreenModernState
   String _query = '';
   String _statusFilter = 'WSZYSTKIE';
   final _dtf = DateFormat('yyyy-MM-dd HH:mm');
-  int _sortCol = 0; // 0: Data, 1: Typ, 2: Status, 3: Maszyna, 4: Dział, 5: Osoba
+  int _sortCol = 0; // 0: Data, 1: Typ, 2: Status, 3: Maszyna, 4: Dział, 5: Temat, 6: Osoba
   bool _asc = false;
 
   bool _busy = false;
@@ -89,6 +90,7 @@ class _ZgloszeniaScreenModernState
   void dispose() {
     _imieCtrl.dispose();
     _nazCtrl.dispose();
+    _tematCtrl.dispose();
     _opisCtrl.dispose();
     _search.dispose();
     super.dispose();
@@ -186,7 +188,10 @@ class _ZgloszeniaScreenModernState
         case 4: // Dział (nazwa działu powiązanego z maszyną)
           cmp = (a.maszyna?.dzial?.nazwa ?? '').compareTo(b.maszyna?.dzial?.nazwa ?? '');
           break;
-        case 5: // Osoba (nazwisko potem imię)
+        case 5: // Temat
+          cmp = a.temat.compareTo(b.temat);
+          break;
+        case 6: // Osoba (nazwisko potem imię)
           cmp = (a.nazwisko + a.imie).compareTo(b.nazwisko + b.imie);
           break;
         default:
@@ -225,6 +230,7 @@ class _ZgloszeniaScreenModernState
         imie: _imieCtrl.text.trim(),
         nazwisko: _nazCtrl.text.trim(),
         typUi: _typSelected,
+        temat: _tematCtrl.text.trim(),
         opis: _opisCtrl.text.trim(),
         statusUi: _status,
         dataGodzina: DateTime.now(),
@@ -274,6 +280,7 @@ class _ZgloszeniaScreenModernState
 
     final imie = TextEditingController(text: z.imie);
     final nazw = TextEditingController(text: z.nazwisko);
+    final temat = TextEditingController(text: z.temat);
     final opis = TextEditingController(text: z.opis);
     var typ = z.typ;
     var status = z.status;
@@ -329,6 +336,14 @@ class _ZgloszeniaScreenModernState
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
+                      controller: temat,
+                      decoration: const InputDecoration(
+                        labelText: 'Temat',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
                       controller: opis,
                       maxLines: 3,
                       decoration: const InputDecoration(
@@ -367,6 +382,7 @@ class _ZgloszeniaScreenModernState
                                       imie: imie.text.trim(),
                                       nazwisko: nazw.text.trim(),
                                       typ: typ,
+                                      temat: temat.text.trim(),
                                       opis: opis.text.trim(),
                                       status: status,
                                     );
@@ -396,6 +412,7 @@ class _ZgloszeniaScreenModernState
                                         SnackBar(content: Text(msg)),
                                       );
                                     }
+
                                   } finally {
                                     if (mounted) setState(() => _busy = false);
                                   }
@@ -1024,6 +1041,15 @@ class _ZgloszeniaScreenModernState
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
+                          controller: _tematCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Temat',
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (v) => (v == null || v.isEmpty) ? 'Podaj temat' : null,
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
                           controller: _opisCtrl,
                           maxLines: 3,
                           decoration: const InputDecoration(
@@ -1085,10 +1111,6 @@ class _ZgloszeniaScreenModernState
                 TextButton(
                   onPressed: () { Navigator.of(context).pop(); },
                   child: const Text('Anuluj'),
-                ),
-                FilledButton(
-                  onPressed: _busy ? null : _add,
-                  child: const Text('Dodaj'),
                 ),
               ],
             );
@@ -1301,6 +1323,10 @@ class _ZgloszeniaScreenModernState
                               onSort: (i, asc) => _onSort(i, asc),
                             ),
                             DataColumn(
+                              label: const Text('Temat'),
+                              onSort: (i, asc) => _onSort(i, asc),
+                            ),
+                            DataColumn(
                               label: const Text('Osoba'),
                               onSort: (i, asc) => _onSort(i, asc),
                             ),
@@ -1332,6 +1358,7 @@ class _ZgloszeniaScreenModernState
                                 DataCell(_statusChip(z.status)),             // Status
                                 DataCell(Text(z.maszyna?.nazwa ?? '-')),     // Maszyna
                                 DataCell(Text(z.maszyna?.dzial?.nazwa ?? '-')), // Dział
+                                DataCell(Text(z.temat)),                     // Temat
                                 DataCell(Text('${z.imie} ${z.nazwisko}')),   // Osoba
                               ],
                             );

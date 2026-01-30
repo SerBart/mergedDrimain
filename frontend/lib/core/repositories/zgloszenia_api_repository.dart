@@ -22,6 +22,7 @@ class ZgloszeniaApiRepository {
     required String imie,
     required String nazwisko,
     required String typUi,
+    required String temat,
     required String opis,
     required String statusUi,
     DateTime? dataGodzina,
@@ -33,6 +34,7 @@ class ZgloszeniaApiRepository {
       'typ': _uiTypToDto(typUi),
       'imie': imie,
       'nazwisko': nazwisko,
+      'temat': temat,
       'status': _uiStatusToEnum(statusUi),
       'priorytet': 'NORMALNY', // zgodnie z DTO backendu
       'opis': opis,
@@ -56,6 +58,7 @@ class ZgloszeniaApiRepository {
       'typ': _uiTypToDto(z.typ),
       'imie': z.imie,
       'nazwisko': z.nazwisko,
+      'temat': z.temat,
       'status': _uiStatusToEnum(z.status),
       'opis': z.opis,
       'dataGodzina': z.dataGodzina.toIso8601String(),
@@ -87,6 +90,7 @@ class ZgloszeniaApiRepository {
     final String nazwisko = (j['nazwisko'] ?? '').toString();
     final String typRaw = (j['typ'] ?? '').toString();
     final String typ = _dtoTypToUi(typRaw);
+    final String temat = (j['temat'] ?? '').toString();
 
     final String opis = (j['opis'] ?? '').toString();
     final String? dt = j['dataGodzina'] as String?;
@@ -98,6 +102,7 @@ class ZgloszeniaApiRepository {
       imie: imie,
       nazwisko: nazwisko,
       typ: typ,
+      temat: temat,
       dataGodzina: dataGodzina,
       opis: opis,
       status: status,

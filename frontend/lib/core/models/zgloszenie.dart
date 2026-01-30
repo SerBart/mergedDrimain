@@ -5,6 +5,7 @@ class Zgloszenie {
   final String imie;
   final String nazwisko;
   final String typ;         // AWARIA / SERWIS / INNE
+  final String temat;       // nowe pole - temat zgłoszenia
   final DateTime dataGodzina;
   final String opis;
   final String status;      // NOWE / W TOKU / WERYFIKACJA / ZAMKNIĘTE
@@ -19,6 +20,7 @@ class Zgloszenie {
     required this.imie,
     required this.nazwisko,
     required this.typ,
+    required this.temat,
     required this.dataGodzina,
     required this.opis,
     this.status = 'NOWE',
@@ -34,6 +36,7 @@ class Zgloszenie {
     String? imie,
     String? nazwisko,
     String? typ,
+    String? temat,
     DateTime? dataGodzina,
     String? opis,
     String? status,
@@ -52,6 +55,7 @@ class Zgloszenie {
       imie: imie ?? this.imie,
       nazwisko: nazwisko ?? this.nazwisko,
       typ: typ ?? this.typ,
+      temat: temat ?? this.temat,
       dataGodzina: dataGodzina ?? this.dataGodzina,
       opis: opis ?? this.opis,
       status: status ?? this.status,
