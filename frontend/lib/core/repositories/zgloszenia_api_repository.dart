@@ -34,7 +34,7 @@ class ZgloszeniaApiRepository {
       'typ': _uiTypToDto(typUi),
       'imie': imie,
       'nazwisko': nazwisko,
-      'temat': temat,
+      'tytul': temat,  // Backend oczekuje 'tytul' nie 'temat'
       'status': _uiStatusToEnum(statusUi),
       'priorytet': 'NORMALNY', // zgodnie z DTO backendu
       'opis': opis,
