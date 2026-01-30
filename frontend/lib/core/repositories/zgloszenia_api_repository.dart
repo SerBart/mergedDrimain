@@ -58,7 +58,7 @@ class ZgloszeniaApiRepository {
       'typ': _uiTypToDto(z.typ),
       'imie': z.imie,
       'nazwisko': z.nazwisko,
-      'temat': z.temat,
+      'tytul': z.temat, // Wysyłaj jako 'tytul' bo tak backend oczekuje
       'status': _uiStatusToEnum(z.status),
       'opis': z.opis,
       'dataGodzina': z.dataGodzina.toIso8601String(),
@@ -90,7 +90,8 @@ class ZgloszeniaApiRepository {
     final String nazwisko = (j['nazwisko'] ?? '').toString();
     final String typRaw = (j['typ'] ?? '').toString();
     final String typ = _dtoTypToUi(typRaw);
-    final String temat = (j['temat'] ?? '').toString();
+    // Backend zwraca pole 'tytul' zamiast 'temat' - czytaj z tego pola
+    final String temat = (j['tytul'] ?? j['temat'] ?? j['subject'] ?? j['topic'] ?? '').toString();
 
     final String opis = (j['opis'] ?? '').toString();
     final String? dt = j['dataGodzina'] as String?;

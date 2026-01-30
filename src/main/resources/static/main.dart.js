@@ -52612,7 +52612,7 @@ l=t.z
 k=J
 j=t.f
 s=4
-return A.o(p.a.AX(0,"/api/zgloszenia/"+n,A.a8(["id",n,"typ",p.a0v(b.d),"imie",b.b,"nazwisko",b.c,"temat",b.e,"status",p.a0u(b.w),"opis",b.r,"dataGodzina",b.f.R3()],m,t.K),A.cy(A.a8(["Authorization","Bearer "+o],m,l)),l),$async$ct)
+return A.o(p.a.AX(0,"/api/zgloszenia/"+n,A.a8(["id",n,"typ",p.a0v(b.d),"imie",b.b,"nazwisko",b.c,"tytul",b.e,"status",p.a0u(b.w),"opis",b.r,"dataGodzina",b.f.R3()],m,t.K),A.cy(A.a8(["Authorization","Bearer "+o],m,l)),l),$async$ct)
 case 4:q=p.Kx(k.f4(j.a(d.a),m,l))
 s=1
 break
@@ -52640,7 +52640,10 @@ j=k.i(a,"nazwisko")
 r=J.bg(j==null?"":j)
 j=k.i(a,"typ")
 q=this.ajj(J.bg(j==null?"":j))
-j=k.i(a,"temat")
+j=k.i(a,"tytul")
+if(j==null)j=k.i(a,"temat")
+if(j==null)j=k.i(a,"subject")
+if(j==null)j=k.i(a,"topic")
 p=J.bg(j==null?"":j)
 j=k.i(a,"opis")
 o=J.bg(j==null?"":j)
