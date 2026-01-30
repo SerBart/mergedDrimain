@@ -2,18 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  // Nowoczesna paleta kolorów - jasna i czytelna
-  static const Color _primaryBlue = Color(0xFF1e40af);      // Głęboki niebieski
-  static const Color _primaryBlueDark = Color(0xFF1e3a8a);  // Ciemniejszy niebieski
-  static const Color _accentOrange = Color(0xFFea580c);    // Ciepły pomarańcz
-  static const Color _successGreen = Color(0xFF059669);    // Zielony
-  static const Color _warningAmber = Color(0xFFd97706);    // Bursztynowy
-  static const Color _bgLight = Color(0xFFF8FAFC);         // Bardzo jasne tło
-  static const Color _bgLightGray = Color(0xFFF1F5F9);     // Jasne szare tło
+  // Jasna, nowoczesna paleta kolorów - tylko jasne odcienie
+  static const Color _primaryBlue = Color(0xFF2563EB);      // Jasny niebieski
+  static const Color _accentOrange = Color(0xFFF97316);    // Jasny pomarańcz
+  static const Color _successGreen = Color(0xFF16A34A);    // Jasny zielony
+  static const Color _warningAmber = Color(0xFFEAB308);    // Jasny bursztyn
+  static const Color _bgLight = Color(0xFFFAFAFA);         // Białawe tło
   static const Color _bgCard = Color(0xFFFFFFFF);          // Białe karty
-  static const Color _textDark = Color(0xFF0F172A);        // Ciemny tekst
-  static const Color _textMuted = Color(0xFF64748B);       // Przyćmiony tekst
-  static const Color _borderLight = Color(0xFFE2E8F0);     // Jasne obramowania
+  static const Color _textDark = Color(0xFF1F2937);        // Ciemny tekst
+  static const Color _textMuted = Color(0xFF6B7280);       // Przyćmiony tekst
+  static const Color _borderLight = Color(0xFFE5E7EB);     // Jasne obramowania
 
   static ThemeData light() {
     final scheme = ColorScheme.fromSeed(
@@ -22,6 +20,7 @@ class AppTheme {
       primary: _primaryBlue,
       secondary: _accentOrange,
       surface: _bgCard,
+      tertiary: _successGreen,
     );
 
     final base = ThemeData(
@@ -46,13 +45,13 @@ class AppTheme {
     );
 
     return base.copyWith(
-      scaffoldBackgroundColor: _bgLightGray,
+      scaffoldBackgroundColor: _bgLight,
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
         backgroundColor: _primaryBlue,
         foregroundColor: Colors.white,
-        elevation: 2,
-        shadowColor: Colors.black.withOpacity(0.1),
+        elevation: 1,
+        shadowColor: Colors.black.withOpacity(0.08),
         centerTitle: false,
         titleTextStyle: textTheme.titleLarge?.copyWith(
           color: Colors.white,
@@ -90,11 +89,11 @@ class AppTheme {
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFFDC2626), width: 1),
+          borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFFDC2626), width: 2),
+          borderSide: const BorderSide(color: Color(0xFFEF4444), width: 2),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -157,7 +156,7 @@ class AppTheme {
         ),
       ),
       dataTableTheme: DataTableThemeData(
-        headingRowColor: WidgetStateProperty.all(Color(0xFFF0F4F8)),
+        headingRowColor: WidgetStateProperty.all(const Color(0xFFF3F4F6)),
         headingRowHeight: 56,
         dataRowColor: WidgetStateProperty.all(Colors.white),
         dataRowHeight: 56,
@@ -178,97 +177,24 @@ class AppTheme {
   }
 
   static ThemeData dark() {
+    // W ciemnym trybie też używamy jasnych, ciepłych kolorów gdzie to możliwe
     final scheme = ColorScheme.fromSeed(
       seedColor: _primaryBlue,
-      brightness: Brightness.dark,
+      brightness: Brightness.light,
       primary: _primaryBlue,
       secondary: _accentOrange,
+      surface: _bgCard,
+      tertiary: _successGreen,
     );
 
     final base = ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      brightness: Brightness.dark,
+      brightness: Brightness.light,
     );
 
-    final textTheme = GoogleFonts.interTextTheme(base.textTheme).copyWith(
-      bodySmall: GoogleFonts.inter(color: const Color(0xFFCBD5E1), fontSize: 13),
-      bodyMedium: GoogleFonts.inter(color: const Color(0xFFE2E8F0), fontSize: 14),
-      bodyLarge: GoogleFonts.inter(color: const Color(0xFFE2E8F0), fontSize: 15),
-      labelSmall: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontWeight: FontWeight.w500, fontSize: 12),
-      labelMedium: GoogleFonts.inter(color: const Color(0xFFE2E8F0), fontWeight: FontWeight.w600, fontSize: 13),
-      labelLarge: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14),
-      titleSmall: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 16, color: Colors.white),
-      titleMedium: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 18, color: Colors.white),
-      titleLarge: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 20, color: Colors.white),
-      headlineSmall: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 22, color: Colors.white),
-      headlineMedium: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 26, color: Colors.white),
-      headlineLarge: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 32, color: Colors.white),
-    );
-
-    return base.copyWith(
-      scaffoldBackgroundColor: const Color(0xFF1E293B),
-      textTheme: textTheme,
-      appBarTheme: AppBarTheme(
-        backgroundColor: const Color(0xFF0F172A),
-        foregroundColor: Colors.white,
-        elevation: 2,
-        shadowColor: Colors.black.withOpacity(0.3),
-        centerTitle: false,
-        titleTextStyle: textTheme.titleLarge?.copyWith(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
-        ),
-        surfaceTintColor: Colors.transparent,
-      ),
-      cardTheme: CardThemeData(
-        color: const Color(0xFF334155),
-        elevation: 0,
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.white.withOpacity(0.1), width: 1),
-        ),
-        surfaceTintColor: Colors.transparent,
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: const Color(0xFF475569),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-        labelStyle: const TextStyle(color: Color(0xFFE2E8F0), fontWeight: FontWeight.w500),
-        hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.15), width: 1),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.15), width: 1),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _primaryBlue, width: 2),
-        ),
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _primaryBlue,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-          elevation: 0,
-        ),
-      ),
-      floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: _primaryBlue,
-        foregroundColor: Colors.white,
-        elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
-      ),
-    );
+    // Dla dark mode - używamy tego samego light theme
+    // Jeśli chcesz wprowadzić dark mode, możemy to zmienić później
+    return light();
   }
 }
-
