@@ -1190,54 +1190,78 @@ class _ZgloszeniaScreenModernState
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                // Wyszukiwarka
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _search,
-                        decoration: InputDecoration(
-                          hintText:
-                          'Szukaj po opisie, typie, osobie, statusie...',
-                          prefixIcon: const Icon(Icons.search),
-                          suffixIcon: _query.isNotEmpty
-                              ? IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              _search.clear();
-                              setState(() => _query = '');
-                            },
-                          )
-                              : null,
-                        ),
-                        onChanged: (v) => setState(() => _query = v.trim()),
+                // Pasek wyszukiwania i synchronizacji
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.black.withOpacity(0.06)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    FilledButton.icon(
-                      onPressed: _busy ? null : _loadFromApi,
-                      icon: const Icon(Icons.sync),
-                      label: const Text('Synchronizuj'),
-                    ),
-                  ],
+                    ],
+                  ),
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _search,
+                          decoration: InputDecoration(
+                            hintText: 'Szukaj po opisie, typie, osobie, statusie...',
+                            prefixIcon: const Icon(Icons.search, color: Color(0xFF6B7280)),
+                            border: InputBorder.none,
+                            isDense: true,
+                            suffixIcon: _query.isNotEmpty
+                                ? IconButton(
+                                  icon: const Icon(Icons.clear, size: 20),
+                                  onPressed: () {
+                                    _search.clear();
+                                    setState(() => _query = '');
+                                  },
+                                )
+                                : null,
+                          ),
+                          onChanged: (v) => setState(() => _query = v.trim()),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      FilledButton.icon(
+                        onPressed: _busy ? null : _loadFromApi,
+                        icon: const Icon(Icons.sync, size: 18),
+                        label: const Text('Synchronizuj'),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 // Filtry statusów
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: _filtersBar(),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.black.withOpacity(0.06)),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: _filtersBar(),
+                  ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 // Tabela wyników
                 Expanded(
                   child: LayoutBuilder(
                     builder: (ctx, constraints) {
                       final rowCount = data.length;
-                      const headerHeight = 56.0; // DataTable heading approx
-                      const dataRowHeight = 56.0; // default row height
-                      final desiredHeight = headerHeight + (rowCount * dataRowHeight) + 32; // + padding
+                      const headerHeight = 56.0;
+                      const dataRowHeight = 56.0;
+                      final desiredHeight = headerHeight + (rowCount * dataRowHeight) + 32;
                       final maxHeight = constraints.maxHeight;
-                      final double targetHeight = desiredHeight.clamp(220.0, maxHeight); // ensure double
+                      final double targetHeight = desiredHeight.clamp(220.0, maxHeight);
                       final needsVerticalScroll = desiredHeight > maxHeight;
 
                       final isMobile = MediaQuery.of(context).size.width < 720;
@@ -1253,7 +1277,7 @@ class _ZgloszeniaScreenModernState
                             final z = data[idx];
                             final typeColor = _typeColor(z.typ);
                             return Card(
-                              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                              margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 6),
                               child: InkWell(
                                 onTap: () => _showDetails(z),
                                 child: Padding(
@@ -1271,17 +1295,17 @@ class _ZgloszeniaScreenModernState
                                               borderRadius: BorderRadius.circular(12),
                                               border: Border.all(color: typeColor.withOpacity(.5)),
                                             ),
-                                            child: Text(z.typ, style: TextStyle(color: typeColor, fontWeight: FontWeight.w600)),
+                                            child: Text(z.typ, style: TextStyle(color: typeColor, fontWeight: FontWeight.w600, fontSize: 12)),
                                           ),
                                         ],
                                       ),
                                       const SizedBox(height: 8),
                                       _statusChip(z.status),
                                       const SizedBox(height: 8),
-                                      Text('Maszyna: ${z.maszyna?.nazwa ?? '-'}'),
-                                      Text('Dział: ${z.maszyna?.dzial?.nazwa ?? '-'}'),
+                                      Text('Maszyna: ${z.maszyna?.nazwa ?? '-'}', style: const TextStyle(fontSize: 13)),
+                                      Text('Dział: ${z.maszyna?.dzial?.nazwa ?? '-'}', style: const TextStyle(fontSize: 13)),
                                       const SizedBox(height: 6),
-                                      Text('Osoba: ${z.imie} ${z.nazwisko}'),
+                                      Text('Osoba: ${z.imie} ${z.nazwisko}', style: const TextStyle(fontSize: 13)),
                                     ],
                                   ),
                                 ),
@@ -1331,7 +1355,7 @@ class _ZgloszeniaScreenModernState
                             return DataRow(
                               onSelectChanged: (_) => _showDetails(z),
                               cells: [
-                                DataCell(Text(_dtf.format(z.dataGodzina))), // Data
+                                DataCell(Text(_dtf.format(z.dataGodzina))),
                                 DataCell(
                                   Align(
                                     alignment: Alignment.centerLeft,
@@ -1344,14 +1368,14 @@ class _ZgloszeniaScreenModernState
                                       ),
                                       child: Text(
                                         z.typ,
-                                        style: TextStyle(color: typeColor, fontWeight: FontWeight.w600),
+                                        style: TextStyle(color: typeColor, fontWeight: FontWeight.w600, fontSize: 12),
                                       ),
                                     ),
                                   ),
-                                ), // Typ (colored)
-                                DataCell(_statusChip(z.status)),             // Status
-                                DataCell(Text(z.maszyna?.nazwa ?? '-')),     // Maszyna
-                                DataCell(Text(z.maszyna?.dzial?.nazwa ?? '-')), // Dział
+                                ),
+                                DataCell(_statusChip(z.status)),
+                                DataCell(Text(z.maszyna?.nazwa ?? '-')),
+                                DataCell(Text(z.maszyna?.dzial?.nazwa ?? '-')),
                                 DataCell(
                                   Tooltip(
                                     message: z.temat,
@@ -1362,8 +1386,8 @@ class _ZgloszeniaScreenModernState
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
-                                ), // Temat
-                                DataCell(Text('${z.imie} ${z.nazwisko}')),   // Osoba
+                                ),
+                                DataCell(Text('${z.imie} ${z.nazwisko}')),
                               ],
                             );
                           }).toList(),
