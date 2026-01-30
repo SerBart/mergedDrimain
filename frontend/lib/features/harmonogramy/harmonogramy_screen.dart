@@ -369,6 +369,10 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                               onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; }),
                             ),
                             DataColumn(
+                              label: const Text('Dział'),
+                              onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; }),
+                            ),
+                            DataColumn(
                               label: const Text('Osoba'),
                               onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; }),
                             ),
@@ -390,6 +394,7 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                               cells: [
                                 DataCell(Text(dateStr)),
                                 DataCell(Text(h.maszyna?.nazwa ?? '-')),
+                                DataCell(Text(h.maszyna?.dzial?.nazwa ?? '-')),
                                 DataCell(Text(h.osoba?.imieNazwisko ?? '-')),
                                 DataCell(Text((h.durationMinutes ?? 0).toString())),
                                 DataCell(Container(
