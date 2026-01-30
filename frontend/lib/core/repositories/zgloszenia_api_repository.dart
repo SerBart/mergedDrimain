@@ -98,6 +98,11 @@ class ZgloszeniaApiRepository {
     final DateTime dataGodzina =
     dt != null && dt.isNotEmpty ? DateTime.parse(dt) : DateTime.now();
 
+    // Mapuj maszynę z odpowiedzi API
+    final maszyna = j['maszyna'] != null
+        ? Maszyna.fromJson(j['maszyna'] as Map<String, dynamic>)
+        : null;
+
     return Zgloszenie(
       id: (j['id'] is int) ? j['id'] as int : ((j['id'] as num?)?.toInt() ?? 0),
       imie: imie,
@@ -107,6 +112,7 @@ class ZgloszeniaApiRepository {
       dataGodzina: dataGodzina,
       opis: opis,
       status: status,
+      maszyna: maszyna,
     );
   }
 
