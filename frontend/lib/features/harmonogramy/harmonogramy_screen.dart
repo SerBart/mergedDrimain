@@ -5,6 +5,7 @@ import '../../core/providers/app_providers.dart';
 import '../../core/models/harmonogram.dart';
 import '../../core/models/maszyna.dart';
 import '../../core/models/osoba.dart';
+import '../../core/models/dzial.dart';
 import '../../widgets/centered_scroll_card.dart';
 import '../../widgets/top_app_bar.dart';
 
@@ -531,6 +532,12 @@ class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
   late final TextEditingController _opisCtrl;
   late final TextEditingController _durationCtrl;
 
+  // Nowe: obsługa Działu
+  Dzial? _selectedDzial;
+  List<Dzial> _dzialy = [];
+  List<Maszyna> _maszynyDlaDzialu = [];
+  bool _loadingMaszyny = false;
+
   @override
   void initState() {
     super.initState();
@@ -543,6 +550,38 @@ class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
     }
     _opisCtrl = TextEditingController(text: widget.initialOpis ?? '');
     _durationCtrl = TextEditingController(text: widget.initialDuration?.toString() ?? '');
+
+    // Załaduj działy z maszyn
+    _loadDzialy();
+  }
+
+  void _loadDzialy() {
+    // Ekstrahuj unikalne działy z maszyn
+    final uniqueDzialy = <int, Dzial>{};
+    for (final m in widget.maszyny) {
+      if (m.dzial != null && !uniqueDzialy.containsKey(m.dzial!.id)) {
+        uniqueDzialy[m.dzial!.id] = m.dzial!;
+      }
+    }
+    setState(() {
+      _dzialy = uniqueDzialy.values.toList();
+    });
+  }
+
+  void _onDzialChanged(Dzial? dz) {
+    setState(() {
+      _selectedDzial = dz;
+      _maszyna = null;
+      _maszynyDlaDzialu = [];
+    });
+
+    if (dz != null) {
+      // Filtruj maszyny dla wybranego działu
+      _maszynyDlaDzialu = widget.maszyny
+          .where((m) => m.dzial?.id == dz.id)
+          .toList();
+      setState(() {});
+    }
   }
 
   @override
@@ -617,14 +656,26 @@ class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
                       ],
                     ),
                     const SizedBox(height: 12),
+                    DropdownButtonFormField<Dzial>(
+                      value: _selectedDzial,
+                      decoration: const InputDecoration(
+                        labelText: 'Dział',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: _dzialy.map((d) => DropdownMenuItem(value: d, child: Text(d.nazwa))).toList(),
+                      onChanged: _onDzialChanged,
+                    ),
+                    const SizedBox(height: 12),
                     DropdownButtonFormField<Maszyna>(
                       value: _maszyna,
                       decoration: const InputDecoration(
                         labelText: 'Maszyna',
                         border: OutlineInputBorder(),
                       ),
-                      items: widget.maszyny.map((m) => DropdownMenuItem(value: m, child: Text(m.nazwa))).toList(),
-                      onChanged: (v) => setState(() => _maszyna = v),
+                      items: _maszynyDlaDzialu.isEmpty
+                          ? [DropdownMenuItem(child: Text(_selectedDzial == null ? 'Najpierw wybierz dział' : 'Brak maszyn dla tego działu'))]
+                          : _maszynyDlaDzialu.map((m) => DropdownMenuItem(value: m, child: Text(m.nazwa))).toList(),
+                      onChanged: _selectedDzial == null ? null : (v) => setState(() => _maszyna = v),
                       validator: (v) => v == null ? 'Wybierz maszynę' : null,
                     ),
                     const SizedBox(height: 12),
