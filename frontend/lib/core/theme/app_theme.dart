@@ -2,27 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  // Nowoczesna paleta - jasne kolory z głębią i stylem
-  static const Color _primaryBlue = Color(0xFF0EA5E9);      // Niebieski sky
-  static const Color _primaryBlueDark = Color(0xFF0284C7);  // Ciemniejszy niebieski
-  static const Color _accentPurple = Color(0xFF7C3AED);     // Fioletowy akcent
-  static const Color _accentPink = Color(0xFFEC4899);       // Różowy akcent
-  static const Color _successGreen = Color(0xFF10B981);     // Zielony
-  static const Color _warningAmber = Color(0xFFF59E0B);     // Pomarańcz
-  static const Color _bgLight = Color(0xFFF8FAFC);          // Białawe tło
-  static const Color _bgLighter = Color(0xFFFFFFFF);        // Białe
-  static const Color _bgCard = Color(0xFFFFFFFF);           // Białe karty
-  static const Color _textDark = Color(0xFF0F172A);         // Ciemny tekst
-  static const Color _textMuted = Color(0xFF64748B);        // Przyćmiony tekst
-  static const Color _borderLight = Color(0xFFE2E8F0);      // Jasne obramowania
+  // Nowoczesna, głęboka paleta kolorów - bardziej dojrzała i eleganckaa
+  static const Color _primaryBlue = Color(0xFF0369A1);       // Głębszy sky blue
+  static const Color _primaryBlueLighter = Color(0xFF0284C7); // Jaśniejszy wariant
+  static const Color _accentIndigo = Color(0xFF4338CA);      // Indygo dla głębi
+  static const Color _accentCyan = Color(0xFF06B6D4);        // Cyan dla akcenty
+  static const Color _successGreen = Color(0xFF059669);      // Ciemniejszy zielony
+  static const Color _warningAmber = Color(0xFFD97706);      // Ciemniejszy pomarańcz
+  static const Color _errorRed = Color(0xFFDC2626);          // Czerwony
+  static const Color _bgDark = Color(0xFFF1F5F9);            // Jasnoszara baza
+  static const Color _bgCard = Color(0xFFFFFFFF);            // Białe karty
+  static const Color _textDark = Color(0xFF0F172A);          // Bardzo ciemny tekst
+  static const Color _textMuted = Color(0xFF475569);         // Przyćmiony tekst
+  static const Color _borderMuted = Color(0xFFCBD5E1);       // Ciemniejsze obramowania
 
   static ThemeData light() {
     final scheme = ColorScheme.fromSeed(
       seedColor: _primaryBlue,
       brightness: Brightness.light,
       primary: _primaryBlue,
-      secondary: _accentPurple,
-      tertiary: _successGreen,
+      secondary: _accentIndigo,
+      tertiary: _accentCyan,
       surface: _bgCard,
     );
 
@@ -38,27 +38,28 @@ class AppTheme {
       bodyLarge: GoogleFonts.inter(color: _textDark, fontSize: 15, fontWeight: FontWeight.w400),
       labelSmall: GoogleFonts.inter(color: _textMuted, fontWeight: FontWeight.w500, fontSize: 12),
       labelMedium: GoogleFonts.inter(color: _textDark, fontWeight: FontWeight.w600, fontSize: 13),
-      labelLarge: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14),
+      labelLarge: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, letterSpacing: 0.2),
       titleSmall: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 16, color: _textDark),
       titleMedium: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 18, color: _textDark),
-      titleLarge: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 20, color: _textDark),
+      titleLarge: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 20, color: _textDark, letterSpacing: -0.3),
       headlineSmall: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 22, color: _textDark),
-      headlineMedium: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 26, color: _textDark),
-      headlineLarge: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 32, color: _textDark),
+      headlineMedium: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 26, color: _textDark, letterSpacing: -0.5),
+      headlineLarge: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 32, color: _textDark, letterSpacing: -0.5),
     );
 
     return base.copyWith(
-      scaffoldBackgroundColor: _bgLight,
+      scaffoldBackgroundColor: _bgDark,
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
         backgroundColor: _primaryBlue,
         foregroundColor: Colors.white,
         elevation: 0,
-        shadowColor: Colors.transparent,
+        shadowColor: _primaryBlue.withOpacity(0.2),
         centerTitle: false,
         titleTextStyle: textTheme.titleLarge?.copyWith(
           color: Colors.white,
           fontWeight: FontWeight.w700,
+          letterSpacing: -0.3,
         ),
         surfaceTintColor: Colors.transparent,
       ),
@@ -67,10 +68,10 @@ class AppTheme {
         elevation: 0,
         margin: const EdgeInsets.symmetric(vertical: 8),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           side: BorderSide(
-            color: _borderLight.withOpacity(0.6),
-            width: 1,
+            color: _borderMuted.withOpacity(0.4),
+            width: 1.2,
           ),
         ),
         surfaceTintColor: Colors.transparent,
@@ -79,63 +80,65 @@ class AppTheme {
         filled: true,
         fillColor: _bgCard,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        labelStyle: const TextStyle(color: _textDark, fontWeight: FontWeight.w500, fontSize: 14),
+        labelStyle: const TextStyle(color: _textDark, fontWeight: FontWeight.w600, fontSize: 14),
         hintStyle: const TextStyle(color: _textMuted, fontSize: 14),
+        prefixIconColor: _textMuted,
+        suffixIconColor: _textMuted,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: _borderLight.withOpacity(0.5), width: 1),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: _borderMuted.withOpacity(0.4), width: 1.2),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: _borderLight.withOpacity(0.5), width: 1),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: _borderMuted.withOpacity(0.4), width: 1.2),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: _primaryBlue, width: 2),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _errorRed, width: 1.2),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFEF4444), width: 2),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _errorRed, width: 2),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: _primaryBlue,
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, letterSpacing: 0.3),
-          elevation: 0,
-          shadowColor: _primaryBlue.withOpacity(0.3),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 13),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, letterSpacing: 0.4),
+          elevation: 2,
+          shadowColor: _primaryBlue.withOpacity(0.4),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: _primaryBlue,
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, letterSpacing: 0.3),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 13),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, letterSpacing: 0.4),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: _primaryBlue,
-          side: const BorderSide(color: _primaryBlue, width: 1.5),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          side: const BorderSide(color: _primaryBlue, width: 1.8),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 13),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, letterSpacing: 0.4),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: _primaryBlue,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, letterSpacing: 0.2),
         ),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
@@ -143,51 +146,52 @@ class AppTheme {
         foregroundColor: Colors.white,
         elevation: 8,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
         ),
       ),
       dividerTheme: DividerThemeData(
-        color: _borderLight.withOpacity(0.5),
-        thickness: 1,
+        color: _borderMuted.withOpacity(0.3),
+        thickness: 1.2,
         space: 1,
       ),
       chipTheme: ChipThemeData(
         backgroundColor: _bgCard,
-        selectedColor: _primaryBlue.withOpacity(0.15),
-        labelStyle: const TextStyle(color: _textDark, fontWeight: FontWeight.w500),
-        secondaryLabelStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+        selectedColor: _primaryBlue.withOpacity(0.12),
+        labelStyle: const TextStyle(color: _textDark, fontWeight: FontWeight.w600, fontSize: 13),
+        secondaryLabelStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         brightness: Brightness.light,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-          side: BorderSide(color: _borderLight.withOpacity(0.6), width: 1),
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: _borderMuted.withOpacity(0.5), width: 1.2),
         ),
       ),
       dataTableTheme: DataTableThemeData(
-        headingRowColor: WidgetStateProperty.all(_primaryBlue.withOpacity(0.08)),
-        headingRowHeight: 58,
-        dataRowColor: WidgetStateProperty.all(Colors.white),
-        dataRowHeight: 58,
+        headingRowColor: WidgetStateProperty.all(_primaryBlue.withOpacity(0.06)),
+        headingRowHeight: 62,
+        dataRowColor: WidgetStateProperty.all(_bgCard),
+        dataRowHeight: 62,
         headingTextStyle: GoogleFonts.inter(
           color: _textDark,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w800,
           fontSize: 13,
+          letterSpacing: 0.2,
         ),
         dataTextStyle: GoogleFonts.inter(
           color: _textDark,
           fontSize: 13,
           fontWeight: FontWeight.w500,
         ),
-        dividerThickness: 1,
-        columnSpacing: 28,
-        horizontalMargin: 16,
+        dividerThickness: 1.2,
+        columnSpacing: 32,
+        horizontalMargin: 20,
         decoration: BoxDecoration(
-          border: Border.all(color: _borderLight.withOpacity(0.3)),
-          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _borderMuted.withOpacity(0.25)),
+          borderRadius: BorderRadius.circular(16),
         ),
       ),
       useMaterial3: true,
     );
   }
 
-  static ThemeData dark() => light(); // Używamy light mode dla obu
+  static ThemeData dark() => light();
 }
