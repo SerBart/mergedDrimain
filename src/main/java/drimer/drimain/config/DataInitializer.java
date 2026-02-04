@@ -62,7 +62,8 @@ public class DataInitializer implements ApplicationRunner {
             // Ensure sample departments
             Dzial dz1 = ensureDzial("Produkcja");
             Dzial dz2 = ensureDzial("Utrzymanie Ruchu");
-            log.debug("[INIT] Działy ensured: {} / {}", dz1.getId(), dz2.getId());
+            Dzial dz3 = ensureDzial("Technologie");
+            log.debug("[INIT] Działy ensured: {} / {} / {}", dz1.getId(), dz2.getId(), dz3.getId());
 
             Optional<User> adminOpt = userRepository.findByUsername(adminUsername);
 

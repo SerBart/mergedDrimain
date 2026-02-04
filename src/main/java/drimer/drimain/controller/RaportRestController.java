@@ -6,12 +6,14 @@ import drimer.drimain.api.dto.RaportUpdateRequest;
 import drimer.drimain.api.mapper.RaportMapper;
 import drimer.drimain.events.RaportChangedEvent;
 import drimer.drimain.model.Raport;
+import drimer.drimain.model.User;
 import drimer.drimain.model.Zgloszenie;
 import drimer.drimain.model.enums.RaportStatus;
 import drimer.drimain.model.enums.ZgloszenieStatus;
 import drimer.drimain.repository.MaszynaRepository;
 import drimer.drimain.repository.OsobaRepository;
 import drimer.drimain.repository.RaportRepository;
+import drimer.drimain.repository.UserRepository;
 import drimer.drimain.repository.ZgloszenieRepository;
 import drimer.drimain.repository.spec.RaportSpecifications;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,7 @@ import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -28,6 +31,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @RestController
@@ -42,6 +46,7 @@ public class RaportRestController {
     private final OsobaRepository osobaRepository;
     private final RaportMapper raportMapper;
     private final ZgloszenieRepository zgloszenieRepository;
+    private final UserRepository userRepository;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','BIURO','USER')")
@@ -52,7 +57,8 @@ public class RaportRestController {
                                 @RequestParam(required = false) String q,
                                 @RequestParam(defaultValue = "0") int page,
                                 @RequestParam(defaultValue = "25") int size,
-                                @RequestParam(defaultValue = "dataNaprawy:desc") String sort) {
+                                @RequestParam(defaultValue = "dataNaprawy:desc") String sort,
+                                Authentication authentication) {
 
         // Support both formats: "field:dir,field2:dir2" and legacy "field,desc"
         String[] tokens = sort.split(",");
@@ -101,6 +107,21 @@ public class RaportRestController {
                         .and(RaportSpecifications.dateFrom(from))
                         .and(RaportSpecifications.dateTo(to))
                         .and(RaportSpecifications.fullText(q));
+
+        // Filter by user's department if not admin and not "Utrzymanie Ruchu"
+        if (authentication != null) {
+            boolean isAdmin = authentication.getAuthorities().stream()
+                    .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+            if (!isAdmin) {
+                User user = userRepository.findByUsername(authentication.getName()).orElse(null);
+                // Utrzymanie Ruchu ma dostęp do wszystkich raportów
+                boolean isUtrzymanieRuchu = user != null && user.getDzial() != null
+                        && "Utrzymanie Ruchu".equalsIgnoreCase(user.getDzial().getNazwa());
+                if (!isUtrzymanieRuchu && user != null && user.getDzial() != null) {
+                    spec = spec.and(RaportSpecifications.hasDzial(user.getDzial().getId()));
+                }
+            }
+        }
 
         Page<Raport> pageData = raportRepository.findAll(spec, pageable);
         return pageData.map(raportMapper::toDto);

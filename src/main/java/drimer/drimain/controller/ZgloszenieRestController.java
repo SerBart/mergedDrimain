@@ -75,14 +75,20 @@ public class ZgloszenieRestController {
                     .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
             if (!isAdmin) {
                 User u = userRepository.findByUsername(authentication.getName()).orElse(null);
-                Long dzialId = (u != null && u.getDzial() != null) ? u.getDzial().getId() : null;
-                if (dzialId != null) {
-                    all = all.stream().filter(z -> z.getDzial() != null && dzialId.equals(z.getDzial().getId()))
-                            .collect(Collectors.toList());
-                } else {
-                    // Brak przypisanego działu -> nie pokazuj nic
-                    all = List.of();
+                // Utrzymanie Ruchu ma dostęp do wszystkich zgłoszeń
+                boolean isUtrzymanieRuchu = u != null && u.getDzial() != null
+                        && "Utrzymanie Ruchu".equalsIgnoreCase(u.getDzial().getNazwa());
+                if (!isUtrzymanieRuchu) {
+                    Long dzialId = (u != null && u.getDzial() != null) ? u.getDzial().getId() : null;
+                    if (dzialId != null) {
+                        all = all.stream().filter(z -> z.getDzial() != null && dzialId.equals(z.getDzial().getId()))
+                                .collect(Collectors.toList());
+                    } else {
+                        // Brak przypisanego działu -> nie pokazuj nic
+                        all = List.of();
+                    }
                 }
+                // else: Utrzymanie Ruchu widzi wszystkie zgłoszenia
             }
         } else {
             // Not authenticated -> empty

@@ -38,4 +38,12 @@ public class RaportSpecifications {
             );
         };
     }
+
+    /**
+     * Filter raporty by dzial ID (through maszyna relationship).
+     */
+    public static Specification<Raport> hasDzial(Long dzialId) {
+        return (root, q, cb) ->
+                dzialId == null ? cb.conjunction() : cb.equal(root.get("maszyna").get("dzial").get("id"), dzialId);
+    }
 }
