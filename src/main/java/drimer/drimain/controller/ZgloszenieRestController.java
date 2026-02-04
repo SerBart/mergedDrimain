@@ -159,7 +159,10 @@ public class ZgloszenieRestController {
     }
 
     /**
-     * Update existing (ADMIN or BIURO required).
+     * Update existing.
+     * Dozwolone dla:
+     * - ADMIN / BIURO - mogą edytować wszystkie zgłoszenia
+     * - Użytkownicy z dostępem do modułu 'Zgloszenia' - mogą edytować zgłoszenia w swoim dziale
      *
      * WAŻNE: Gdy zgłoszenie zostanie zmienione na status DONE (zamknięte),
      * system automatycznie utworzy raport na podstawie tego zgłoszenia.
@@ -170,8 +173,11 @@ public class ZgloszenieRestController {
     public ZgloszenieDTO update(@PathVariable Long id,
                                 @RequestBody ZgloszenieUpdateRequest req,
                                 Authentication authentication) {
-        if (!hasEditPermissions(authentication)) {
-            throw new SecurityException("Brak uprawnień. Wymagana rola ADMIN lub BIURO.");
+        Zgloszenie existing = zgloszenieRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Zgłoszenie nie istnieje"));
+
+        if (!canEditZgloszenie(authentication, existing)) {
+            throw new SecurityException("Brak uprawnień do edycji tego zgłoszenia.");
         }
         Zgloszenie z = commandService.update(id, req, authentication);
         return ZgloszenieMapper.toDto(z);
@@ -198,13 +204,52 @@ public class ZgloszenieRestController {
     }
 
     /**
-     * Check if the authenticated user has edit/delete permissions (ADMIN or BIURO role).
+     * Check if the authenticated user has global edit/delete permissions (ADMIN or BIURO role).
      */
     private boolean hasEditPermissions(Authentication authentication) {
         if (authentication == null) return false;
         return authentication.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN")
                         || a.getAuthority().equals("ROLE_BIURO"));
+    }
+
+    /**
+     * Check if the authenticated user can edit the given Zgloszenie.
+     * Returns true if:
+     * - User has ADMIN or BIURO role (can edit all)
+     * - User belongs to the same department as the Zgloszenie
+     * - User belongs to "Utrzymanie Ruchu" department (can edit all except Technologie)
+     */
+    private boolean canEditZgloszenie(Authentication authentication, Zgloszenie zgloszenie) {
+        if (authentication == null) return false;
+
+        // ADMIN or BIURO can edit all
+        if (hasEditPermissions(authentication)) {
+            return true;
+        }
+
+        // Check if user belongs to the same department or is from Utrzymanie Ruchu
+        User user = userRepository.findByUsername(authentication.getName()).orElse(null);
+        if (user == null || user.getDzial() == null) {
+            return false;
+        }
+
+        String userDzialName = user.getDzial().getNazwa();
+
+        // Utrzymanie Ruchu can edit all zgłoszenia except those from Technologie
+        if ("Utrzymanie Ruchu".equalsIgnoreCase(userDzialName)) {
+            if (zgloszenie.getDzial() != null && "Technologie".equalsIgnoreCase(zgloszenie.getDzial().getNazwa())) {
+                return false;
+            }
+            return true;
+        }
+
+        // Other users can edit zgłoszenia from their own department
+        if (zgloszenie.getDzial() != null && user.getDzial().getId().equals(zgloszenie.getDzial().getId())) {
+            return true;
+        }
+
+        return false;
     }
 
     // ---------- Basic error handling to avoid generic 500 ----------
