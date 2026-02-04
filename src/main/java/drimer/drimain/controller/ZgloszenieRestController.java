@@ -10,6 +10,7 @@ import drimer.drimain.repository.ZgloszenieRepository;
 import drimer.drimain.service.ZgloszenieCommandService;
 import drimer.drimain.util.ZgloszenieStatusMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -45,6 +46,7 @@ import drimer.drimain.model.NotificationType;
 @RestController
 @RequestMapping("/api/zgloszenia")
 @RequiredArgsConstructor
+@Slf4j
 public class ZgloszenieRestController {
 
     private final ZgloszenieRepository zgloszenieRepository;
@@ -221,24 +223,33 @@ public class ZgloszenieRestController {
      * - User belongs to "Utrzymanie Ruchu" department (can edit all except Technologie)
      */
     private boolean canEditZgloszenie(Authentication authentication, Zgloszenie zgloszenie) {
-        if (authentication == null) return false;
+        if (authentication == null) {
+            log.warn("canEditZgloszenie: authentication is null");
+            return false;
+        }
 
         // ADMIN or BIURO can edit all
         if (hasEditPermissions(authentication)) {
+            log.debug("canEditZgloszenie: user {} has ADMIN/BIURO permissions", authentication.getName());
             return true;
         }
 
         // Check if user belongs to the same department or is from Utrzymanie Ruchu
         User user = userRepository.findByUsername(authentication.getName()).orElse(null);
         if (user == null || user.getDzial() == null) {
+            log.warn("canEditZgloszenie: user {} not found or has no dzial", authentication.getName());
             return false;
         }
 
         String userDzialName = user.getDzial().getNazwa();
+        String zgloszenieDzialName = zgloszenie.getDzial() != null ? zgloszenie.getDzial().getNazwa() : "null";
+        log.debug("canEditZgloszenie: user {} from dzial '{}', zgloszenie dzial '{}'",
+                  authentication.getName(), userDzialName, zgloszenieDzialName);
 
         // Utrzymanie Ruchu can edit all zgłoszenia except those from Technologie
         if ("Utrzymanie Ruchu".equalsIgnoreCase(userDzialName)) {
             if (zgloszenie.getDzial() != null && "Technologie".equalsIgnoreCase(zgloszenie.getDzial().getNazwa())) {
+                log.warn("canEditZgloszenie: Utrzymanie Ruchu user cannot edit Technologie zgloszenie");
                 return false;
             }
             return true;
@@ -246,9 +257,12 @@ public class ZgloszenieRestController {
 
         // Other users can edit zgłoszenia from their own department
         if (zgloszenie.getDzial() != null && user.getDzial().getId().equals(zgloszenie.getDzial().getId())) {
+            log.debug("canEditZgloszenie: user can edit - same department");
             return true;
         }
 
+        log.warn("canEditZgloszenie: user {} cannot edit zgloszenie {} - different departments",
+                 authentication.getName(), zgloszenie.getId());
         return false;
     }
 
