@@ -46,4 +46,18 @@ public class RaportSpecifications {
         return (root, q, cb) ->
                 dzialId == null ? cb.conjunction() : cb.equal(root.get("maszyna").get("dzial").get("id"), dzialId);
     }
+
+    /**
+     * Exclude raporty from a specific dzial by name (through maszyna relationship).
+     */
+    public static Specification<Raport> excludeDzialByName(String dzialName) {
+        return (root, q, cb) -> {
+            if (dzialName == null || dzialName.isBlank()) return cb.conjunction();
+            return cb.or(
+                cb.isNull(root.get("maszyna")),
+                cb.isNull(root.get("maszyna").get("dzial")),
+                cb.notEqual(cb.lower(root.get("maszyna").get("dzial").get("nazwa")), dzialName.toLowerCase())
+            );
+        };
+    }
 }

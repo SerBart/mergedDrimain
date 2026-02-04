@@ -114,10 +114,13 @@ public class RaportRestController {
                     .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
             if (!isAdmin) {
                 User user = userRepository.findByUsername(authentication.getName()).orElse(null);
-                // Utrzymanie Ruchu ma dostęp do wszystkich raportów
+                // Utrzymanie Ruchu ma dostęp do wszystkich raportów oprócz działu Technologie
                 boolean isUtrzymanieRuchu = user != null && user.getDzial() != null
                         && "Utrzymanie Ruchu".equalsIgnoreCase(user.getDzial().getNazwa());
-                if (!isUtrzymanieRuchu && user != null && user.getDzial() != null) {
+                if (isUtrzymanieRuchu) {
+                    // Utrzymanie Ruchu widzi wszystkie raporty OPRÓCZ działu Technologie
+                    spec = spec.and(RaportSpecifications.excludeDzialByName("Technologie"));
+                } else if (user != null && user.getDzial() != null) {
                     spec = spec.and(RaportSpecifications.hasDzial(user.getDzial().getId()));
                 }
             }
