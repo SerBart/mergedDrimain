@@ -171,6 +171,7 @@ public class ZgloszenieRestController {
      * Raport trafi do listy raportów z statusem NOWY.
      */
     @PutMapping("/{id}")
+    @Transactional
     @PreAuthorize("@moduleGuard.has('Zgloszenia')")
     public ZgloszenieDTO update(@PathVariable Long id,
                                 @RequestBody ZgloszenieUpdateRequest req,
@@ -219,7 +220,7 @@ public class ZgloszenieRestController {
      * Check if the authenticated user can edit the given Zgloszenie.
      * Returns true if:
      * - User has ADMIN or BIURO role (can edit all)
-     * - User belongs to the same department as the Zgloszenie
+     * - User belongs to the same department as the Zgloszenie (or its maszyna)
      * - User belongs to "Utrzymanie Ruchu" department (can edit all except Technologie)
      */
     private boolean canEditZgloszenie(Authentication authentication, Zgloszenie zgloszenie) {
@@ -242,21 +243,42 @@ public class ZgloszenieRestController {
         }
 
         String userDzialName = user.getDzial().getNazwa();
-        String zgloszenieDzialName = zgloszenie.getDzial() != null ? zgloszenie.getDzial().getNazwa() : "null";
+
+        // Determine the effective dzial of the zgloszenie (from zgloszenie itself or from maszyna)
+        String zgloszenieDzialName = null;
+        Long zgloszenieDzialId = null;
+
+        if (zgloszenie.getDzial() != null) {
+            zgloszenieDzialName = zgloszenie.getDzial().getNazwa();
+            zgloszenieDzialId = zgloszenie.getDzial().getId();
+        } else if (zgloszenie.getMaszyna() != null && zgloszenie.getMaszyna().getDzial() != null) {
+            // Fallback to maszyna's dzial if zgloszenie has no direct dzial
+            zgloszenieDzialName = zgloszenie.getMaszyna().getDzial().getNazwa();
+            zgloszenieDzialId = zgloszenie.getMaszyna().getDzial().getId();
+        }
+
         log.debug("canEditZgloszenie: user {} from dzial '{}', zgloszenie dzial '{}'",
                   authentication.getName(), userDzialName, zgloszenieDzialName);
 
         // Utrzymanie Ruchu can edit all zgłoszenia except those from Technologie
         if ("Utrzymanie Ruchu".equalsIgnoreCase(userDzialName)) {
-            if (zgloszenie.getDzial() != null && "Technologie".equalsIgnoreCase(zgloszenie.getDzial().getNazwa())) {
+            if (zgloszenieDzialName != null && "Technologie".equalsIgnoreCase(zgloszenieDzialName)) {
                 log.warn("canEditZgloszenie: Utrzymanie Ruchu user cannot edit Technologie zgloszenie");
                 return false;
             }
             return true;
         }
 
+        // Technologie users can edit zgłoszenia from Technologie department
+        if ("Technologie".equalsIgnoreCase(userDzialName)) {
+            if (zgloszenieDzialName != null && "Technologie".equalsIgnoreCase(zgloszenieDzialName)) {
+                log.debug("canEditZgloszenie: Technologie user can edit Technologie zgloszenie");
+                return true;
+            }
+        }
+
         // Other users can edit zgłoszenia from their own department
-        if (zgloszenie.getDzial() != null && user.getDzial().getId().equals(zgloszenie.getDzial().getId())) {
+        if (zgloszenieDzialId != null && user.getDzial().getId().equals(zgloszenieDzialId)) {
             log.debug("canEditZgloszenie: user can edit - same department");
             return true;
         }
