@@ -20,6 +20,7 @@ import drimer.drimain.api.dto.MaszynaSelectDTO;
 import drimer.drimain.repository.UserRepository;
 import drimer.drimain.model.Osoba;
 import drimer.drimain.model.Maszyna;
+import drimer.drimain.model.Dzial;
 
 @RestController
 @RequestMapping("/api/meta")
@@ -83,19 +84,23 @@ public class MetaController {
                 nowa.setImieNazwisko(uname);
                 nowa.setHaslo(null);
                 nowa.setRola(null);
+                // UWAGA: nowa osoba nie dostaje działu automatycznie.
                 osobaRepository.save(nowa);
                 existing.add(uname);
             }
         });
 
-        // Zastosuj filtr po dziale jeśli podano
+        // Zastosuj filtr po dziale jeśli podano; inaczej domyślnie ogranicz do „Utrzymanie Ruchu”.
         List<Osoba> osoby;
         if (dzialId != null) {
             osoby = osobaRepository.findByDzial_Id(dzialId);
         } else if (dzialNazwa != null && !dzialNazwa.isBlank()) {
             osoby = osobaRepository.findByDzial_NazwaIgnoreCase(dzialNazwa.trim());
         } else {
-            osoby = osobaRepository.findAll();
+            // DOMYŚLNIE: tylko osoby z działu UR
+            // Fallback: jeśli dział nie istnieje, zwróć pustą listę (czytelny brak wyboru w UI).
+            String urName = "Utrzymanie Ruchu";
+            osoby = osobaRepository.findByDzial_NazwaIgnoreCase(urName);
         }
 
         return osoby.stream().map(o -> {
