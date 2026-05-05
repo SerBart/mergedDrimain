@@ -596,7 +596,7 @@ class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
     });
 
     if (dz != null) {
-      // Pobieranie maszyn dla wybranego działu tak samo jako w raporty ekranie/zgloszeniach
+      // Pobieranie maszyn dla wybranego działu
       try {
         final metaProvider = ProviderScope.containerOf(context).read(metaApiRepositoryProvider);
         final fetchedMaszyny = await metaProvider.fetchMaszynySimple(dzialId: dz.id);
