@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -712,12 +713,35 @@ class _ZgloszeniaScreenModernState
                   const Text('Opis:', style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
                   Text(z.opis),
-                  if (z.photoBase64 != null) ...[
+                  if (z.photoBase64 != null && z.photoBase64!.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     const Text('Zdjęcie:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: () => _showFullScreenPhoto(z.photoBase64!),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.memory(
+                          base64Decode(z.photoBase64!),
+                          width: 200,
+                          height: 150,
+                          fit: BoxFit.cover,
+                          errorBuilder: (ctx, err, stack) => Container(
+                            width: 200,
+                            height: 150,
+                            color: Colors.grey.shade200,
+                            child: const Center(
+                              child: Icon(Icons.broken_image, size: 48, color: Colors.grey),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 4),
-                    // Minimalny podgląd (można rozbudować w przyszłości)
-                    Text('(Załączone zdjęcie - podgląd w przyszłej wersji)')
+                    Text(
+                      'Kliknij aby powiększyć',
+                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                    ),
                   ],
                 ],
               ),
@@ -771,6 +795,61 @@ class _ZgloszeniaScreenModernState
             ],
           );
         },
+      ),
+    );
+  }
+
+  // Wyświetla zdjęcie na pełnym ekranie z możliwością zoomowania
+  void _showFullScreenPhoto(String base64Data) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: Center(
+                child: Image.memory(
+                  base64Decode(base64Data),
+                  fit: BoxFit.contain,
+                  errorBuilder: (ctx, err, stack) => const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.broken_image, size: 64, color: Colors.white54),
+                        SizedBox(height: 16),
+                        Text('Nie można wyświetlić zdjęcia', style: TextStyle(color: Colors.white54)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 16,
+              right: 16,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 32),
+                onPressed: () => Navigator.of(ctx).pop(),
+              ),
+            ),
+            Positioned(
+              bottom: 24,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Text(
+                  'Użyj gestów aby powiększyć/pomniejszyć',
+                  style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1106,8 +1185,7 @@ class _ZgloszeniaScreenModernState
                     ),
                   ),
                 ),
-              ),
-            );
+              );
           },
         );
       },
@@ -1301,6 +1379,28 @@ class _ZgloszeniaScreenModernState
                                       ),
                                       const SizedBox(height: 8),
                                       _statusChip(z.status),
+                                      // Ikona zdjęcia w widoku mobilnym
+                                      if (z.photoBase64 != null && z.photoBase64!.isNotEmpty) ...[
+                                        const SizedBox(height: 8),
+                                        GestureDetector(
+                                          onTap: () => _showFullScreenPhoto(z.photoBase64!),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.image, color: Colors.teal, size: 20),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                'Zdjęcie załączone',
+                                                style: TextStyle(
+                                                  color: Colors.teal,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
                                       const SizedBox(height: 8),
                                       Text('Maszyna: ${z.maszyna?.nazwa ?? '-'}', style: const TextStyle(fontSize: 13)),
                                       Text('Dział: ${z.maszyna?.dzial?.nazwa ?? '-'}', style: const TextStyle(fontSize: 13)),
@@ -1348,10 +1448,14 @@ class _ZgloszeniaScreenModernState
                               label: const Text('Osoba'),
                               onSort: (i, asc) => _onSort(i, asc),
                             ),
+                            const DataColumn(
+                              label: Text('Zdjęcie'),
+                            ),
                           ],
                           rows: data.map((z) {
                             String fmt(DateTime? d) => d == null ? '-' : _dtf.format(d);
                             final typeColor = _typeColor(z.typ);
+                            final hasPhoto = z.photoBase64 != null && z.photoBase64!.isNotEmpty;
                             return DataRow(
                               onSelectChanged: (_) => _showDetails(z),
                               cells: [
@@ -1388,6 +1492,16 @@ class _ZgloszeniaScreenModernState
                                   ),
                                 ),
                                 DataCell(Text('${z.imie} ${z.nazwisko}')),
+                                DataCell(
+                                  IconButton(
+                                    tooltip: hasPhoto ? 'Podgląd zdjęcia' : 'Brak zdjęcia',
+                                    icon: Icon(
+                                      Icons.image,
+                                      color: hasPhoto ? Colors.teal : Colors.grey.shade400,
+                                    ),
+                                    onPressed: hasPhoto ? () => _showFullScreenPhoto(z.photoBase64!) : null,
+                                  ),
+                                ),
                               ],
                             );
                           }).toList(),

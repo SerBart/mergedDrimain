@@ -21,6 +21,7 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
   List<Harmonogram> _items = [];
   List<Maszyna> _maszyny = [];
   List<Osoba> _osoby = [];
+  List<Dzial> _dzialy = []; // <--- Dodajemy
 
   // Filtry / wyszukiwanie
   int? _year = DateTime.now().year;
@@ -54,10 +55,16 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
         harmonogramyApi.fetchAll(year: _year, month: _month),
         metaApi.fetchMaszynySimple(),
         metaApi.fetchOsobySimple(),
+        metaApi.fetchDzialySimple(),
       ]);
       _items = results[0] as List<Harmonogram>;
       _maszyny = results[1] as List<Maszyna>;
       _osoby = results[2] as List<Osoba>;
+      final dzialy = results[3] as List<Dzial>;
+
+      // Przypisz działy do maszyn, jeśli maszyna nie ma jeszcze załadowanego działu
+      // i możemy go skojarzyć po id działu, ale bezpieczniej przekazać dział do formularza
+      _dzialy = dzialy;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -204,12 +211,12 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
     Future<void> Function(DateTime, int, int, int?, String?)? onSubmit,
     String title = 'Nowy harmonogram',
   }) async {
-    if (_maszyny.isEmpty || _osoby.isEmpty) {
+    if (_osoby.isEmpty) { // Usuwamy blokowanie przy braku maszyn, bo maszyny pobieramy z wybranego dzialu z bazy na biezaco jesli chcemy, albo uzywamy dzialow!
       await showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Brak danych'),
-          content: const Text('Dodaj najpierw Maszynę i Osobę w Panelu Admina.'),
+          content: const Text('Dodaj najpierw Osobę w Panelu Admina.'),
           actions: [
             TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Zamknij')),
             FilledButton(onPressed: () { Navigator.of(ctx).pop(); context.go('/admin'); }, child: const Text('Panel Admina')),
@@ -230,6 +237,7 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
             title: title,
             maszyny: _maszyny,
             osoby: _osoby,
+            dzialy: _dzialy, // <--- Dodajemy
             initialDate: initialDate,
             initialMaszynaId: initialMaszynaId,
             initialOsobaId: initialOsobaId,
@@ -505,6 +513,7 @@ class _HarmonogramFormSheet extends StatefulWidget {
   final String title;
   final List<Maszyna> maszyny;
   final List<Osoba> osoby;
+  final List<Dzial> dzialy; // <--- Dodajemy
   final Future<void> Function(DateTime data, int maszynaId, int osobaId, int? duration, String? opis) onSubmit;
 
   final DateTime? initialDate;
@@ -517,6 +526,7 @@ class _HarmonogramFormSheet extends StatefulWidget {
     required this.title,
     required this.maszyny,
     required this.osoby,
+    required this.dzialy, // <--- Dodajemy
     required this.onSubmit,
     this.initialDate,
     this.initialMaszynaId,
@@ -561,31 +571,54 @@ class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
   }
 
   void _loadDzialy() {
-    // Ekstrahuj unikalne działy z maszyn
+    // Ekstrahuj unikalne działy z maszyn + te przypisane bezpośrednio z bazy
     final uniqueDzialy = <int, Dzial>{};
+    for (final dzial in widget.dzialy) {
+      uniqueDzialy[dzial.id] = dzial;
+    }
     for (final m in widget.maszyny) {
       if (m.dzial != null && !uniqueDzialy.containsKey(m.dzial!.id)) {
         uniqueDzialy[m.dzial!.id] = m.dzial!;
       }
     }
+
     setState(() {
       _dzialy = uniqueDzialy.values.toList();
     });
   }
 
-  void _onDzialChanged(Dzial? dz) {
+  void _onDzialChanged(Dzial? dz) async { // <-- zmieniono na async
     setState(() {
       _selectedDzial = dz;
       _maszyna = null;
       _maszynyDlaDzialu = [];
+      _loadingMaszyny = true; // <-- dodano flage
     });
 
     if (dz != null) {
-      // Filtruj maszyny dla wybranego działu
-      _maszynyDlaDzialu = widget.maszyny
-          .where((m) => m.dzial?.id == dz.id)
-          .toList();
-      setState(() {});
+      // Pobieranie maszyn dla wybranego działu tak samo jako w raporty ekranie/zgloszeniach
+      try {
+        final metaProvider = ProviderScope.containerOf(context).read(metaApiRepositoryProvider);
+        final fetchedMaszyny = await metaProvider.fetchMaszynySimple(dzialId: dz.id);
+
+        if (mounted) {
+          setState(() {
+            _maszynyDlaDzialu = fetchedMaszyny;
+            _loadingMaszyny = false;
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _loadingMaszyny = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Błąd pobierania maszyn: $e')),
+          );
+        }
+      }
+    } else {
+        if (mounted) {
+            setState(() => _loadingMaszyny = false);
+        }
     }
   }
 
@@ -677,10 +710,12 @@ class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
                         labelText: 'Maszyna',
                         border: OutlineInputBorder(),
                       ),
-                      items: _maszynyDlaDzialu.isEmpty
-                          ? [DropdownMenuItem(child: Text(_selectedDzial == null ? 'Najpierw wybierz dział' : 'Brak maszyn dla tego działu'))]
-                          : _maszynyDlaDzialu.map((m) => DropdownMenuItem(value: m, child: Text(m.nazwa))).toList(),
-                      onChanged: _selectedDzial == null ? null : (v) => setState(() => _maszyna = v),
+                      items: _loadingMaszyny // <--  Czekamy na pobranie
+                          ? [DropdownMenuItem(child: Text('Ładowanie maszyn...'))]
+                          : _maszynyDlaDzialu.isEmpty
+                              ? [DropdownMenuItem(child: Text(_selectedDzial == null ? 'Najpierw wybierz dział' : 'Brak maszyn dla tego działu'))]
+                              : _maszynyDlaDzialu.map((m) => DropdownMenuItem(value: m, child: Text(m.nazwa))).toList(),
+                      onChanged: _selectedDzial == null || _loadingMaszyny ? null : (v) => setState(() => _maszyna = v),
                       validator: (v) => v == null ? 'Wybierz maszynę' : null,
                     ),
                     const SizedBox(height: 12),
