@@ -1185,7 +1185,9 @@ class _ZgloszeniaScreenModernState
                     ),
                   ),
                 ),
-              );
+              ),
+              actions: const [],
+            );
           },
         );
       },
