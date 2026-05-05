@@ -97,12 +97,23 @@ class ZgloszeniaApiRepository {
     final String opis = (j['opis'] ?? '').toString();
     final String? dt = j['dataGodzina'] as String?;
     final DateTime dataGodzina =
-    dt != null && dt.isNotEmpty ? DateTime.parse(dt) : DateTime.now();
+        dt != null && dt.isNotEmpty ? DateTime.parse(dt) : DateTime.now();
 
-    // Mapuj maszynę z odpowiedzi API
-    final maszyna = j['maszyna'] != null
-        ? Maszyna.fromJson(j['maszyna'] as Map<String, dynamic>)
-        : null;
+    // Backend DTO dla zgłoszeń zwykle NIE zwraca zagnieżdżonego obiektu `maszyna`.
+    // Zamiast tego są pola płaskie: maszynaId, maszynaNazwa, maszynaDzialNazwa.
+    // Żeby UI mogło wyświetlić nazwę maszyny i działu, składamy obiekt lokalnie.
+    Maszyna? maszyna;
+    final mId = (j['maszynaId'] as num?)?.toInt();
+    final mName = (j['maszynaNazwa'] ?? '').toString().trim();
+    final mDzialName = (j['maszynaDzialNazwa'] ?? '').toString().trim();
+
+    // Jeśli backend jednak zwrócił pełen obiekt, to bierzemy go w pierwszej kolejności.
+    if (j['maszyna'] is Map<String, dynamic>) {
+      maszyna = Maszyna.fromJson((j['maszyna'] as Map).cast<String, dynamic>());
+    } else if (mId != null && mId > 0 && mName.isNotEmpty) {
+      final dzial = mDzialName.isNotEmpty ? Dzial(id: 0, nazwa: mDzialName) : null;
+      maszyna = Maszyna(id: mId, nazwa: mName, dzial: dzial);
+    }
 
     return Zgloszenie(
       id: (j['id'] is int) ? j['id'] as int : ((j['id'] as num?)?.toInt() ?? 0),
