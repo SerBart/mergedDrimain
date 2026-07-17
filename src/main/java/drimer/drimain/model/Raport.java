@@ -44,6 +44,11 @@ public class Raport {
     @Column(name = "zgloszenie_id", unique = true)
     private Long zgloszenieId;
 
+    @ElementCollection
+    @CollectionTable(name = "raport_zdjecia", joinColumns = @JoinColumn(name = "raport_id"))
+    @Column(name = "sciezka_zdjecia")
+    private Set<String> zdjecia = new LinkedHashSet<>();
+
     // Gettery / settery (jak poprzednio) + dla statusu
     public Long getId() { return id; }
     public Maszyna getMaszyna() { return maszyna; }
@@ -75,4 +80,12 @@ public class Raport {
 
     public Long getZgloszenieId() { return zgloszenieId; }
     public void setZgloszenieId(Long zgloszenieId) { this.zgloszenieId = zgloszenieId; }
+
+    public Set<String> getZdjecia() {
+        return zdjecia;
+    }
+
+    public void setZdjecia(Set<String> zdjecia) {
+        this.zdjecia = zdjecia;
+    }
 }

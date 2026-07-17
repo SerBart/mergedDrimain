@@ -28,6 +28,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -231,5 +232,25 @@ public class RaportRestController {
         }
         log.info("Backfill raportów zakończony. Utworzono: {}", created);
         return created;
+    }
+
+    @PostMapping("/{id}/zdjecia")
+    @PreAuthorize("hasAnyRole('ADMIN','BIURO','USER')")
+    public void uploadZdjecia(@PathVariable Long id, @RequestParam("zdjecia") List<MultipartFile> zdjecia) {
+        Raport raport = raportRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Raport not found"));
+
+        for (MultipartFile file : zdjecia) {
+            // Save file to storage (e.g., local or cloud) and get the path
+            String filePath = saveFile(file);
+            raport.getZdjecia().add(filePath);
+        }
+
+        raportRepository.save(raport);
+    }
+
+    private String saveFile(MultipartFile file) {
+        // Implement file saving logic here (e.g., save to local storage or cloud storage)
+        return "path/to/saved/file"; // Replace with actual path
     }
 }

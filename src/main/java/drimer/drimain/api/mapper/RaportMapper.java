@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.stream.Collectors;
 
@@ -55,6 +56,7 @@ public class RaportMapper {
             return pud;
         }).collect(Collectors.toList())
                 : Collections.emptyList());
+        dto.setZdjecia(r.getZdjecia() != null ? new ArrayList<>(r.getZdjecia()) : Collections.emptyList());
         return dto;
     }
 

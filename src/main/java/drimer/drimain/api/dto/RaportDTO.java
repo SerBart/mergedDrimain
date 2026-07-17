@@ -17,4 +17,5 @@ public class RaportDTO {
     private String czasDo;
     private SimpleOsobaDTO osoba;
     private List<PartUsageDTO> partUsages;
+    private List<String> zdjecia;
 }
