@@ -1,5 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
+  <!-- Fallback config used when no profile-specific section is active. -->
+  <springProfile name="!dev &amp; !prod">
+    <appender name="STDOUT_DEFAULT" class="ch.qos.logback.core.ConsoleAppender">
+      <encoder>
+        <pattern>%d{ISO8601} %-5level [%thread] %logger{36} - %msg%n</pattern>
+      </encoder>
+    </appender>
+
+    <root level="INFO">
+      <appender-ref ref="STDOUT_DEFAULT"/>
+    </root>
+  </springProfile>
+
   <springProfile name="prod">
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
       <encoder>
