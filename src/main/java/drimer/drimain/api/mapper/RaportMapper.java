@@ -51,7 +51,9 @@ public class RaportMapper {
         dto.setPartUsages(r.getPartUsages() != null
                 ? r.getPartUsages().stream().map(pu -> {
             PartUsageDTO pud = new PartUsageDTO();
-            pud.setPartId(pu.getPart().getId());
+            if (pu.getPart() != null) {
+                pud.setPartId(pu.getPart().getId());
+            }
             pud.setIlosc(pu.getIlosc());
             return pud;
         }).collect(Collectors.toList())

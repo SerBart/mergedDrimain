@@ -34,12 +34,17 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/raporty")
 @RequiredArgsConstructor
 @Slf4j
 public class RaportRestController {
+
+    private static final Set<String> ALLOWED_SORT_FIELDS = Set.of(
+            "id", "dataNaprawy", "typNaprawy", "status", "createdBy", "zgloszenieId"
+    );
 
     private final RaportRepository raportRepository;
     private final MaszynaRepository maszynaRepository;
@@ -86,8 +91,10 @@ public class RaportRestController {
                     }
                 }
             }
-            if (!field.isBlank()) {
+            if (!field.isBlank() && ALLOWED_SORT_FIELDS.contains(field)) {
                 orders.add(new Sort.Order(dir, field));
+            } else if (!field.isBlank()) {
+                log.warn("Ignoring unsupported raport sort field: {}", field);
             }
         }
         if (orders.isEmpty()) {
@@ -114,15 +121,20 @@ public class RaportRestController {
             boolean isAdmin = authentication.getAuthorities().stream()
                     .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
             if (!isAdmin) {
-                User user = userRepository.findByUsername(authentication.getName()).orElse(null);
+                User user = userRepository.findByUsernameFetchDzial(authentication.getName())
+                        .orElse(null);
+                if (user == null) {
+                    log.warn("Authenticated user not found in database: {}", authentication.getName());
+                }
+                var userDzial = user != null ? user.getDzial() : null;
                 // Utrzymanie Ruchu ma dostęp do wszystkich raportów oprócz działu Technologie
-                boolean isUtrzymanieRuchu = user != null && user.getDzial() != null
-                        && "Utrzymanie Ruchu".equalsIgnoreCase(user.getDzial().getNazwa());
+                boolean isUtrzymanieRuchu = userDzial != null
+                        && "Utrzymanie Ruchu".equalsIgnoreCase(userDzial.getNazwa());
                 if (isUtrzymanieRuchu) {
                     // Utrzymanie Ruchu widzi wszystkie raporty OPRÓCZ działu Technologie
                     spec = spec.and(RaportSpecifications.excludeDzialByName("Technologie"));
-                } else if (user != null && user.getDzial() != null) {
-                    spec = spec.and(RaportSpecifications.hasDzial(user.getDzial().getId()));
+                } else if (userDzial != null) {
+                    spec = spec.and(RaportSpecifications.hasDzial(userDzial.getId()));
                 }
             }
         }
@@ -134,7 +146,8 @@ public class RaportRestController {
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','BIURO','USER')")
     public RaportDTO get(@PathVariable Long id) {
-        Raport r = raportRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Raport not found"));
+        Raport r = raportRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Raport not found"));
         return raportMapper.toDto(r);
     }
 
