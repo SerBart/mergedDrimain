@@ -44,11 +44,17 @@ public class RaportSpecifications {
      */
     public static Specification<Raport> hasDzial(Long dzialId) {
         return (root, q, cb) ->
-                dzialId == null ? cb.conjunction() : cb.equal(root.get("maszyna").get("dzial").get("id"), dzialId);
+                dzialId == null ? cb.conjunction()
+                        : cb.and(
+                            cb.isNotNull(root.get("maszyna")),
+                            cb.isNotNull(root.get("maszyna").get("dzial")),
+                            cb.equal(root.get("maszyna").get("dzial").get("id"), dzialId)
+                        );
     }
 
     /**
      * Exclude raporty from a specific dzial by name (through maszyna relationship).
+     * Returns true if: maszyna is null OR dzial is null OR dzial name != dzialName
      */
     public static Specification<Raport> excludeDzialByName(String dzialName) {
         return (root, q, cb) -> {

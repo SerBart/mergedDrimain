@@ -69,7 +69,7 @@ public class NotificationRestController {
         if (authentication == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         Notification n = null;
         if (personal) {
-            User u = userRepository.findByUsername(authentication.getName()).orElse(null);
+            User u = userRepository.findByUsernameFetchDzial(authentication.getName()).orElse(null);
             if (u == null) return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
             n = notificationService.createPersonalNotification(u, NotificationType.GENERIC, "Test: powiadomienie osobiste", "To jest testowe powiadomienie personalne", null);
         } else {

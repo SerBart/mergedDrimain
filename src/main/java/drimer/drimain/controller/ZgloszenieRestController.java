@@ -76,7 +76,7 @@ public class ZgloszenieRestController {
             boolean isAdmin = authentication.getAuthorities().stream()
                     .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
             if (!isAdmin) {
-                User u = userRepository.findByUsername(authentication.getName()).orElse(null);
+                User u = userRepository.findByUsernameFetchDzial(authentication.getName()).orElse(null);
                 // Utrzymanie Ruchu ma dostęp do wszystkich zgłoszeń oprócz działu Technologie
                 boolean isUtrzymanieRuchu = u != null && u.getDzial() != null
                         && "Utrzymanie Ruchu".equalsIgnoreCase(u.getDzial().getNazwa());
@@ -236,7 +236,7 @@ public class ZgloszenieRestController {
         }
 
         // Check if user belongs to the same department or is from Utrzymanie Ruchu
-        User user = userRepository.findByUsername(authentication.getName()).orElse(null);
+        User user = userRepository.findByUsernameFetchDzial(authentication.getName()).orElse(null);
         if (user == null || user.getDzial() == null) {
             log.warn("canEditZgloszenie: user {} not found or has no dzial", authentication.getName());
             return false;

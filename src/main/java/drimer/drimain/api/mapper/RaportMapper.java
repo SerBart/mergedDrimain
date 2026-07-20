@@ -18,9 +18,11 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class RaportMapper {
 
     private final MaszynaRepository maszynaRepository;
@@ -28,39 +30,115 @@ public class RaportMapper {
     private final PartRepository partRepository;
 
     public RaportDTO toDto(Raport r) {
+        if (r == null) return null;
         RaportDTO dto = new RaportDTO();
-        dto.setId(r.getId());
-        if (r.getMaszyna() != null) {
-            SimpleMaszynaDTO m = new SimpleMaszynaDTO();
-            m.setId(r.getMaszyna().getId());
-            m.setNazwa(r.getMaszyna().getNazwa());
-            dto.setMaszyna(m);
+        try {
+            dto.setId(r.getId());
+        } catch (Exception e) {
+            log.warn("Failed to map raport.id", e);
         }
-        if (r.getOsoba() != null) {
-            SimpleOsobaDTO o = new SimpleOsobaDTO();
-            o.setId(r.getOsoba().getId());
-            o.setImieNazwisko(r.getOsoba().getImieNazwisko());
-            dto.setOsoba(o);
-        }
-        dto.setTypNaprawy(r.getTypNaprawy());
-        dto.setOpis(r.getOpis());
-        dto.setStatus(r.getStatus() != null ? r.getStatus().name() : null);
-        dto.setDataNaprawy(r.getDataNaprawy());
-        dto.setCzasOd(r.getCzasOd() != null ? r.getCzasOd().toString() : null);
-        dto.setCzasDo(r.getCzasDo() != null ? r.getCzasDo().toString() : null);
-        dto.setPartUsages(r.getPartUsages() != null
-                ? r.getPartUsages().stream().map(pu -> {
-            PartUsageDTO pud = new PartUsageDTO();
-            if (pu.getPart() != null) {
-                pud.setPartId(pu.getPart().getId());
+
+        try {
+            if (r.getMaszyna() != null) {
+                SimpleMaszynaDTO m = new SimpleMaszynaDTO();
+                m.setId(r.getMaszyna().getId());
+                m.setNazwa(r.getMaszyna().getNazwa());
+                dto.setMaszyna(m);
             }
-            pud.setIlosc(pu.getIlosc());
-            return pud;
-        }).collect(Collectors.toList())
-                : Collections.emptyList());
-        dto.setZdjecia(r.getZdjecia() != null ? new ArrayList<>(r.getZdjecia()) : Collections.emptyList());
+        } catch (Exception e) {
+            log.warn("Failed to map raport.maszyna", e);
+            dto.setMaszyna(null);
+        }
+
+        try {
+            if (r.getOsoba() != null) {
+                SimpleOsobaDTO o = new SimpleOsobaDTO();
+                o.setId(r.getOsoba().getId());
+                o.setImieNazwisko(r.getOsoba().getImieNazwisko());
+                dto.setOsoba(o);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to map raport.osoba", e);
+            dto.setOsoba(null);
+        }
+
+        try {
+            dto.setTypNaprawy(r.getTypNaprawy());
+        } catch (Exception e) {
+            log.warn("Failed to map raport.typNaprawy", e);
+        }
+
+        try {
+            dto.setOpis(r.getOpis());
+        } catch (Exception e) {
+            log.warn("Failed to map raport.opis", e);
+        }
+
+        try {
+            dto.setStatus(r.getStatus() != null ? r.getStatus().name() : null);
+        } catch (Exception e) {
+            log.warn("Failed to map raport.status", e);
+        }
+
+        try {
+            dto.setDataNaprawy(r.getDataNaprawy());
+        } catch (Exception e) {
+            log.warn("Failed to map raport.dataNaprawy", e);
+        }
+
+        try {
+            dto.setCzasOd(r.getCzasOd() != null ? r.getCzasOd().toString() : null);
+        } catch (Exception e) {
+            log.warn("Failed to map raport.czasOd", e);
+        }
+
+        try {
+            dto.setCzasDo(r.getCzasDo() != null ? r.getCzasDo().toString() : null);
+        } catch (Exception e) {
+            log.warn("Failed to map raport.czasDo", e);
+        }
+
+        try {
+            dto.setPartUsages(mapPartUsages(r.getPartUsages()));
+        } catch (Exception e) {
+            log.warn("Failed to map raport.partUsages", e);
+            dto.setPartUsages(Collections.emptyList());
+        }
+
+        try {
+            dto.setZdjecia(r.getZdjecia() != null ? new ArrayList<>(r.getZdjecia()) : Collections.emptyList());
+        } catch (Exception e) {
+            log.warn("Failed to map raport.zdjecia", e);
+            dto.setZdjecia(Collections.emptyList());
+        }
+
         return dto;
     }
+
+    private java.util.List<PartUsageDTO> mapPartUsages(java.util.Set<PartUsage> partUsages) {
+        if (partUsages == null) {
+            return Collections.emptyList();
+        }
+
+        return partUsages.stream()
+                .map(pu -> {
+                    try {
+                        if (pu == null) return null;
+                        PartUsageDTO pud = new PartUsageDTO();
+                        if (pu.getPart() != null) {
+                            pud.setPartId(pu.getPart().getId());
+                        }
+                        pud.setIlosc(pu.getIlosc());
+                        return pud;
+                    } catch (Exception e) {
+                        log.warn("Failed to map part usage", e);
+                        return null;
+                    }
+                })
+                .filter(pud -> pud != null)
+                .collect(Collectors.toList());
+    }
+
 
     public void applyPartUsages(Raport r, java.util.List<PartUsageDTO> list) {
         if (list == null) return;
