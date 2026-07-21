@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../widgets/top_app_bar.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../core/providers/app_providers.dart';
@@ -267,22 +268,111 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
     }
   }
 
-  void _showPhoto(Raport r) {
-    if (r.photoBase64 == null || r.photoBase64!.isEmpty) return;
-    try {
-      final bytes = base64Decode(r.photoBase64!);
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text('Zdjęcie raportu #${r.id}'),
-          content: InteractiveViewer(child: Image.memory(bytes, fit: BoxFit.contain)),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Zamknij')),
-          ],
+  void _showPhotos(Raport r) {
+    if (r.zdjecia.isEmpty) return;
+    if (r.zdjecia.length == 1) {
+      _showSinglePhoto(r, r.zdjecia[0]);
+    } else {
+      _showPhotoGallery(r);
+    }
+  }
+
+  /// Nagłówki autoryzacji do Image.network()
+  Map<String, String> get _authHeaders {
+    final token = ref.read(authStateProvider)?.token;
+    return token != null ? {'Authorization': 'Bearer $token'} : {};
+  }
+
+  void _showSinglePhoto(Raport r, String photoUrl) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Zdjęcie raportu'),
+        content: InteractiveViewer(
+          child: Image.network(
+            photoUrl,
+            headers: _authHeaders,
+            fit: BoxFit.contain,
+            errorBuilder: (ctx, err, st) =>
+              Center(child: Text('Nie można załadować zdjęcia: $err')),
+          ),
         ),
-      );
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Zamknij')),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _deleteZdjecie(r, photoUrl);
+            },
+            child: const Text('Usuń zdjęcie', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPhotoGallery(Raport r) {
+    final photoUrls = r.zdjecia;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Galeria (${photoUrls.length} zdjęć)'),
+        content: SizedBox(
+          width: 500,
+          height: 400,
+          child: GridView.count(
+            crossAxisCount: 2,
+            children: photoUrls.map((url) =>
+              GestureDetector(
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showSinglePhoto(r, url);
+                },
+                child: Card(
+                  child: Image.network(
+                    url,
+                    headers: _authHeaders,
+                    fit: BoxFit.cover,
+                    errorBuilder: (ctx, err, st) =>
+                      Center(child: Icon(Icons.broken_image, color: Colors.grey.shade400)),
+                  ),
+                ),
+              ),
+            ).toList(),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Zamknij')),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteZdjecie(Raport r, String photoUrl) async {
+    final confirm = await showConfirmDialog(context, 'Usuń zdjęcie', 'Czy na pewno usunąć to zdjęcie?');
+    if (confirm != true) return;
+    try {
+      await ref.read(raportyApiRepositoryProvider).deleteZdjecie(r.id, photoUrl);
+      await _loadFromApi();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Zdjęcie usunięte')));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Nie można wyświetlić zdjęcia: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Błąd usuwania: $e')));
+    }
+  }
+
+  Future<void> _uploadZdjecia(Raport r) async {
+    final picker = ImagePicker();
+    final picked = await picker.pickMultiImage(imageQuality: 85);
+    if (picked.isEmpty) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(raportyApiRepositoryProvider).uploadZdjecia(r.id, picked);
+      await _loadFromApi();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Dodano ${picked.length} zdjęć')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Błąd przesyłania: $e')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -476,13 +566,28 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                               child: Text(r.partUsages.isEmpty ? '0' : r.partUsages.length.toString()),
                             ),
                           ),
-                          DataCell(
-                            IconButton(
-                              tooltip: r.photoBase64 != null && r.photoBase64!.isNotEmpty ? 'Podgląd zdjęcia' : 'Brak zdjęcia',
-                              icon: Icon(Icons.image, color: (r.photoBase64 != null && r.photoBase64!.isNotEmpty) ? Colors.teal : Colors.grey),
-                              onPressed: (r.photoBase64 != null && r.photoBase64!.isNotEmpty) ? () => _showPhoto(r) : null,
-                            ),
-                          ),
+                           DataCell(
+                             Row(
+                               mainAxisSize: MainAxisSize.min,
+                               children: [
+                                 IconButton(
+                                   tooltip: r.zdjecia.isNotEmpty
+                                     ? 'Podgląd (${r.zdjecia.length} zdjęć)'
+                                     : 'Brak zdjęcia',
+                                   icon: Icon(
+                                     r.zdjecia.isNotEmpty ? Icons.image : Icons.image_not_supported,
+                                     color: r.zdjecia.isNotEmpty ? Colors.teal : Colors.grey,
+                                   ),
+                                   onPressed: r.zdjecia.isNotEmpty ? () => _showPhotos(r) : null,
+                                 ),
+                                 IconButton(
+                                   tooltip: 'Dodaj zdjęcia',
+                                   icon: const Icon(Icons.add_a_photo, color: Colors.teal),
+                                   onPressed: _busy ? null : () => _uploadZdjecia(r),
+                                 ),
+                               ],
+                             ),
+                           ),
                           DataCell(
                             Row(
                               mainAxisSize: MainAxisSize.min,

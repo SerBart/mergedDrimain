@@ -13,7 +13,7 @@ class Raport {
   final DateTime czasOd;
   final DateTime czasDo;
   final List<PartUsage> partUsages;
-  final String? photoBase64; // opcjonalne zdjęcie (demo)
+  final List<String> zdjecia; // listy URL-ów do zdjęć
 
   Raport({
     required this.id,
@@ -26,7 +26,7 @@ class Raport {
     required this.czasOd,
     required this.czasDo,
     this.partUsages = const [],
-    this.photoBase64,
+    this.zdjecia = const [],
   });
 
   Raport copyWith({
@@ -40,7 +40,7 @@ class Raport {
     DateTime? czasOd,
     DateTime? czasDo,
     List<PartUsage>? partUsages,
-    String? photoBase64,
+    List<String>? zdjecia,
   }) {
     return Raport(
       id: id ?? this.id,
@@ -53,7 +53,7 @@ class Raport {
       czasOd: czasOd ?? this.czasOd,
       czasDo: czasDo ?? this.czasDo,
       partUsages: partUsages ?? this.partUsages,
-      photoBase64: photoBase64 ?? this.photoBase64,
+      zdjecia: zdjecia ?? this.zdjecia,
     );
   }
 }

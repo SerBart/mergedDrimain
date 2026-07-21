@@ -21,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -31,16 +32,26 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.Set;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 
 @RestController
 @RequestMapping("/api/raporty")
 @RequiredArgsConstructor
 @Slf4j
 public class RaportRestController {
+
+    @Value("${app.attachments.base-path:/tmp/uploads/attachments}")
+    private String attachmentsBasePath;
 
     private static final Set<String> ALLOWED_SORT_FIELDS = Set.of(
             "id", "dataNaprawy", "typNaprawy", "status", "createdBy", "zgloszenieId"
@@ -249,21 +260,125 @@ public class RaportRestController {
 
     @PostMapping("/{id}/zdjecia")
     @PreAuthorize("hasAnyRole('ADMIN','BIURO','USER')")
-    public void uploadZdjecia(@PathVariable Long id, @RequestParam("zdjecia") List<MultipartFile> zdjecia) {
+    @ResponseStatus(HttpStatus.OK)
+    public List<String> uploadZdjecia(@PathVariable Long id, @RequestParam("zdjecia") List<MultipartFile> zdjecia) {
         Raport raport = raportRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Raport not found"));
 
+        List<String> uploadedPaths = new java.util.ArrayList<>();
+        // Ensure storage directory exists
+        Path storageDir = Paths.get(attachmentsBasePath);
+        try {
+            Files.createDirectories(storageDir);
+        } catch (IOException e) {
+            log.error("Failed to create storage directory: {}", attachmentsBasePath, e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to create storage directory");
+        }
+
         for (MultipartFile file : zdjecia) {
-            // Save file to storage (e.g., local or cloud) and get the path
-            String filePath = saveFile(file);
-            raport.getZdjecia().add(filePath);
+            try {
+                if (!file.isEmpty()) {
+                    String filePath = saveFile(file);
+                    raport.getZdjecia().add(filePath);
+                    uploadedPaths.add(filePath);
+                    log.info("Uploaded photo for raport {}: {}", id, filePath);
+                }
+            } catch (Exception e) {
+                log.error("Failed to upload photo for raport {}: {}", id, e.getMessage(), e);
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to upload photo: " + e.getMessage());
+            }
         }
 
         raportRepository.save(raport);
+        return uploadedPaths;
+    }
+
+    @GetMapping("/{id}/zdjecia/{filename}")
+    @PreAuthorize("hasAnyRole('ADMIN','BIURO','USER')")
+    public ResponseEntity<Resource> downloadZdjecie(@PathVariable Long id, @PathVariable String filename) {
+        Raport raport = raportRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Raport not found"));
+
+        // Security: verify the file is actually associated with this raport
+        boolean fileExists = raport.getZdjecia().stream()
+                .anyMatch(path -> path.endsWith(filename) || path.contains(filename));
+        
+        if (!fileExists) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Photo not found for this raport");
+        }
+
+        Path filePath = Paths.get(attachmentsBasePath, filename);
+        if (!Files.exists(filePath)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Photo file not found on disk");
+        }
+
+        try {
+            Resource resource = new FileSystemResource(filePath);
+            String contentType = Files.probeContentType(filePath);
+            if (contentType == null) {
+                contentType = "image/jpeg"; // default
+            }
+            return ResponseEntity.ok()
+                    .header("Content-Type", contentType)
+                    .body(resource);
+        } catch (IOException e) {
+            log.error("Failed to read photo file: {}", filePath, e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to read photo");
+        }
+    }
+
+    @DeleteMapping("/{id}/zdjecia/{filename}")
+    @PreAuthorize("hasAnyRole('ADMIN','BIURO','USER')")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteZdjecie(@PathVariable Long id, @PathVariable String filename) {
+        Raport raport = raportRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Raport not found"));
+
+        // Remove from set
+        raport.getZdjecia().removeIf(path -> path.endsWith(filename) || path.contains(filename));
+        raportRepository.save(raport);
+
+        // Delete file from disk
+        Path filePath = Paths.get(attachmentsBasePath, filename);
+        try {
+            Files.deleteIfExists(filePath);
+            log.info("Deleted photo for raport {}: {}", id, filename);
+        } catch (IOException e) {
+            log.warn("Failed to delete photo file: {}", filePath, e);
+            // Don't throw - already removed from DB
+        }
     }
 
     private String saveFile(MultipartFile file) {
-        // Implement file saving logic here (e.g., save to local storage or cloud storage)
-        return "path/to/saved/file"; // Replace with actual path
+        if (file.isEmpty()) {
+            throw new IllegalArgumentException("File is empty");
+        }
+
+        String originalFilename = file.getOriginalFilename();
+        if (originalFilename == null || originalFilename.isEmpty()) {
+            throw new IllegalArgumentException("Invalid filename");
+        }
+
+        // Generate unique filename
+        String fileExtension = getFileExtension(originalFilename);
+        String storedFilename = UUID.randomUUID() + fileExtension;
+
+        Path filePath = Paths.get(attachmentsBasePath, storedFilename);
+
+        try {
+            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+            return storedFilename;
+        } catch (IOException e) {
+            log.error("Failed to save file: {}", originalFilename, e);
+            throw new RuntimeException("Failed to save photo: " + e.getMessage(), e);
+        }
+    }
+
+    private String getFileExtension(String filename) {
+        if (filename == null || filename.isEmpty()) {
+            return "";
+        }
+        int lastDotIndex = filename.lastIndexOf('.');
+        return lastDotIndex > 0 ? filename.substring(lastDotIndex).toLowerCase() : "";
     }
 }

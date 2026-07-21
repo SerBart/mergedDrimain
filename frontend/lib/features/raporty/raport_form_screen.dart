@@ -9,7 +9,6 @@ import '../../core/models/raport.dart';
 import '../../core/models/dzial.dart'; // nowy import
 import '../../core/providers/app_providers.dart';
 import '../../core/repositories/meta_api_repository.dart';
-import '../../widgets/photo_picker_field.dart';
 import '../../core/constants/naprawy_constants.dart';
 
 /// Formularz tworzenia / edycji raportu.
@@ -49,7 +48,7 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
   DateTime? _dataNaprawy;
   TimeOfDay? _czasOd;
   TimeOfDay? _czasDo;
-  String? _photoBase64;
+  List<String> _selectedPhotoPaths = []; // ścieżki do wybranych zdjęć (przed uploadem)
 
   // Lista typów jak w nowych zgłoszeniach
   static const List<String> _typyNapraw = NaprawyConstants.typyNapraw;
@@ -171,7 +170,8 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
       _dataNaprawy = base.dataNaprawy;
       _czasOd = TimeOfDay(hour: base.czasOd.hour, minute: base.czasOd.minute);
       _czasDo = TimeOfDay(hour: base.czasDo.hour, minute: base.czasDo.minute);
-      _photoBase64 = base.photoBase64;
+      // Zdjęcia - to są URL-e z backendu, nie ścieżki lokalne
+      // Zostawiam puste, bo to są już wgrarane zdjęcia na backendzie
     } else {
       // Wartości domyślne nowego
       _status = 'NOWY';
@@ -312,10 +312,6 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
           czasDo: dtDo,
           partUsages: partUsages,
         );
-      }
-      // Zachowaj lokalnie photoBase64 (backend jeszcze może nie zwracać)
-      if (_photoBase64 != null) {
-        saved = saved.copyWith(photoBase64: _photoBase64);
       }
       mock.upsertRaport(saved);
       widget.onSaved?.call(saved);
@@ -642,22 +638,34 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
         const SizedBox(height: 8),
         Text(_validateTimes()!, style: const TextStyle(color: Colors.red, fontSize: 12)),
       ],
-      const SizedBox(height: 20),
-      Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: Theme.of(context).dividerColor.withOpacity(.4)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-          child: PhotoPickerField(
-            initialBase64: _photoBase64,
-            label: 'Zdjęcie (opcjonalne)',
-            onChanged: (b64) => _photoBase64 = b64,
-          ),
-        ),
-      ),
+       const SizedBox(height: 20),
+       // TODO: Upload zdjęć będzie dostępny po utworzeniu raportu na osobnym endpoincie
+       Card(
+         elevation: 0,
+         shape: RoundedRectangleBorder(
+           borderRadius: BorderRadius.circular(14),
+           side: BorderSide(color: Theme.of(context).dividerColor.withOpacity(.4)),
+         ),
+         child: Padding(
+           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+           child: Row(
+             children: [
+               Icon(Icons.info, size: 20, color: Colors.blue.shade600),
+               const SizedBox(width: 12),
+               Expanded(
+                 child: Text(
+                   'Zdjęcia będą dostępne po zapisaniu raportu',
+                   style: TextStyle(
+                     fontSize: 13,
+                     color: Colors.blue.shade700,
+                     fontWeight: FontWeight.w500,
+                   ),
+                 ),
+               ),
+             ],
+           ),
+         ),
+       ),
     ];
   }
 

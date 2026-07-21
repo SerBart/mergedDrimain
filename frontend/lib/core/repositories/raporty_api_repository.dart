@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/raport.dart';
 import '../models/maszyna.dart';
 import '../models/osoba.dart';
@@ -9,7 +10,11 @@ import '../services/secure_storage_service.dart';
 class RaportyApiRepository {
   final Dio _dio;
   final SecureStorageService _storage;
-  RaportyApiRepository(this._dio, this._storage);
+  late final String _baseUrl;
+
+  RaportyApiRepository(this._dio, this._storage) {
+    _baseUrl = _dio.options.baseUrl.trimRight('/');
+  }
 
   Future<List<Raport>> fetchAll({int page = 0, int size = 200}) async {
     final token = await _token();
@@ -172,6 +177,22 @@ class RaportyApiRepository {
     final czasOd = combine(data, co);
     final czasDo = combine(data, cd);
 
+    // Parse zdjęcia – backend zwraca tylko nazwy plików (uuid.jpg),
+    // budujemy pełny URL do endpointu pobierania zdjęcia
+    List<String> zdjecia = [];
+    final zdjecia_json = j['zdjecia'];
+    if (zdjecia_json is List) {
+      zdjecia = zdjecia_json.map((z) {
+        final filename = z.toString();
+        if (filename.startsWith('http://') || filename.startsWith('https://')) {
+          return filename;
+        }
+        // Wyodrębnij samą nazwę pliku (bez ścieżki katalogów)
+        final bare = filename.contains('/') ? filename.split('/').last : filename;
+        return '$_baseUrl/api/raporty/$id/zdjecia/$bare';
+      }).toList();
+    }
+
     return Raport(
       id: id,
       maszyna: maszyna,
@@ -183,6 +204,43 @@ class RaportyApiRepository {
       czasOd: czasOd,
       czasDo: czasDo,
       partUsages: partUsages,
+      zdjecia: zdjecia,
+    );
+  }
+
+  /// Wgrywa zdjęcia do raportu. Zwraca listę nowych pełnych URL-i.
+  Future<List<String>> uploadZdjecia(int id, List<XFile> files) async {
+    final token = await _token();
+    final formData = FormData();
+    for (final file in files) {
+      final bytes = await file.readAsBytes();
+      formData.files.add(MapEntry(
+        'zdjecia',
+        MultipartFile.fromBytes(bytes, filename: file.name),
+      ));
+    }
+    final resp = await _dio.post(
+      '/api/raporty/$id/zdjecia',
+      data: formData,
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    final List raw = resp.data as List;
+    return raw.map((filename) {
+      final bare = filename.toString().contains('/')
+          ? filename.toString().split('/').last
+          : filename.toString();
+      return '$_baseUrl/api/raporty/$id/zdjecia/$bare';
+    }).toList();
+  }
+
+  /// Usuwa pojedyncze zdjęcie z raportu.
+  Future<void> deleteZdjecie(int id, String photoUrl) async {
+    final token = await _token();
+    // Wyodrębnij samą nazwę pliku z URL-a lub ścieżki
+    final filename = photoUrl.contains('/') ? photoUrl.split('/').last : photoUrl;
+    await _dio.delete(
+      '/api/raporty/$id/zdjecia/$filename',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
   }
 
