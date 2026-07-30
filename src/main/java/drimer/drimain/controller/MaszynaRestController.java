@@ -1,8 +1,8 @@
 package drimer.drimain.controller;
 
 import drimer.drimain.api.dto.SimpleMaszynaDTO;
+import drimer.drimain.api.dto.SimpleDzialDTO;
 import drimer.drimain.api.dto.MaszynaSelectDTO;
-import drimer.drimain.model.Maszyna;
 import drimer.drimain.repository.MaszynaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -31,6 +31,12 @@ public class MaszynaRestController {
                     SimpleMaszynaDTO dto = new SimpleMaszynaDTO();
                     dto.setId(m.getId());
                     dto.setNazwa(m.getNazwa());
+                    if (m.getDzial() != null) {
+                        SimpleDzialDTO d = new SimpleDzialDTO();
+                        d.setId(m.getDzial().getId());
+                        d.setNazwa(m.getDzial().getNazwa());
+                        dto.setDzial(d);
+                    }
                     return dto;
                 })
                 .collect(Collectors.toList());

@@ -131,23 +131,7 @@ class RaportyApiRepository {
   Raport _fromDto(Map<String, dynamic> j) {
     // RaportDTO fields: id, maszyna:{id,nazwa}, osoba:{id,imieNazwisko}, typNaprawy, opis, status, dataNaprawy (yyyy-MM-dd), czasOd (HH:mm[:ss]), czasDo
     final id = (j['id'] as num?)?.toInt() ?? 0;
-    Maszyna? maszyna;
-    if (j['maszyna'] is Map) {
-      final m = (j['maszyna'] as Map).cast<String, dynamic>();
-      Dzial? dzial;
-      if (m['dzial'] is Map) {
-        final d = (m['dzial'] as Map).cast<String, dynamic>();
-        dzial = Dzial(
-          id: (d['id'] as num?)?.toInt() ?? 0,
-          nazwa: (d['nazwa'] ?? '').toString(),
-        );
-      }
-      maszyna = Maszyna(
-        id: (m['id'] as num?)?.toInt() ?? 0,
-        nazwa: (m['nazwa'] ?? '').toString(),
-        dzial: dzial,
-      );
-    }
+    final maszyna = _parseMaszyna(j);
     Osoba? osoba;
     if (j['osoba'] is Map) {
       final o = (j['osoba'] as Map).cast<String, dynamic>();
@@ -224,6 +208,48 @@ class RaportyApiRepository {
       partUsages: partUsages,
       zdjecia: zdjecia,
     );
+  }
+
+  Maszyna? _parseMaszyna(Map<String, dynamic> j) {
+    final raw = j['maszyna'];
+    int id = 0;
+    String nazwa = '';
+    Dzial? dzial;
+
+    if (raw is Map) {
+      final m = raw.cast<String, dynamic>();
+      id = (m['id'] as num?)?.toInt() ?? (m['maszynaId'] as num?)?.toInt() ?? 0;
+      nazwa = (m['nazwa'] ?? m['name'] ?? m['maszynaNazwa'] ?? '').toString();
+
+      final rawDzial = m['dzial'];
+      if (rawDzial is Map) {
+        final d = rawDzial.cast<String, dynamic>();
+        dzial = Dzial(
+          id: (d['id'] as num?)?.toInt() ?? 0,
+          nazwa: (d['nazwa'] ?? d['name'] ?? '').toString(),
+        );
+      } else if (rawDzial is String && rawDzial.trim().isNotEmpty) {
+        dzial = Dzial(id: 0, nazwa: rawDzial.trim());
+      }
+    }
+
+    // Fallback for flat DTOs (legacy/inconsistent payloads).
+    if (id == 0) {
+      id = (j['maszynaId'] as num?)?.toInt() ?? (j['machineId'] as num?)?.toInt() ?? 0;
+    }
+    if (nazwa.trim().isEmpty) {
+      nazwa = (j['maszynaNazwa'] ?? j['machineName'] ?? '').toString();
+    }
+    if (dzial == null) {
+      final dzialNazwa = (j['maszynaDzialNazwa'] ?? j['dzialNazwa'] ?? '').toString().trim();
+      final dzialId = (j['dzialId'] as num?)?.toInt() ?? 0;
+      if (dzialNazwa.isNotEmpty || dzialId > 0) {
+        dzial = Dzial(id: dzialId, nazwa: dzialNazwa);
+      }
+    }
+
+    if (id <= 0 && nazwa.trim().isEmpty) return null;
+    return Maszyna(id: id, nazwa: nazwa, dzial: dzial);
   }
 
   /// Wgrywa zdjęcia do raportu. Zwraca listę nowych pełnych URL-i.
