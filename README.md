@@ -41,6 +41,7 @@ Wymagane/zalecane zmienne środowiskowe na Railway:
 - `APP_JWT_SECRET` – ustaw silny sekret (min. 32 znaki)
 - Opcjonalnie CORS: `CORS_ALLOWED_ORIGINS` lub `APP_CORS_ALLOWED_ORIGINS`
 - Opcjonalnie Postgres (jeśli nie chcesz H2): `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD` oraz `FLYWAY_ENABLED=true`
+- Jednorazowo przy błędzie `Migration checksum mismatch`: `FLYWAY_REPAIR_ON_STARTUP=true`
 
 Szybki test (po deployu):
 - Otwórz `/swagger-ui/index.html`
@@ -49,3 +50,20 @@ Szybki test (po deployu):
 
 Uwaga (częsty błąd):
 - Nie używaj komendy Mavena z `".run.arguments=..."`. To powoduje błąd: „Unknown lifecycle phase”. Zawsze używaj: `-Dspring-boot.run.arguments=...` lub, prościej, uruchamiaj gotowy JAR jak wyżej.
+
+### Flyway checksum mismatch na Railway
+
+Jeśli deploy zatrzyma się na błędzie w stylu:
+- `FlywayValidateException: Validate failed: Migrations have failed validation`
+- `Migration checksum mismatch for migration version 8`
+
+to oznacza, że migracja została już kiedyś wykonana w bazie, a jej plik `.sql` został później zmieniony.
+
+Bezpieczna procedura naprawy:
+1. Ustaw w Railway zmienną środowiskową `FLYWAY_REPAIR_ON_STARTUP=true`
+2. Uruchom jeden deploy
+3. Po udanym starcie aplikacji usuń tę zmienną albo ustaw `false`
+4. Uruchom kolejny normalny deploy
+
+Ta opcja wykonuje `flyway repair()` przed `migrate()` i służy wyłącznie do jednorazowej synchronizacji checksum w tabeli historii Flyway.
+
