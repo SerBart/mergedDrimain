@@ -270,13 +270,37 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
     }
   }
 
-  void _showPhotos(Raport r) {
-    if (r.zdjecia.isEmpty) return;
-    if (r.zdjecia.length == 1) {
-      _showSinglePhoto(r, r.zdjecia[0]);
-    } else {
-      _showPhotoGallery(r);
+  Future<void> _showPhotos(Raport r) async {
+    Raport raport;
+    try {
+      raport = await _ensureRaportWithPhotos(r);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Nie udało się pobrać zdjęć raportu: $e')),
+      );
+      return;
     }
+    if (!mounted) return;
+    if (raport.zdjecia.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ten raport nie ma jeszcze zdjęć do podglądu.')),
+      );
+      return;
+    }
+    if (raport.zdjecia.length == 1) {
+      _showSinglePhoto(raport, raport.zdjecia[0]);
+    } else {
+      _showPhotoGallery(raport);
+    }
+  }
+
+  Future<Raport> _ensureRaportWithPhotos(Raport raport) async {
+    if (raport.zdjecia.isNotEmpty) return raport;
+    final fresh = await ref.read(raportyApiRepositoryProvider).fetchById(raport.id);
+    final mock = ref.read(mockRepoProvider);
+    mock.upsertRaport(fresh);
+    return fresh;
   }
 
   /// Nagłówki autoryzacji do pobierania zdjęć przez Dio.
@@ -611,14 +635,14 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                                mainAxisSize: MainAxisSize.min,
                                children: [
                                  IconButton(
-                                   tooltip: r.zdjecia.isNotEmpty
-                                     ? 'Podgląd (${r.zdjecia.length} zdjęć)'
-                                     : 'Brak zdjęcia',
-                                   icon: Icon(
-                                     r.zdjecia.isNotEmpty ? Icons.image : Icons.image_not_supported,
-                                     color: r.zdjecia.isNotEmpty ? Colors.teal : Colors.grey,
-                                   ),
-                                   onPressed: r.zdjecia.isNotEmpty ? () => _showPhotos(r) : null,
+                                    tooltip: r.zdjecia.isNotEmpty
+                                      ? 'Podgląd (${r.zdjecia.length} zdjęć)'
+                                      : 'Sprawdź zdjęcia raportu',
+                                    icon: Icon(
+                                      Icons.image,
+                                      color: r.zdjecia.isNotEmpty ? Colors.teal : Colors.orange,
+                                    ),
+                                    onPressed: () => _showPhotos(r),
                                  ),
                                  IconButton(
                                    tooltip: 'Dodaj zdjęcia',

@@ -11,9 +11,11 @@ class RaportyApiRepository {
   final Dio _dio;
   final SecureStorageService _storage;
   late final String _baseUrl;
+  late final String _apiRoot;
 
   RaportyApiRepository(this._dio, this._storage) {
     _baseUrl = _dio.options.baseUrl.trimRight('/');
+    _apiRoot = _normalizeApiRoot(_baseUrl);
   }
 
   Future<List<Raport>> fetchAll({int page = 0, int size = 200}) async {
@@ -26,6 +28,15 @@ class RaportyApiRepository {
     final data = resp.data;
     final List list = (data is Map && data['content'] is List) ? data['content'] as List : (data as List);
     return list.cast<Map>().map((j) => _fromDto(j.cast<String, dynamic>())).toList();
+  }
+
+  Future<Raport> fetchById(int id) async {
+    final token = await _token();
+    final resp = await _dio.get(
+      '/api/raporty/$id',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    return _fromDto((resp.data as Map).cast<String, dynamic>());
   }
 
   Future<Raport> create({
@@ -248,14 +259,27 @@ class RaportyApiRepository {
       return value;
     }
     if (value.startsWith('/api/')) {
-      return '$_baseUrl$value';
+      return '$_apiRoot$value';
     }
 
     // Obsługa danych historycznych typu "dir/file.jpg" i "dir\\file.jpg".
     final normalized = value.replaceAll('\\', '/');
     final bare = normalized.split('/').last;
     final encoded = Uri.encodeComponent(bare);
-    return '$_baseUrl/api/raporty/$raportId/zdjecia/$encoded';
+    return '$_apiRoot/api/raporty/$raportId/zdjecia/$encoded';
+  }
+
+  String _normalizeApiRoot(String rawBaseUrl) {
+    final base = rawBaseUrl.trimRight('/');
+    final uri = Uri.tryParse(base);
+    if (uri == null) return base;
+    final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+    if (segments.isNotEmpty && segments.last.toLowerCase() == 'api') {
+      final trimmed = segments.sublist(0, segments.length - 1);
+      final path = trimmed.isEmpty ? '' : '/${trimmed.join('/')}';
+      return uri.replace(path: path).toString().trimRight('/');
+    }
+    return base;
   }
 
   Future<String> _token() async {
