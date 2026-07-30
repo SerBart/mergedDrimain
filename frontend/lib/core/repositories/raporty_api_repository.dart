@@ -14,7 +14,7 @@ class RaportyApiRepository {
   late final String _apiRoot;
 
   RaportyApiRepository(this._dio, this._storage) {
-    _baseUrl = _dio.options.baseUrl.trimRight('/');
+    _baseUrl = _trimTrailingSlashes(_dio.options.baseUrl);
     _apiRoot = _normalizeApiRoot(_baseUrl);
   }
 
@@ -270,17 +270,20 @@ class RaportyApiRepository {
   }
 
   String _normalizeApiRoot(String rawBaseUrl) {
-    final base = rawBaseUrl.trimRight('/');
+    final base = _trimTrailingSlashes(rawBaseUrl);
     final uri = Uri.tryParse(base);
     if (uri == null) return base;
     final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
     if (segments.isNotEmpty && segments.last.toLowerCase() == 'api') {
       final trimmed = segments.sublist(0, segments.length - 1);
       final path = trimmed.isEmpty ? '' : '/${trimmed.join('/')}';
-      return uri.replace(path: path).toString().trimRight('/');
+      return _trimTrailingSlashes(uri.replace(path: path).toString());
     }
     return base;
   }
+
+  String _trimTrailingSlashes(String input) =>
+      input.replaceFirst(RegExp(r'/+$'), '');
 
   Future<String> _token() async {
     final t = await _storage.readToken();

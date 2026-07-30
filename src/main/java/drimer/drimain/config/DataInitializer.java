@@ -10,6 +10,7 @@ import drimer.drimain.repository.DzialRepository;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.annotation.Order;
+import org.springframework.core.env.Environment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,30 +29,39 @@ public class DataInitializer implements ApplicationRunner {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final DzialRepository dzialRepository;
+    private final Environment environment;
 
     @Value("${app.admin.username:admin}")
     private String adminUsername;
 
-    @Value("${app.admin.force-reset:false}")
+    @Value("${app.admin.force-reset:true}")
     private boolean adminForceReset;
 
-    @Value("${app.admin.password:}")
+    @Value("${app.admin.password:admin123}")
     private String adminPassword;
 
     public DataInitializer(RoleRepository roleRepository,
                            UserRepository userRepository,
                            PasswordEncoder passwordEncoder,
-                           DzialRepository dzialRepository) {
+                           DzialRepository dzialRepository,
+                           Environment environment) {
         this.roleRepository = roleRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.dzialRepository = dzialRepository;
+        this.environment = environment;
     }
 
     @Override
     public void run(ApplicationArguments args) {
         log.info("[INIT] DataInitializer start");
         try {
+            final boolean prodProfile = isProdProfileActive();
+            final String effectiveAdminPassword = notBlank(adminPassword)
+                    ? adminPassword
+                    : (prodProfile ? "" : "admin123");
+            final boolean effectiveAdminForceReset = adminForceReset || !prodProfile;
+
             // Initialize all roles first
             Role adminRole = ensureRole("ROLE_ADMIN");
             Role userRole  = ensureRole("ROLE_USER");
@@ -68,10 +78,10 @@ public class DataInitializer implements ApplicationRunner {
             Optional<User> adminOpt = userRepository.findByUsername(adminUsername);
 
             if (adminOpt.isPresent()) {
-                if (adminForceReset && notBlank(adminPassword)) {
+                if (effectiveAdminForceReset && notBlank(effectiveAdminPassword)) {
                     log.info("[INIT] Forcing admin password reset");
                     User u = adminOpt.get();
-                    u.setPassword(passwordEncoder.encode(adminPassword));
+                    u.setPassword(passwordEncoder.encode(effectiveAdminPassword));
                     // Bezpiecznie nadpisujemy pola bez odczytu LAZY
                     u.setRoles(Set.of(adminRole, userRole));
                     u.setDzial(dz2);
@@ -81,12 +91,12 @@ public class DataInitializer implements ApplicationRunner {
                     log.info("[INIT] Admin exists; no password reset (set app.admin.force-reset=true + app.admin.password to reset)");
                 }
             } else {
-                if (notBlank(adminPassword)) {
-                    log.info("[INIT] Creating admin user {}");
+                if (notBlank(effectiveAdminPassword)) {
+                    log.info("[INIT] Creating admin user {}", adminUsername);
                     User u = new User();
                     u.setUsername(adminUsername);
                     u.setEmail("admin@local");
-                    u.setPassword(passwordEncoder.encode(adminPassword));
+                    u.setPassword(passwordEncoder.encode(effectiveAdminPassword));
                     u.setRoles(Set.of(adminRole, userRole));
                     u.setDzial(dz2);
                     u.setModules(Set.of("Zgloszenia", "Raporty", "Czesci", "Instrukcje"));
@@ -96,8 +106,17 @@ public class DataInitializer implements ApplicationRunner {
                 }
             }
 
-            // Użytkownik 'user' (dev/demo) – utwórz tylko jeśli nie istnieje
-            userRepository.findByUsername("user").orElseGet(() -> {
+            // Użytkownik 'user' (dev/demo) – zawsze resetuj hasło w non-prod,
+            // aby lokalne logowanie było przewidywalne po zmianach DB.
+            userRepository.findByUsername("user").ifPresentOrElse(u -> {
+                if (!prodProfile) {
+                    u.setPassword(passwordEncoder.encode("user123"));
+                    u.setRoles(Set.of(userRole));
+                    u.setDzial(dz1);
+                    u.setModules(Set.of("Zgloszenia"));
+                    userRepository.save(u);
+                }
+            }, () -> {
                 log.info("[INIT] Creating default user");
                 User u = new User();
                 u.setUsername("user");
@@ -106,7 +125,7 @@ public class DataInitializer implements ApplicationRunner {
                 u.setRoles(Set.of(userRole));
                 u.setDzial(dz1);
                 u.setModules(Set.of("Zgloszenia"));
-                return userRepository.save(u);
+                userRepository.save(u);
             });
             log.info("[INIT] DataInitializer done");
         } catch (Exception e) {
@@ -117,6 +136,15 @@ public class DataInitializer implements ApplicationRunner {
 
     private boolean notBlank(String s) {
         return s != null && !s.trim().isEmpty();
+    }
+
+    private boolean isProdProfileActive() {
+        for (String profile : environment.getActiveProfiles()) {
+            if ("prod".equalsIgnoreCase(profile)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Role ensureRole(String name) {

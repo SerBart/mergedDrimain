@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import '../models/zgloszenie.dart';
 import '../models/maszyna.dart';
+import '../models/dzial.dart';
 import '../services/secure_storage_service.dart';
 
 class ZgloszeniaApiRepository {
