@@ -177,20 +177,14 @@ class RaportyApiRepository {
     final czasOd = combine(data, co);
     final czasDo = combine(data, cd);
 
-    // Parse zdjęcia – backend zwraca tylko nazwy plików (uuid.jpg),
-    // budujemy pełny URL do endpointu pobierania zdjęcia
+    // Parse zdjęcia – wspieramy pełne URL-e, ścieżki względne i same nazwy plików.
     List<String> zdjecia = [];
     final zdjecia_json = j['zdjecia'];
     if (zdjecia_json is List) {
-      zdjecia = zdjecia_json.map((z) {
-        final filename = z.toString();
-        if (filename.startsWith('http://') || filename.startsWith('https://')) {
-          return filename;
-        }
-        // Wyodrębnij samą nazwę pliku (bez ścieżki katalogów)
-        final bare = filename.contains('/') ? filename.split('/').last : filename;
-        return '$_baseUrl/api/raporty/$id/zdjecia/$bare';
-      }).toList();
+      zdjecia = zdjecia_json
+          .map((z) => _toPhotoUrl(id, z.toString()))
+          .where((u) => u.isNotEmpty)
+          .toList();
     }
 
     return Raport(
@@ -225,23 +219,43 @@ class RaportyApiRepository {
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
     final List raw = resp.data as List;
-    return raw.map((filename) {
-      final bare = filename.toString().contains('/')
-          ? filename.toString().split('/').last
-          : filename.toString();
-      return '$_baseUrl/api/raporty/$id/zdjecia/$bare';
-    }).toList();
+    return raw
+        .map((filename) => _toPhotoUrl(id, filename.toString()))
+        .where((u) => u.isNotEmpty)
+        .toList();
   }
 
   /// Usuwa pojedyncze zdjęcie z raportu.
   Future<void> deleteZdjecie(int id, String photoUrl) async {
     final token = await _token();
     // Wyodrębnij samą nazwę pliku z URL-a lub ścieżki
-    final filename = photoUrl.contains('/') ? photoUrl.split('/').last : photoUrl;
+    final normalized = photoUrl.replaceAll('\\', '/');
+    final uri = Uri.tryParse(normalized);
+    final lastSegment = (uri != null && uri.pathSegments.isNotEmpty)
+        ? uri.pathSegments.last
+        : normalized.split('/').last;
+    final filename = Uri.decodeComponent(lastSegment);
     await _dio.delete(
       '/api/raporty/$id/zdjecia/$filename',
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
+  }
+
+  String _toPhotoUrl(int raportId, String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) return '';
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      return value;
+    }
+    if (value.startsWith('/api/')) {
+      return '$_baseUrl$value';
+    }
+
+    // Obsługa danych historycznych typu "dir/file.jpg" i "dir\\file.jpg".
+    final normalized = value.replaceAll('\\', '/');
+    final bare = normalized.split('/').last;
+    final encoded = Uri.encodeComponent(bare);
+    return '$_baseUrl/api/raporty/$raportId/zdjecia/$encoded';
   }
 
   Future<String> _token() async {

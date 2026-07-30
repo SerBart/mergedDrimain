@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:typed_data';
+import 'package:dio/dio.dart' as dio;
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -277,10 +279,60 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
     }
   }
 
-  /// Nagłówki autoryzacji do Image.network()
+  /// Nagłówki autoryzacji do pobierania zdjęć przez Dio.
   Map<String, String> get _authHeaders {
     final token = ref.read(authStateProvider)?.token;
     return token != null ? {'Authorization': 'Bearer $token'} : {};
+  }
+
+  Future<Map<String, String>> _resolveAuthHeaders() async {
+    final stateToken = ref.read(authStateProvider)?.token;
+    if (stateToken != null && stateToken.isNotEmpty) {
+      return {'Authorization': 'Bearer $stateToken'};
+    }
+    final stored = await ref.read(secureStorageProvider).readToken();
+    if (stored != null && stored.isNotEmpty) {
+      return {'Authorization': 'Bearer $stored'};
+    }
+    return const {};
+  }
+
+  Future<Uint8List> _fetchPhotoBytes(String photoUrl) async {
+    final client = ref.read(apiClientProvider).dio;
+    final headers = await _resolveAuthHeaders();
+    final response = await client.get<List<int>>(
+      photoUrl,
+      options: dio.Options(
+        responseType: dio.ResponseType.bytes,
+        headers: headers,
+      ),
+    );
+    final data = response.data;
+    if (data == null || data.isEmpty) {
+      throw Exception('Pusty obraz z serwera');
+    }
+    return Uint8List.fromList(data);
+  }
+
+  Widget _photoFromApi(String photoUrl, {required BoxFit fit}) {
+    return FutureBuilder<Uint8List>(
+      future: _fetchPhotoBytes(photoUrl),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('Nie można załadować zdjęcia: ${snapshot.error}'),
+          );
+        }
+        final bytes = snapshot.data;
+        if (bytes == null || bytes.isEmpty) {
+          return const Center(child: Text('Brak danych zdjęcia'));
+        }
+        return Image.memory(bytes, fit: fit, gaplessPlayback: true);
+      },
+    );
   }
 
   void _showSinglePhoto(Raport r, String photoUrl) {
@@ -289,13 +341,7 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Zdjęcie raportu'),
         content: InteractiveViewer(
-          child: Image.network(
-            photoUrl,
-            headers: _authHeaders,
-            fit: BoxFit.contain,
-            errorBuilder: (ctx, err, st) =>
-              Center(child: Text('Nie można załadować zdjęcia: $err')),
-          ),
+          child: _photoFromApi(photoUrl, fit: BoxFit.contain),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Zamknij')),
@@ -329,13 +375,7 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                   _showSinglePhoto(r, url);
                 },
                 child: Card(
-                  child: Image.network(
-                    url,
-                    headers: _authHeaders,
-                    fit: BoxFit.cover,
-                    errorBuilder: (ctx, err, st) =>
-                      Center(child: Icon(Icons.broken_image, color: Colors.grey.shade400)),
-                  ),
+                  child: _photoFromApi(url, fit: BoxFit.cover),
                 ),
               ),
             ).toList(),
