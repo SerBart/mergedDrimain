@@ -1,9 +1,11 @@
 spring:
   datasource:
-    # Railway dostarcza PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD automatycznie.
-    # SPRING_DATASOURCE_URL ma najwyższy priorytet (ustaw ręcznie jeśli potrzeba).
-    # DATABASE_PRIVATE_URL i DATABASE_URL od Railway mają format postgresql:// (bez jdbc:) - nie użyjemy ich bezpośrednio.
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://${PGHOST:localhost}:${PGPORT:5432}/${PGDATABASE:railway}?sslmode=disable}
+    # URL jest ustawiany przez DatabaseUrlProcessor (EnvironmentPostProcessor) na podstawie:
+    # 1. SPRING_DATASOURCE_URL (jeśli ustawiony ręcznie)
+    # 2. DATABASE_URL (Railway, format postgresql://)
+    # 3. PGHOST + PGPORT + PGDATABASE (Railway PG* zmienne)
+    # Poniższa wartość to ostateczny fallback gdyby żadna zmienna nie była dostępna.
+    url: jdbc:postgresql://localhost:5432/railway
     username: ${SPRING_DATASOURCE_USERNAME:${PGUSER:postgres}}
     password: ${SPRING_DATASOURCE_PASSWORD:${PGPASSWORD:}}
     driver-class-name: org.postgresql.Driver

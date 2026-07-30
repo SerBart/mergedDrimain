@@ -15,81 +15,83 @@ public class DatabaseUrlProcessor implements EnvironmentPostProcessor, Ordered {
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
-        // If datasource URL already set, honor it only if it's not the H2 fallback
-        String existing = environment.getProperty("spring.datasource.url");
-        if (StringUtils.hasText(existing) && !existing.startsWith("jdbc:h2:")) {
-            System.out.println("[DB-AUTO] Using existing spring.datasource.url: " + existing);
-            return;
-        }
-
         Map<String, Object> props = new HashMap<>();
 
+        // Priorytet 1: Jawny SPRING_DATASOURCE_URL lub JDBC_DATABASE_URL ustawiony przez użytkownika
         String explicitUrl = environment.getProperty("SPRING_DATASOURCE_URL");
         if (!StringUtils.hasText(explicitUrl)) {
             explicitUrl = environment.getProperty("JDBC_DATABASE_URL");
         }
-
-        if (StringUtils.hasText(explicitUrl)) {
+        if (StringUtils.hasText(explicitUrl) && explicitUrl.startsWith("jdbc:")) {
             props.put("spring.datasource.url", explicitUrl);
-            // Do not force Flyway/ddl-auto here; respect external config
-            System.out.println("[DB-AUTO] Configured spring.datasource.url from explicit env: " + explicitUrl);
+            System.out.println("[DB-AUTO] Using explicit JDBC URL from env: " + explicitUrl);
             applyProps(environment, props);
             return;
         }
 
+        // Priorytet 2: DATABASE_URL w formacie Railway (postgresql:// lub postgres://)
         String databaseUrl = environment.getProperty("DATABASE_URL");
         if (StringUtils.hasText(databaseUrl)) {
             String jdbcUrl = toJdbcUrl(databaseUrl);
             if (jdbcUrl != null) {
                 props.put("spring.datasource.url", jdbcUrl);
-                // Try to extract username/password from URL if missing
                 String[] creds = parseUserPass(databaseUrl);
                 if (creds != null) {
-                    if (!StringUtils.hasText(environment.getProperty("spring.datasource.username"))) {
-                        props.put("spring.datasource.username", creds[0]);
-                    }
-                    if (!StringUtils.hasText(environment.getProperty("spring.datasource.password"))) {
-                        props.put("spring.datasource.password", creds[1]);
-                    }
+                    props.put("spring.datasource.username", creds[0]);
+                    props.put("spring.datasource.password", creds[1]);
                 }
-                System.out.println("[DB-AUTO] Derived JDBC from DATABASE_URL -> spring.datasource.url: " + jdbcUrl);
+                System.out.println("[DB-AUTO] Converted DATABASE_URL -> JDBC: " + jdbcUrl);
+                applyProps(environment, props);
+                return;
+            } else if (databaseUrl.startsWith("jdbc:")) {
+                // DATABASE_URL już ma prefiks jdbc:
+                props.put("spring.datasource.url", databaseUrl);
+                System.out.println("[DB-AUTO] DATABASE_URL already in JDBC format: " + databaseUrl);
                 applyProps(environment, props);
                 return;
             } else {
-                System.out.println("[DB-AUTO] DATABASE_URL present but could not parse to JDBC, will try PG* vars");
+                System.out.println("[DB-AUTO] DATABASE_URL present but could not parse: " + databaseUrl);
             }
         }
 
-        // Railway often exposes PG* variables
+        // Priorytet 3: Zmienne PG* z Railway (PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD)
         String pgHost = environment.getProperty("PGHOST");
         String pgPort = environment.getProperty("PGPORT");
         String pgDb   = environment.getProperty("PGDATABASE");
         String pgUser = environment.getProperty("PGUSER");
         String pgPass = environment.getProperty("PGPASSWORD");
-        String pgSslMode = environment.getProperty("PGSSLMODE"); // optional
+        String pgSslMode = environment.getProperty("PGSSLMODE");
+
         if (StringUtils.hasText(pgHost) && StringUtils.hasText(pgDb)) {
             if (!StringUtils.hasText(pgPort)) pgPort = "5432";
-            StringBuilder jdbc = new StringBuilder("jdbc:postgresql://").append(pgHost).append(":").append(pgPort).append("/").append(pgDb);
-            // Only append sslmode if explicitly provided
+            StringBuilder jdbc = new StringBuilder("jdbc:postgresql://")
+                    .append(pgHost).append(":").append(pgPort).append("/").append(pgDb);
             if (StringUtils.hasText(pgSslMode)) {
                 jdbc.append("?sslmode=").append(pgSslMode);
+            } else {
+                jdbc.append("?sslmode=disable");
             }
             props.put("spring.datasource.url", jdbc.toString());
-            if (StringUtils.hasText(pgUser) && !StringUtils.hasText(environment.getProperty("spring.datasource.username"))) {
-                props.put("spring.datasource.username", pgUser);
-            }
-            if (StringUtils.hasText(pgPass) && !StringUtils.hasText(environment.getProperty("spring.datasource.password"))) {
-                props.put("spring.datasource.password", pgPass);
-            }
-            System.out.println("[DB-AUTO] Built JDBC from PG* vars -> spring.datasource.url: " + jdbc);
+            if (StringUtils.hasText(pgUser)) props.put("spring.datasource.username", pgUser);
+            if (StringUtils.hasText(pgPass)) props.put("spring.datasource.password", pgPass);
+            System.out.println("[DB-AUTO] Built JDBC from PG* vars -> " + jdbc);
             applyProps(environment, props);
-        } else {
-            System.out.println("[DB-AUTO] No DB env detected. Will use fallback datasource (e.g., H2 if configured).");
+            return;
         }
+
+        // Priorytet 4: Użyj już skonfigurowanego URL jeśli nie jest to H2 ani localhost fallback
+        String existing = environment.getProperty("spring.datasource.url");
+        if (StringUtils.hasText(existing) && !existing.startsWith("jdbc:h2:") && !existing.contains("localhost")) {
+            System.out.println("[DB-AUTO] Using pre-configured spring.datasource.url: " + existing);
+            return;
+        }
+
+        System.out.println("[DB-AUTO] No Railway DB env vars found. Using H2 fallback.");
     }
 
     private void applyProps(ConfigurableEnvironment environment, Map<String, Object> props) {
         if (!props.isEmpty()) {
+            // addFirst = najwyższy priorytet, nadpisuje wszystko (application.yml, application-prod.yml)
             environment.getPropertySources().addFirst(new MapPropertySource("runtime-db-autoconfig", props));
         }
     }
@@ -114,9 +116,10 @@ public class DatabaseUrlProcessor implements EnvironmentPostProcessor, Ordered {
                 int port = (uri.getPort() > 0) ? uri.getPort() : 5432;
                 String db = uri.getPath();
                 if (db != null && db.startsWith("/")) db = db.substring(1);
-                if (host == null || db == null) return null;
+                if (host == null || db == null || db.isEmpty()) return null;
                 String query = uri.getQuery();
-                StringBuilder jdbc = new StringBuilder("jdbc:postgresql://").append(host).append(":").append(port).append("/").append(db);
+                StringBuilder jdbc = new StringBuilder("jdbc:postgresql://")
+                        .append(host).append(":").append(port).append("/").append(db);
                 if (StringUtils.hasText(query)) {
                     jdbc.append("?").append(query);
                 }
@@ -131,6 +134,8 @@ public class DatabaseUrlProcessor implements EnvironmentPostProcessor, Ordered {
 
     @Override
     public int getOrder() {
-        return Ordered.LOWEST_PRECEDENCE;
+        // Uruchamiamy PO ConfigDataEnvironmentPostProcessor (LOWEST_PRECEDENCE - 10)
+        // żeby widzieć już załadowane właściwości, ale nadpisujemy je przez addFirst
+        return Ordered.LOWEST_PRECEDENCE - 5;
     }
 }
