@@ -59,20 +59,9 @@ public class SecurityConfig {
                     // Allow CORS preflight calls
                     reg.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
 
+                    // Public API endpoints
                     reg.requestMatchers("/api/auth/**").permitAll();
                     reg.requestMatchers("/actuator/**").permitAll();
-                    reg.requestMatchers(
-                            "/", "/index.html",
-                            "/css/**", "/js/**", "/img/**",
-                            "/assets/**", "/icons/**", "/canvaskit/**",
-                            "/manifest.json",
-                            "/flutter.js", "/main.dart.js",
-                            "/flutter_bootstrap.js", "/flutter_service_worker.js",
-                            "/version.json",
-                            "/favicon.ico", "/favicon.png"
-                    ).permitAll();
-                    if (h2ConsoleEnabled) { reg.requestMatchers("/h2-console/**").permitAll(); }
-                    if (swaggerEnabled) { reg.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll(); }
 
                     // Public GET endpoints for machine lists used by forms
                     reg.requestMatchers(HttpMethod.GET,
@@ -82,15 +71,22 @@ public class SecurityConfig {
                             "/api/maszyny/select"
                     ).permitAll();
 
-                    // Raporty: tworzenie / edycja dla każdego zalogowanego użytkownika (rola USER/BIURO/ADMIN), kasowanie tylko ADMIN
+                    // H2 console / Swagger (env-controlled)
+                    if (h2ConsoleEnabled) { reg.requestMatchers("/h2-console/**").permitAll(); }
+                    if (swaggerEnabled) { reg.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll(); }
+
+                    // Raporty: tworzenie / edycja dla każdego zalogowanego użytkownika, kasowanie tylko ADMIN
                     reg.requestMatchers(HttpMethod.POST, "/api/raporty/**").authenticated();
                     reg.requestMatchers(HttpMethod.PUT, "/api/raporty/**").authenticated();
                     reg.requestMatchers(HttpMethod.PATCH, "/api/raporty/**").authenticated();
                     reg.requestMatchers(HttpMethod.DELETE, "/api/raporty/**").hasRole("ADMIN");
 
-                    // Pozostałe API wymagają uwierzytelnienia
+                    // Wszystkie pozostałe /api/** wymagają uwierzytelnienia
                     reg.requestMatchers("/api/**").authenticated();
-                    reg.anyRequest().authenticated();
+
+                    // Wszystkie trasy inne niż /api/** są publiczne.
+                    // Flutter SPA obsługuje własną autentykację (JWT w localStorage → redirect na /login).
+                    reg.anyRequest().permitAll();
                 })
                 .exceptionHandling(e -> e
                         .authenticationEntryPoint(authenticationEntryPoint())

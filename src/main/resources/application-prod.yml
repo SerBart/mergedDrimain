@@ -63,8 +63,9 @@ app:
     h2-console-enabled: false
     swagger-enabled: false
     hsts-enabled: true
-    # Minimalny CSP kompatybilny z Flutter Web (dostosuj jeśli coś blokuje)
-    csp: "default-src 'self' https: data: blob; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-eval' 'unsafe-inline' https:; connect-src 'self' https://app.drimain.com https://mergeddrimain-production.up.railway.app https://*.railway.app;"
+    # CSP kompatybilny z Flutter Web (CanvasKit WASM + Service Worker + blob: URL-e)
+    # WAŻNE: blob: (z dwukropkiem!) = schemat URL, nie hostname
+    csp: "default-src 'self' https: data: blob:; script-src 'self' 'unsafe-eval' 'unsafe-inline' 'wasm-unsafe-eval' https: blob:; style-src 'self' 'unsafe-inline' https: blob:; img-src 'self' data: https: blob:; connect-src 'self' https: blob: wss:; worker-src 'self' blob:; font-src 'self' data: https:; frame-ancestors 'none';"
   admin:
     username: ${ADMIN_USERNAME:admin}
     force-reset: ${ADMIN_FORCE_RESET:false}
