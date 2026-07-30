@@ -43,6 +43,12 @@ public class RaportMapper {
                 SimpleMaszynaDTO m = new SimpleMaszynaDTO();
                 m.setId(r.getMaszyna().getId());
                 m.setNazwa(r.getMaszyna().getNazwa());
+                if (r.getMaszyna().getDzial() != null) {
+                    SimpleDzialDTO d = new SimpleDzialDTO();
+                    d.setId(r.getMaszyna().getDzial().getId());
+                    d.setNazwa(r.getMaszyna().getDzial().getNazwa());
+                    m.setDzial(d);
+                }
                 dto.setMaszyna(m);
             }
         } catch (Exception e) {

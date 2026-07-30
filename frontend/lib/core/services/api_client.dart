@@ -14,6 +14,14 @@ class ApiClient {
 
     String resolvedBaseUrl = baseUrl ?? defineBase;
 
+    if (kIsWeb) {
+      final origin = PlatformOrigin.origin();
+      if (_isLocalOrigin(origin)) {
+        // For local web development always use same-origin API to avoid CORS.
+        resolvedBaseUrl = origin!;
+      }
+    }
+
     if (resolvedBaseUrl.isEmpty) {
       final origin = kIsWeb ? PlatformOrigin.origin() : null;
       resolvedBaseUrl = origin ?? 'http://localhost:8080';
@@ -37,4 +45,12 @@ class ApiClient {
   }
 
   Dio get dio => _dio;
+
+  static bool _isLocalOrigin(String? origin) {
+    if (origin == null || origin.isEmpty) return false;
+    final uri = Uri.tryParse(origin);
+    if (uri == null) return false;
+    final host = uri.host.toLowerCase();
+    return host == 'localhost' || host == '127.0.0.1';
+  }
 }

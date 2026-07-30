@@ -1,5 +1,8 @@
 package drimer.drimain.controller;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import drimer.drimain.api.dto.RefreshRequest;
 import drimer.drimain.model.RefreshToken;
 import drimer.drimain.model.Role;
@@ -12,6 +15,7 @@ import drimer.drimain.service.RefreshTokenService;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -46,6 +50,9 @@ public class AuthController {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ObjectMapper lenientJsonMapper = new ObjectMapper()
+            .configure(JsonParser.Feature.ALLOW_SINGLE_QUOTES, true)
+            .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
 
     public AuthController(AuthenticationManager authenticationManager,
                           JwtService jwtService,
@@ -63,9 +70,21 @@ public class AuthController {
         this.passwordEncoder = passwordEncoder;
     }
 
-    @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody AuthRequest request, HttpServletResponse response, HttpServletRequest httpRequest) {
+    @PostMapping(value = "/login", consumes = {MediaType.APPLICATION_JSON_VALUE, MediaType.APPLICATION_FORM_URLENCODED_VALUE, MediaType.TEXT_PLAIN_VALUE})
+    public ResponseEntity<?> login(@RequestBody(required = false) String rawBody,
+                                   @RequestParam(value = "username", required = false) String usernameParam,
+                                   @RequestParam(value = "password", required = false) String passwordParam,
+                                   @RequestParam(value = "rememberMe", required = false) Boolean rememberMeParam,
+                                   HttpServletResponse response,
+                                   HttpServletRequest httpRequest) {
+        AuthRequest request = null;
         try {
+            request = resolveAuthRequest(rawBody, usernameParam, passwordParam, rememberMeParam);
+            if (request.getUsername() == null || request.getUsername().trim().isEmpty()
+                    || request.getPassword() == null || request.getPassword().isEmpty()) {
+                return ResponseEntity.badRequest().body("username and password are required");
+            }
+
             // Allow login via email as identifier as well
             String identifier = request.getUsername();
             String resolvedUsername = identifier;
@@ -387,5 +406,49 @@ public class AuthController {
         public String getToken() {
             return accessToken;
         }
+    }
+
+    private AuthRequest resolveAuthRequest(String rawBody,
+                                           String usernameParam,
+                                           String passwordParam,
+                                           Boolean rememberMeParam) {
+        AuthRequest req = new AuthRequest();
+
+        if (rawBody != null && !rawBody.trim().isEmpty()) {
+            try {
+                JsonNode node = lenientJsonMapper.readTree(rawBody);
+                if (node != null && node.isObject()) {
+                    req.setUsername(asNullableText(node.get("username")));
+                    req.setPassword(asNullableText(node.get("password")));
+                    JsonNode rememberNode = node.get("rememberMe");
+                    if (rememberNode != null && !rememberNode.isNull()) {
+                        if (rememberNode.isBoolean()) {
+                            req.setRememberMe(rememberNode.asBoolean());
+                        } else {
+                            req.setRememberMe(Boolean.parseBoolean(rememberNode.asText()));
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Niepoprawny JSON logowania. Oczekiwano pól: username, password, rememberMe.");
+            }
+        }
+
+        if (req.getUsername() == null || req.getUsername().isBlank()) {
+            req.setUsername(usernameParam);
+        }
+        if (req.getPassword() == null || req.getPassword().isBlank()) {
+            req.setPassword(passwordParam);
+        }
+        if (rememberMeParam != null) {
+            req.setRememberMe(rememberMeParam);
+        }
+        return req;
+    }
+
+    private String asNullableText(JsonNode node) {
+        if (node == null || node.isNull()) return null;
+        String value = node.asText();
+        return value != null ? value.trim() : null;
     }
 }

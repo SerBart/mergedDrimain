@@ -6,4 +6,5 @@ import lombok.Data;
 public class SimpleMaszynaDTO {
     private Long id;
     private String nazwa;
+    private SimpleDzialDTO dzial;
 }

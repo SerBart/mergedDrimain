@@ -3,9 +3,9 @@ setlocal ENABLEDELAYEDEXPANSION
 
 REM Build Flutter web and mirror into Spring Boot static resources
 
-REM Allow overriding API base via environment, fallback to Railway URL
+REM Allow overriding API base via environment, fallback to local backend
 if "%API_BASE%"=="" (
-  set API_BASE=https://mergeddrimain-production.up.railway.app
+  set API_BASE=http://localhost:8080
 )
 
 echo [1/3] Running flutter pub get...

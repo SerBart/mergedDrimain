@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/raport.dart';
 import '../models/maszyna.dart';
+import '../models/dzial.dart';
 import '../models/osoba.dart';
 import '../models/part.dart';
 import '../models/part_usage.dart';
@@ -133,7 +134,19 @@ class RaportyApiRepository {
     Maszyna? maszyna;
     if (j['maszyna'] is Map) {
       final m = (j['maszyna'] as Map).cast<String, dynamic>();
-      maszyna = Maszyna(id: (m['id'] as num?)?.toInt() ?? 0, nazwa: (m['nazwa'] ?? '').toString());
+      Dzial? dzial;
+      if (m['dzial'] is Map) {
+        final d = (m['dzial'] as Map).cast<String, dynamic>();
+        dzial = Dzial(
+          id: (d['id'] as num?)?.toInt() ?? 0,
+          nazwa: (d['nazwa'] ?? '').toString(),
+        );
+      }
+      maszyna = Maszyna(
+        id: (m['id'] as num?)?.toInt() ?? 0,
+        nazwa: (m['nazwa'] ?? '').toString(),
+        dzial: dzial,
+      );
     }
     Osoba? osoba;
     if (j['osoba'] is Map) {
