@@ -18,4 +18,4 @@ COPY --from=build /workspace/target/driMain-1.0.0.jar /app/app.jar
 ENV PORT=8080
 EXPOSE 8080
 # server.port is also bound from application.yml via ${PORT:8080}
-ENTRYPOINT ["sh","-c","java $JAVA_TOOL_OPTIONS -jar /app/app.jar"]
+ENTRYPOINT ["sh","-c","java $JAVA_TOOL_OPTIONS -Dspring.profiles.active=prod -jar /app/app.jar"]
