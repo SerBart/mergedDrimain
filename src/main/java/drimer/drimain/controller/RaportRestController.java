@@ -27,6 +27,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.multipart.MultipartFile;
@@ -66,6 +67,7 @@ public class RaportRestController {
     private final UserRepository userRepository;
 
     @GetMapping
+    @Transactional(readOnly = true)
     @PreAuthorize("hasAnyRole('ADMIN','BIURO','USER')")
     public Page<RaportDTO> list(@RequestParam(required = false) String status,
                                 @RequestParam(required = false) Long maszynaId,
@@ -165,7 +167,7 @@ public class RaportRestController {
     // Create report: require module AND role (ADMIN or BIURO)
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('ADMIN','BIURO','USER')")
+    @PreAuthorize("hasAnyRole('ADMIN','BIURO')")
     public RaportDTO create(@RequestBody RaportCreateRequest req,
                            @AuthenticationPrincipal UserDetails userDetails) {
         Raport r = new Raport();
