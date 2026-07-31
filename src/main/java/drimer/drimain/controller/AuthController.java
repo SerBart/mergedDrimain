@@ -12,6 +12,8 @@ import drimer.drimain.repository.UserRepository;
 import drimer.drimain.security.JwtService;
 import drimer.drimain.service.CustomUserDetailsService;
 import drimer.drimain.service.RefreshTokenService;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -361,8 +363,12 @@ public class AuthController {
 
     @Data
     public static class AuthRequest {
+        @NotBlank(message = "Nazwa użytkownika lub email jest wymagana")
         private String username; // can be email as well
+        
+        @NotBlank(message = "Hasło jest wymagane")
         private String password;
+        
         private boolean rememberMe; // new flag
         public boolean isRememberMe() { return rememberMe; }
     }
@@ -370,7 +376,15 @@ public class AuthController {
     @Data
     public static class RegisterRequest {
         private String username; // optional; derived from email if missing
+        
+        @NotBlank(message = "Email jest wymagany")
+        @Email(message = "Email musi być prawidłowym adresem email",
+                regexp = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
         private String email;    // required
+        
+        @NotBlank(message = "Hasło jest wymagane")
+        @jakarta.validation.constraints.Pattern(regexp = "^(?=.*[A-Z])(?=.*[a-z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$",
+                message = "Hasło musi zawierać co najmniej 8 znaków, jedną dużą literę, małą literę, cyfrę i znak specjalny (@$!%*?&)")
         private String password; // required
     }
 

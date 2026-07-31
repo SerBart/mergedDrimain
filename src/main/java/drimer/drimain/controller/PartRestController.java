@@ -5,7 +5,9 @@ import drimer.drimain.model.Maszyna;
 import drimer.drimain.model.Part; // TODO: encja części
 import drimer.drimain.repository.MaszynaRepository;
 import drimer.drimain.repository.PartRepository; // TODO
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,6 +15,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+/**
+ * REST Controller for Parts (Części) management.
+ * Handles CRUD operations for spare parts catalog.
+ */
+@Slf4j
 @RestController
 @RequestMapping({"/api/czesci", "/api/parts"})
 @RequiredArgsConstructor
@@ -25,6 +32,7 @@ public class PartRestController {
     public List<PartDTO> list(@RequestParam Optional<String> kat,
                               @RequestParam Optional<String> q,
                               @RequestParam Optional<Boolean> belowMin) {
+        log.debug("Listing parts with filters: kat={}, q={}, belowMin={}", kat, q, belowMin);
         return partRepository.findAll().stream()
                 .filter(p -> kat.map(k -> k.equalsIgnoreCase(p.getKategoria())).orElse(true))
                 .filter(p -> q.map(query ->
@@ -39,13 +47,18 @@ public class PartRestController {
 
     @GetMapping("/{id}")
     public PartDTO get(@PathVariable Long id) {
-        Part p = partRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Part not found"));
+        log.debug("Fetching part with id={}", id);
+        Part p = partRepository.findById(id).orElseThrow(() -> {
+            log.warn("Part not found with id={}", id);
+            return new IllegalArgumentException("Part not found");
+        });
         return toDto(p);
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public PartDTO create(@RequestBody PartCreateRequest req) {
+    public PartDTO create(@Valid @RequestBody PartCreateRequest req) {
+        log.info("Creating new part: {}", req.getNazwa());
         Part p = new Part();
         p.setNazwa(req.getNazwa());
         p.setKod(req.getKod());
@@ -58,13 +71,18 @@ public class PartRestController {
         if (min < 0) min = 0;
         p.setMinIlosc(min);
         p.setJednostka(req.getJednostka());
-        partRepository.save(p);
-        return toDto(p);
+        Part saved = partRepository.save(p);
+        log.info("Part created successfully with id={}", saved.getId());
+        return toDto(saved);
     }
 
     @PutMapping("/{id}")
-    public PartDTO update(@PathVariable Long id, @RequestBody PartUpdateRequest req) {
-        Part p = partRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Part not found"));
+    public PartDTO update(@PathVariable Long id, @Valid @RequestBody PartUpdateRequest req) {
+        log.info("Updating part with id={}", id);
+        Part p = partRepository.findById(id).orElseThrow(() -> {
+            log.warn("Part not found with id={}", id);
+            return new IllegalArgumentException("Part not found");
+        });
         if (req.getNazwa() != null) p.setNazwa(req.getNazwa());
         if (req.getKod() != null) p.setKod(req.getKod());
         if (req.getKategoria() != null) p.setKategoria(req.getKategoria());

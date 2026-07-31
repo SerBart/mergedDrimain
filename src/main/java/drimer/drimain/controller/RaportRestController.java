@@ -16,6 +16,7 @@ import drimer.drimain.repository.RaportRepository;
 import drimer.drimain.repository.UserRepository;
 import drimer.drimain.repository.ZgloszenieRepository;
 import drimer.drimain.repository.spec.RaportSpecifications;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;

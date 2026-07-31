@@ -9,6 +9,7 @@ import drimer.drimain.model.enums.ZgloszenieStatus;
 import drimer.drimain.repository.ZgloszenieRepository;
 import drimer.drimain.service.ZgloszenieCommandService;
 import drimer.drimain.util.ZgloszenieStatusMapper;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -143,7 +144,7 @@ public class ZgloszenieRestController {
      */
     @PostMapping
     @PreAuthorize("@moduleGuard.has('Zgloszenia')")
-    public ResponseEntity<ZgloszenieDTO> create(@RequestBody ZgloszenieCreateRequest req,
+    public ResponseEntity<ZgloszenieDTO> create(@Valid @RequestBody ZgloszenieCreateRequest req,
                                                 Authentication authentication) {
         Zgloszenie z = commandService.create(req, authentication);
 
@@ -174,7 +175,7 @@ public class ZgloszenieRestController {
     @Transactional
     @PreAuthorize("@moduleGuard.has('Zgloszenia')")
     public ZgloszenieDTO update(@PathVariable Long id,
-                                @RequestBody ZgloszenieUpdateRequest req,
+                                @Valid @RequestBody ZgloszenieUpdateRequest req,
                                 Authentication authentication) {
         Zgloszenie existing = zgloszenieRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Zgłoszenie nie istnieje"));
