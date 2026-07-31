@@ -111,6 +111,16 @@ class AdminApiRepository {
     return Dzial.fromJson((resp.data as Map).cast<String, dynamic>());
   }
 
+  Future<Dzial> updateDzial({required int id, required String nazwa}) async {
+    final token = await _token();
+    final resp = await _dio.put(
+      '/api/admin/dzialy/$id',
+      data: {'nazwa': nazwa},
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    return Dzial.fromJson((resp.data as Map).cast<String, dynamic>());
+  }
+
   Future<void> deleteDzial(int id) async {
     final token = await _token();
     await _dio.delete(
@@ -134,6 +144,16 @@ class AdminApiRepository {
     final token = await _token();
     final resp = await _dio.post(
       '/api/admin/sekcje',
+      data: {'nazwa': nazwa, 'dzialId': dzialId},
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    return Sekcja.fromJson((resp.data as Map).cast<String, dynamic>());
+  }
+
+  Future<Sekcja> updateSekcja({required int id, required String nazwa, required int dzialId}) async {
+    final token = await _token();
+    final resp = await _dio.put(
+      '/api/admin/sekcje/$id',
       data: {'nazwa': nazwa, 'dzialId': dzialId},
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
@@ -166,6 +186,20 @@ class AdminApiRepository {
         'nazwa': nazwa,
         'dzialId': dzialId,
         if (sekcjaId != null) 'sekcjaId': sekcjaId,
+      },
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    return Maszyna.fromJson((resp.data as Map).cast<String, dynamic>());
+  }
+
+  Future<Maszyna> updateMaszyna({required int id, required String nazwa, int? dzialId, int? sekcjaId}) async {
+    final token = await _token();
+    final resp = await _dio.put(
+      '/api/admin/maszyny/$id',
+      data: {
+        'nazwa': nazwa,
+        'dzialId': dzialId,
+        'sekcjaId': sekcjaId,
       },
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
@@ -217,6 +251,30 @@ class AdminApiRepository {
     };
     final resp = await _dio.post(
       '/api/admin/osoby',
+      data: body,
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    return Osoba.fromJson((resp.data as Map).cast<String, dynamic>());
+  }
+
+  Future<Osoba> updateOsoba({
+    required int id,
+    required String imieNazwisko,
+    int? dzialId,
+    String? login,
+    String? haslo,
+    String? rola,
+  }) async {
+    final token = await _token();
+    final body = <String, dynamic>{
+      'imieNazwisko': imieNazwisko,
+      'dzialId': dzialId,
+      'login': login,
+      if (haslo != null && haslo.isNotEmpty) 'haslo': haslo,
+      'rola': rola,
+    };
+    final resp = await _dio.put(
+      '/api/admin/osoby/$id',
       data: body,
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );

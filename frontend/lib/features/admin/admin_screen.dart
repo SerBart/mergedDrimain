@@ -139,6 +139,21 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
     }
   }
 
+  Future<void> _editDzial(Dzial d) async {
+    final name = await _showTextEditDialog(
+      title: 'Edytuj dział',
+      label: 'Nazwa działu',
+      initialValue: d.nazwa,
+    );
+    if (name == null) return;
+    try {
+      await ref.read(adminApiRepositoryProvider).updateDzial(id: d.id, nazwa: name);
+      await _loadAll();
+    } catch (e) {
+      _showError('Błąd edycji działu: $e');
+    }
+  }
+
   Future<void> _addSekcja() async {
     final name = _sekcjaCtrl.text.trim();
     final dzialId = _sekcjaDzialId;
@@ -158,6 +173,21 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
       await _loadAll();
     } catch (e) {
       _showError('Błąd usuwania sekcji: $e');
+    }
+  }
+
+  Future<void> _editSekcja(Sekcja s) async {
+    final result = await _showSekcjaEditDialog(s);
+    if (result == null) return;
+    try {
+      await ref.read(adminApiRepositoryProvider).updateSekcja(
+            id: s.id,
+            nazwa: result.nazwa,
+            dzialId: result.dzialId,
+          );
+      await _loadAll();
+    } catch (e) {
+      _showError('Błąd edycji sekcji: $e');
     }
   }
 
@@ -181,6 +211,22 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
       await _loadAll();
     } catch (e) {
       _showError('Błąd usuwania maszyny: $e');
+    }
+  }
+
+  Future<void> _editMaszyna(Maszyna m) async {
+    final result = await _showMaszynaEditDialog(m);
+    if (result == null) return;
+    try {
+      await ref.read(adminApiRepositoryProvider).updateMaszyna(
+            id: m.id,
+            nazwa: result.nazwa,
+            dzialId: result.dzialId,
+            sekcjaId: result.sekcjaId,
+          );
+      await _loadAll();
+    } catch (e) {
+      _showError('Błąd edycji maszyny: $e');
     }
   }
 
@@ -209,6 +255,24 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
       await _loadAll();
     } catch (e) {
       _showError('Błąd usuwania osoby: $e');
+    }
+  }
+
+  Future<void> _editOsoba(Osoba o) async {
+    final result = await _showOsobaEditDialog(o);
+    if (result == null) return;
+    try {
+      await ref.read(adminApiRepositoryProvider).updateOsoba(
+            id: o.id,
+            imieNazwisko: result.imieNazwisko,
+            dzialId: result.dzialId,
+            login: result.login,
+            haslo: result.haslo,
+            rola: result.rola,
+          );
+      await _loadAll();
+    } catch (e) {
+      _showError('Błąd edycji osoby: $e');
     }
   }
 
@@ -251,6 +315,294 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
     } catch (e) {
       _showError('Błąd usuwania użytkownika: $e');
     }
+  }
+
+  Future<void> _editApiUser(AdminUser u) async {
+    final result = await _showApiUserEditDialog(u);
+    if (result == null) return;
+    try {
+      final roles = result.isAdmin ? {'ROLE_ADMIN', 'ROLE_USER'} : {'ROLE_USER'};
+      await ref.read(adminApiRepositoryProvider).updateUser(
+            id: u.id,
+            username: result.username,
+            password: result.password,
+            email: result.email,
+            dzialId: result.dzialId,
+            roles: roles,
+            modules: result.modules,
+          );
+      await _loadAll();
+    } catch (e) {
+      _showError('Błąd edycji użytkownika: $e');
+    }
+  }
+
+  Future<String?> _showTextEditDialog({
+    required String title,
+    required String label,
+    required String initialValue,
+  }) async {
+    final ctrl = TextEditingController(text: initialValue);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: TextField(controller: ctrl, decoration: InputDecoration(labelText: label)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Anuluj')),
+          ElevatedButton(
+            onPressed: () {
+              final v = ctrl.text.trim();
+              if (v.isEmpty) return;
+              Navigator.pop(ctx, v);
+            },
+            child: const Text('Zapisz'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    return result;
+  }
+
+  Future<_SekcjaEditData?> _showSekcjaEditDialog(Sekcja s) {
+    final nameCtrl = TextEditingController(text: s.nazwa);
+    int? selectedDzialId = s.dzial?.id;
+    return showDialog<_SekcjaEditData>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('Edytuj sekcję'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<int>(
+                value: selectedDzialId,
+                decoration: const InputDecoration(labelText: 'Dział'),
+                items: _dzialy.map((d) => DropdownMenuItem(value: d.id, child: Text(d.nazwa))).toList(),
+                onChanged: (v) => setLocal(() => selectedDzialId = v),
+              ),
+              const SizedBox(height: 8),
+              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Nazwa sekcji')),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Anuluj')),
+            ElevatedButton(
+              onPressed: () {
+                final name = nameCtrl.text.trim();
+                if (name.isEmpty || selectedDzialId == null) return;
+                Navigator.pop(ctx, _SekcjaEditData(name, selectedDzialId!));
+              },
+              child: const Text('Zapisz'),
+            ),
+          ],
+        ),
+      ),
+    ).whenComplete(nameCtrl.dispose);
+  }
+
+  Future<_MaszynaEditData?> _showMaszynaEditDialog(Maszyna m) {
+    final nameCtrl = TextEditingController(text: m.nazwa);
+    int? selectedDzialId = m.dzial?.id;
+    int? selectedSekcjaId = m.sekcja?.id;
+    return showDialog<_MaszynaEditData>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('Edytuj maszynę'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<int>(
+                value: selectedDzialId,
+                decoration: const InputDecoration(labelText: 'Dział'),
+                items: _dzialy.map((d) => DropdownMenuItem(value: d.id, child: Text(d.nazwa))).toList(),
+                onChanged: (v) => setLocal(() {
+                  selectedDzialId = v;
+                  selectedSekcjaId = null;
+                }),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<int>(
+                value: selectedSekcjaId,
+                decoration: const InputDecoration(labelText: 'Sekcja'),
+                items: _sekcje
+                    .where((s) => selectedDzialId == null || s.dzial?.id == selectedDzialId)
+                    .map((s) => DropdownMenuItem(value: s.id, child: Text(s.nazwa)))
+                    .toList(),
+                onChanged: (v) => setLocal(() => selectedSekcjaId = v),
+              ),
+              const SizedBox(height: 8),
+              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Nazwa maszyny')),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Anuluj')),
+            ElevatedButton(
+              onPressed: () {
+                final name = nameCtrl.text.trim();
+                if (name.isEmpty || selectedDzialId == null || selectedSekcjaId == null) return;
+                Navigator.pop(ctx, _MaszynaEditData(name, selectedDzialId!, selectedSekcjaId!));
+              },
+              child: const Text('Zapisz'),
+            ),
+          ],
+        ),
+      ),
+    ).whenComplete(nameCtrl.dispose);
+  }
+
+  Future<_OsobaEditData?> _showOsobaEditDialog(Osoba o) {
+    final imieCtrl = TextEditingController(text: o.imieNazwisko);
+    final loginCtrl = TextEditingController(text: o.login ?? '');
+    final hasloCtrl = TextEditingController();
+    final rolaCtrl = TextEditingController(text: o.rola ?? '');
+    int? selectedDzialId = o.dzialId;
+    return showDialog<_OsobaEditData>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('Edytuj osobę'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: imieCtrl, decoration: const InputDecoration(labelText: 'Imię i nazwisko')),
+                const SizedBox(height: 8),
+                TextField(controller: loginCtrl, decoration: const InputDecoration(labelText: 'Login (opcjonalnie)')),
+                const SizedBox(height: 8),
+                TextField(controller: hasloCtrl, decoration: const InputDecoration(labelText: 'Nowe hasło (opcjonalnie)')),
+                const SizedBox(height: 8),
+                TextField(controller: rolaCtrl, decoration: const InputDecoration(labelText: 'Rola (opcjonalnie)')),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<int>(
+                  value: selectedDzialId,
+                  decoration: const InputDecoration(labelText: 'Dział (opcjonalnie)'),
+                  items: _dzialy.map((d) => DropdownMenuItem(value: d.id, child: Text(d.nazwa))).toList(),
+                  onChanged: (v) => setLocal(() => selectedDzialId = v),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Anuluj')),
+            ElevatedButton(
+              onPressed: () {
+                final imie = imieCtrl.text.trim();
+                if (imie.isEmpty) return;
+                Navigator.pop(
+                  ctx,
+                  _OsobaEditData(
+                    imieNazwisko: imie,
+                    login: loginCtrl.text.trim().isEmpty ? null : loginCtrl.text.trim(),
+                    haslo: hasloCtrl.text.trim().isEmpty ? null : hasloCtrl.text.trim(),
+                    rola: rolaCtrl.text.trim().isEmpty ? null : rolaCtrl.text.trim(),
+                    dzialId: selectedDzialId,
+                  ),
+                );
+              },
+              child: const Text('Zapisz'),
+            ),
+          ],
+        ),
+      ),
+    ).whenComplete(() {
+      imieCtrl.dispose();
+      loginCtrl.dispose();
+      hasloCtrl.dispose();
+      rolaCtrl.dispose();
+    });
+  }
+
+  Future<_ApiUserEditData?> _showApiUserEditDialog(AdminUser u) {
+    final usernameCtrl = TextEditingController(text: u.username);
+    final emailCtrl = TextEditingController(text: u.email ?? '');
+    final passwordCtrl = TextEditingController();
+    bool isAdmin = u.roles.contains('ROLE_ADMIN');
+    int? selectedDzialId = u.dzialId;
+    Set<String> selectedModules = {...u.modules};
+
+    return showDialog<_ApiUserEditData>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('Edytuj użytkownika API'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(controller: usernameCtrl, decoration: const InputDecoration(labelText: 'Login')),
+                const SizedBox(height: 8),
+                TextField(controller: emailCtrl, decoration: const InputDecoration(labelText: 'E-mail')),
+                const SizedBox(height: 8),
+                TextField(controller: passwordCtrl, decoration: const InputDecoration(labelText: 'Nowe hasło (opcjonalnie)')),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<int>(
+                  value: selectedDzialId,
+                  decoration: const InputDecoration(labelText: 'Dział (opcjonalnie)'),
+                  items: _dzialy.map((d) => DropdownMenuItem(value: d.id, child: Text(d.nazwa))).toList(),
+                  onChanged: (v) => setLocal(() => selectedDzialId = v),
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Admin'),
+                  value: isAdmin,
+                  onChanged: (v) => setLocal(() => isAdmin = v),
+                ),
+                const SizedBox(height: 4),
+                const Text('Kafelki:'),
+                Wrap(
+                  spacing: 8,
+                  children: _modulesCatalog.map((m) {
+                    final selected = selectedModules.contains(m);
+                    return FilterChip(
+                      label: Text(m),
+                      selected: selected,
+                      onSelected: (v) => setLocal(() {
+                        if (v) {
+                          selectedModules = {...selectedModules, m};
+                        } else {
+                          selectedModules = {...selectedModules}..remove(m);
+                        }
+                      }),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Anuluj')),
+            ElevatedButton(
+              onPressed: () {
+                final username = usernameCtrl.text.trim();
+                final email = emailCtrl.text.trim();
+                if (username.isEmpty || email.isEmpty) return;
+                Navigator.pop(
+                  ctx,
+                  _ApiUserEditData(
+                    username: username,
+                    email: email,
+                    password: passwordCtrl.text.trim().isEmpty ? null : passwordCtrl.text.trim(),
+                    dzialId: selectedDzialId,
+                    isAdmin: isAdmin,
+                    modules: selectedModules,
+                  ),
+                );
+              },
+              child: const Text('Zapisz'),
+            ),
+          ],
+        ),
+      ),
+    ).whenComplete(() {
+      usernameCtrl.dispose();
+      emailCtrl.dispose();
+      passwordCtrl.dispose();
+    });
   }
 
   void _showError(String msg) {
@@ -344,12 +696,21 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                         const SizedBox(height: 8),
                         ...filteredDzialy.map((d) => ListTile(
                               title: Text(d.nazwa),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.delete, color: Colors.red),
-                                onPressed: () async {
-                                  final ok = await showConfirmDialog(context, 'Usuń dział', 'Usunąć ${d.nazwa}?');
-                                  if (ok == true) await _deleteDzial(d.id);
-                                },
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit),
+                                    onPressed: () => _editDzial(d),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete, color: Colors.red),
+                                    onPressed: () async {
+                                      final ok = await showConfirmDialog(context, 'Usuń dział', 'Usunąć ${d.nazwa}?');
+                                      if (ok == true) await _deleteDzial(d.id);
+                                    },
+                                  ),
+                                ],
                               ),
                             )),
                         if (filteredDzialy.isEmpty)
@@ -401,12 +762,21 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                         ...filteredSekcje.map((s) => ListTile(
                               title: Text(s.nazwa),
                               subtitle: Text(s.dzial?.nazwa ?? '-'),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.delete, color: Colors.red),
-                                onPressed: () async {
-                                  final ok = await showConfirmDialog(context, 'Usuń sekcję', 'Usunąć ${s.nazwa}?');
-                                  if (ok == true) await _deleteSekcja(s.id);
-                                },
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit),
+                                    onPressed: () => _editSekcja(s),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete, color: Colors.red),
+                                    onPressed: () async {
+                                      final ok = await showConfirmDialog(context, 'Usuń sekcję', 'Usunąć ${s.nazwa}?');
+                                      if (ok == true) await _deleteSekcja(s.id);
+                                    },
+                                  ),
+                                ],
                               ),
                             )),
                         if (filteredSekcje.isEmpty)
@@ -471,12 +841,21 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                         ...filteredMaszyny.map((m) => ListTile(
                               title: Text(m.nazwa),
                               subtitle: Text('${m.dzial?.nazwa ?? '-'} / ${m.sekcja?.nazwa ?? '-'}'),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.delete, color: Colors.red),
-                                onPressed: () async {
-                                  final ok = await showConfirmDialog(context, 'Usuń maszynę', 'Usunąć ${m.nazwa}?');
-                                  if (ok == true) await _deleteMaszyna(m.id);
-                                },
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit),
+                                    onPressed: () => _editMaszyna(m),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete, color: Colors.red),
+                                    onPressed: () async {
+                                      final ok = await showConfirmDialog(context, 'Usuń maszynę', 'Usunąć ${m.nazwa}?');
+                                      if (ok == true) await _deleteMaszyna(m.id);
+                                    },
+                                  ),
+                                ],
                               ),
                             )),
                         if (filteredMaszyny.isEmpty)
@@ -525,12 +904,22 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                         const SizedBox(height: 8),
                         ...filteredOsoby.map((o) => ListTile(
                               title: Text(o.imieNazwisko),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.delete, color: Colors.red),
-                                onPressed: () async {
-                                  final ok = await showConfirmDialog(context, 'Usuń osobę', 'Usunąć ${o.imieNazwisko}?');
-                                  if (ok == true) await _deleteOsoba(o.id);
-                                },
+                              subtitle: Text('${o.dzialNazwa ?? '-'} / ${o.rola ?? '-'}'),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit),
+                                    onPressed: () => _editOsoba(o),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete, color: Colors.red),
+                                    onPressed: () async {
+                                      final ok = await showConfirmDialog(context, 'Usuń osobę', 'Usunąć ${o.imieNazwisko}?');
+                                      if (ok == true) await _deleteOsoba(o.id);
+                                    },
+                                  ),
+                                ],
                               ),
                             )),
                         if (filteredOsoby.isEmpty)
@@ -623,12 +1012,21 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                               title: Text(u.username),
                               subtitle: Text('Role: ' + (u.roles.join(', ')) + '\nKafelki: ' + (u.modules.join(', '))),
                               isThreeLine: true,
-                              trailing: IconButton(
-                                icon: const Icon(Icons.delete, color: Colors.red),
-                                onPressed: () async {
-                                  final ok = await showConfirmDialog(context, 'Usuń użytkownika', 'Usunąć ${u.username}?');
-                                  if (ok == true) await _deleteApiUser(u.id);
-                                },
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit),
+                                    onPressed: () => _editApiUser(u),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete, color: Colors.red),
+                                    onPressed: () async {
+                                      final ok = await showConfirmDialog(context, 'Usuń użytkownika', 'Usunąć ${u.username}?');
+                                      if (ok == true) await _deleteApiUser(u.id);
+                                    },
+                                  ),
+                                ],
                               ),
                             )),
                         if (filteredUsers.isEmpty)
@@ -735,3 +1133,51 @@ class _CardSection extends StatelessWidget {
     );
   }
 }
+
+class _SekcjaEditData {
+  final String nazwa;
+  final int dzialId;
+  _SekcjaEditData(this.nazwa, this.dzialId);
+}
+
+class _MaszynaEditData {
+  final String nazwa;
+  final int dzialId;
+  final int sekcjaId;
+  _MaszynaEditData(this.nazwa, this.dzialId, this.sekcjaId);
+}
+
+class _OsobaEditData {
+  final String imieNazwisko;
+  final int? dzialId;
+  final String? login;
+  final String? haslo;
+  final String? rola;
+
+  _OsobaEditData({
+    required this.imieNazwisko,
+    required this.dzialId,
+    required this.login,
+    required this.haslo,
+    required this.rola,
+  });
+}
+
+class _ApiUserEditData {
+  final String username;
+  final String email;
+  final String? password;
+  final int? dzialId;
+  final bool isAdmin;
+  final Set<String> modules;
+
+  _ApiUserEditData({
+    required this.username,
+    required this.email,
+    required this.password,
+    required this.dzialId,
+    required this.isAdmin,
+    required this.modules,
+  });
+}
+
