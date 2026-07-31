@@ -326,19 +326,45 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
 
   Future<Uint8List> _fetchPhotoBytes(String photoUrl) async {
     final client = ref.read(apiClientProvider).dio;
-    final headers = await _resolveAuthHeaders();
-    final response = await client.get<List<int>>(
-      photoUrl,
-      options: dio.Options(
-        responseType: dio.ResponseType.bytes,
-        headers: headers,
-      ),
-    );
-    final data = response.data;
-    if (data == null || data.isEmpty) {
-      throw Exception('Pusty obraz z serwera');
+    try {
+      final headers = await _resolveAuthHeaders();
+      final response = await client.get<List<int>>(
+        photoUrl,
+        options: dio.Options(
+          responseType: dio.ResponseType.bytes,
+          headers: headers,
+        ),
+      );
+      final data = response.data;
+      if (data == null || data.isEmpty) {
+        throw Exception('Pusty obraz z serwera');
+      }
+      return Uint8List.fromList(data);
+    } on dio.DioException catch (e) {
+      final status = e.response?.statusCode;
+      if (status == 401 || status == 403) {
+        final refreshed = await ref.read(authServiceProvider).refresh();
+        if (refreshed != null && refreshed.isNotEmpty) {
+          final retry = await client.get<List<int>>(
+            photoUrl,
+            options: dio.Options(
+              responseType: dio.ResponseType.bytes,
+              headers: {'Authorization': 'Bearer $refreshed'},
+            ),
+          );
+          final retryData = retry.data;
+          if (retryData == null || retryData.isEmpty) {
+            throw Exception('Pusty obraz z serwera');
+          }
+          return Uint8List.fromList(retryData);
+        }
+        throw Exception('Sesja wygasła. Zaloguj się ponownie i odśwież podgląd zdjęcia.');
+      }
+      if (status == 404) {
+        throw Exception('Zdjęcie nie istnieje już na serwerze. Na Railway pliki zapisane w tymczasowym storage mogą zniknąć po restarcie lub deployu.');
+      }
+      throw Exception('Błąd pobierania zdjęcia (HTTP ${status ?? 'brak statusu'}).');
     }
-    return Uint8List.fromList(data);
   }
 
   Widget _photoFromApi(String photoUrl, {required BoxFit fit}) {
