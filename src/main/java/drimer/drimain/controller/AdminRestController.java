@@ -136,31 +136,25 @@ public class AdminRestController {
 
     @GetMapping("/sekcje")
     @Transactional(readOnly = true)
-    public List<SekcjaDTO> getSekcje(@RequestParam(required = false) Long maszynaId,
-                                     @RequestParam(required = false) Long dzialId) {
-        List<Sekcja> sekcje;
-        if (maszynaId != null) {
-            sekcje = sekcjaRepository.findByMaszyna_IdOrderByNazwaAsc(maszynaId);
-        } else if (dzialId != null) {
-            sekcje = sekcjaRepository.findByMaszyna_Dzial_IdOrderByNazwaAsc(dzialId);
-        } else {
-            sekcje = sekcjaRepository.findAllByOrderByNazwaAsc();
-        }
+    public List<SekcjaDTO> getSekcje(@RequestParam(required = false) Long dzialId) {
+        List<Sekcja> sekcje = dzialId != null
+                ? sekcjaRepository.findByDzial_IdOrderByNazwaAsc(dzialId)
+                : sekcjaRepository.findAllByOrderByNazwaAsc();
         return sekcje.stream().map(this::toSekcjaDto).collect(Collectors.toList());
     }
 
     @PostMapping("/sekcje")
     @ResponseStatus(HttpStatus.CREATED)
     public SekcjaDTO createSekcja(@Valid @RequestBody SekcjaCreateRequest req) {
-        Maszyna parentMaszyna = maszynaRepository.findById(req.getMaszynaId())
-                .orElseThrow(() -> new IllegalArgumentException("Maszyna nadrzędna nie została znaleziona"));
-        sekcjaRepository.findByMaszyna_IdAndNazwaIgnoreCase(req.getMaszynaId(), req.getNazwa().trim())
+        Dzial dzial = dzialRepository.findById(req.getDzialId())
+                .orElseThrow(() -> new IllegalArgumentException("Dzial not found"));
+        sekcjaRepository.findByDzial_IdAndNazwaIgnoreCase(req.getDzialId(), req.getNazwa().trim())
                 .ifPresent(existing -> {
-                    throw new IllegalArgumentException("Sekcja o tej nazwie już istnieje dla tej maszyny");
+                    throw new IllegalArgumentException("Sekcja o tej nazwie już istnieje w tym dziale");
                 });
         Sekcja sekcja = new Sekcja();
         sekcja.setNazwa(req.getNazwa().trim());
-        sekcja.setMaszyna(parentMaszyna);
+        sekcja.setDzial(dzial);
         sekcjaRepository.save(sekcja);
         return toSekcjaDto(sekcja);
     }
@@ -169,15 +163,10 @@ public class AdminRestController {
     public SekcjaDTO updateSekcja(@PathVariable Long id, @Valid @RequestBody SekcjaCreateRequest req) {
         Sekcja sekcja = sekcjaRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Sekcja not found"));
-        Maszyna parentMaszyna = maszynaRepository.findById(req.getMaszynaId())
-                .orElseThrow(() -> new IllegalArgumentException("Maszyna nadrzędna nie została znaleziona"));
-        sekcjaRepository.findByMaszyna_IdAndNazwaIgnoreCase(req.getMaszynaId(), req.getNazwa().trim())
-                .filter(existing -> !existing.getId().equals(id))
-                .ifPresent(existing -> {
-                    throw new IllegalArgumentException("Sekcja o tej nazwie już istnieje dla tej maszyny");
-                });
+        Dzial dzial = dzialRepository.findById(req.getDzialId())
+                .orElseThrow(() -> new IllegalArgumentException("Dzial not found"));
         sekcja.setNazwa(req.getNazwa().trim());
-        sekcja.setMaszyna(parentMaszyna);
+        sekcja.setDzial(dzial);
         sekcjaRepository.save(sekcja);
         return toSekcjaDto(sekcja);
     }
@@ -208,11 +197,10 @@ public class AdminRestController {
         long zglCount = zgloszenieRepository.countByMaszyna_Id(id);
         long partCount = partRepository.countByMaszyna_Id(id);
         long instrCount = instructionRepository.countByMaszyna_Id(id);
-        long sekcjaCount = sekcjaRepository.countByMaszyna_Id(id);
-        if (raportCount > 0 || harmCount > 0 || zglCount > 0 || partCount > 0 || instrCount > 0 || sekcjaCount > 0) {
+        if (raportCount > 0 || harmCount > 0 || zglCount > 0 || partCount > 0 || instrCount > 0) {
             String msg = String.format(
-                "Nie można usunąć. Powiązane: raporty=%d, harmonogramy=%d, zgłoszenia=%d, części=%d, instrukcje=%d, sekcje=%d",
-                raportCount, harmCount, zglCount, partCount, instrCount, sekcjaCount
+                "Nie można usunąć. Powiązane: raporty=%d, harmonogramy=%d, zgłoszenia=%d, części=%d, instrukcje=%d",
+                raportCount, harmCount, zglCount, partCount, instrCount
             );
             return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", msg));
         }
@@ -393,12 +381,8 @@ public class AdminRestController {
         SekcjaDTO dto = new SekcjaDTO();
         dto.setId(sekcja.getId());
         dto.setNazwa(sekcja.getNazwa());
-        if (sekcja.getMaszyna() != null) {
-            dto.setMaszynaId(sekcja.getMaszyna().getId());
-            dto.setMaszynaNazwa(sekcja.getMaszyna().getNazwa());
-            if (sekcja.getMaszyna().getDzial() != null) {
-                dto.setDzial(toDzialDto(sekcja.getMaszyna().getDzial()));
-            }
+        if (sekcja.getDzial() != null) {
+            dto.setDzial(toDzialDto(sekcja.getDzial()));
         }
         return dto;
     }
@@ -410,16 +394,12 @@ public class AdminRestController {
         }
         Sekcja sekcja = sekcjaRepository.findById(sekcjaId)
                 .orElseThrow(() -> new IllegalArgumentException("Sekcja not found"));
-        if (maszyna.getId() != null && sekcja.getMaszyna() != null
-                && maszyna.getId().equals(sekcja.getMaszyna().getId())) {
-            throw new IllegalArgumentException("Maszyna nie może być przypisana do sekcji należącej do niej samej");
-        }
-        if (maszyna.getDzial() != null && sekcja.getMaszyna() != null && sekcja.getMaszyna().getDzial() != null
-                && !maszyna.getDzial().getId().equals(sekcja.getMaszyna().getDzial().getId())) {
+        if (maszyna.getDzial() != null && sekcja.getDzial() != null
+                && !maszyna.getDzial().getId().equals(sekcja.getDzial().getId())) {
             throw new IllegalArgumentException("Sekcja musi należeć do wybranego działu maszyny");
         }
-        if (maszyna.getDzial() == null && sekcja.getMaszyna() != null) {
-            maszyna.setDzial(sekcja.getMaszyna().getDzial());
+        if (maszyna.getDzial() == null) {
+            maszyna.setDzial(sekcja.getDzial());
         }
         maszyna.setSekcja(sekcja);
     }

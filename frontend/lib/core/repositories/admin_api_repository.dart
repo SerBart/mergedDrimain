@@ -119,25 +119,22 @@ class AdminApiRepository {
     );
   }
 
-  Future<List<Sekcja>> getSekcje({int? maszynaId, int? dzialId}) async {
+  Future<List<Sekcja>> getSekcje({int? dzialId}) async {
     final token = await _token();
-    final qp = <String, dynamic>{};
-    if (maszynaId != null) qp['maszynaId'] = maszynaId;
-    if (dzialId != null) qp['dzialId'] = dzialId;
     final resp = await _dio.get(
       '/api/admin/sekcje',
-      queryParameters: qp.isEmpty ? null : qp,
+      queryParameters: dzialId != null ? {'dzialId': dzialId} : null,
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
     final list = (resp.data as List).cast<Map<String, dynamic>>();
     return list.map(Sekcja.fromJson).toList();
   }
 
-  Future<Sekcja> addSekcja({required String nazwa, required int maszynaId}) async {
+  Future<Sekcja> addSekcja({required String nazwa, required int dzialId}) async {
     final token = await _token();
     final resp = await _dio.post(
       '/api/admin/sekcje',
-      data: {'nazwa': nazwa, 'maszynaId': maszynaId},
+      data: {'nazwa': nazwa, 'dzialId': dzialId},
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
     return Sekcja.fromJson((resp.data as Map).cast<String, dynamic>());
