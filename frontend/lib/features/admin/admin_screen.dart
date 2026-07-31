@@ -48,6 +48,12 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
   List<AdminUser> _users = [];
   List<String> _modulesCatalog = [];
 
+  String _dzialSearch = '';
+  String _sekcjaSearch = '';
+  String _maszynaSearch = '';
+  String _osobaSearch = '';
+  String _apiUserSearch = '';
+
   @override
   void initState() {
     super.initState();
@@ -265,6 +271,38 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
     }
 
     final usersDemo = mock.getUsers();
+    final dzialQuery = _dzialSearch.trim().toLowerCase();
+    final sekcjaQuery = _sekcjaSearch.trim().toLowerCase();
+    final maszynaQuery = _maszynaSearch.trim().toLowerCase();
+    final osobaQuery = _osobaSearch.trim().toLowerCase();
+    final apiUserQuery = _apiUserSearch.trim().toLowerCase();
+
+    final filteredDzialy = _dzialy.where((d) {
+      return d.nazwa.toLowerCase().contains(dzialQuery);
+    }).toList();
+    final filteredSekcje = _sekcje.where((s) {
+      final dzialName = s.dzial?.nazwa.toLowerCase() ?? '';
+      return s.nazwa.toLowerCase().contains(sekcjaQuery) || dzialName.contains(sekcjaQuery);
+    }).toList();
+    final filteredMaszyny = _maszyny.where((m) {
+      final dzialName = m.dzial?.nazwa.toLowerCase() ?? '';
+      final sekcjaName = m.sekcja?.nazwa.toLowerCase() ?? '';
+      return m.nazwa.toLowerCase().contains(maszynaQuery) ||
+          dzialName.contains(maszynaQuery) ||
+          sekcjaName.contains(maszynaQuery);
+    }).toList();
+    final filteredOsoby = _osoby.where((o) {
+      return o.imieNazwisko.toLowerCase().contains(osobaQuery);
+    }).toList();
+    final filteredUsers = _users.where((u) {
+      final roles = u.roles.join(', ').toLowerCase();
+      final modules = u.modules.join(', ').toLowerCase();
+      final dzial = u.dzialNazwa?.toLowerCase() ?? '';
+      return u.username.toLowerCase().contains(apiUserQuery) ||
+          roles.contains(apiUserQuery) ||
+          modules.contains(apiUserQuery) ||
+          dzial.contains(apiUserQuery);
+    }).toList();
 
     return Scaffold(
       appBar: const TopAppBar(title: 'Panel Admina', showBack: true),
@@ -277,6 +315,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                 children: [
                   _CardSection(
                     title: 'Działy',
+                    badgeText: '${filteredDzialy.length}/${_dzialy.length}',
                     child: Column(
                       children: [
                         Row(
@@ -295,7 +334,15 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        ..._dzialy.map((d) => ListTile(
+                        TextField(
+                          decoration: const InputDecoration(
+                            labelText: 'Szukaj działu',
+                            prefixIcon: Icon(Icons.search),
+                          ),
+                          onChanged: (v) => setState(() => _dzialSearch = v),
+                        ),
+                        const SizedBox(height: 8),
+                        ...filteredDzialy.map((d) => ListTile(
                               title: Text(d.nazwa),
                               trailing: IconButton(
                                 icon: const Icon(Icons.delete, color: Colors.red),
@@ -305,11 +352,17 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                                 },
                               ),
                             )),
+                        if (filteredDzialy.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: Text('Brak działów pasujących do wyszukiwania.'),
+                          ),
                       ],
                     ),
                   ),
                   _CardSection(
                     title: 'Sekcje',
+                    badgeText: '${filteredSekcje.length}/${_sekcje.length}',
                     child: Column(
                       children: [
                         DropdownButtonFormField<int>(
@@ -337,7 +390,15 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        ..._sekcje.map((s) => ListTile(
+                        TextField(
+                          decoration: const InputDecoration(
+                            labelText: 'Szukaj sekcji',
+                            prefixIcon: Icon(Icons.search),
+                          ),
+                          onChanged: (v) => setState(() => _sekcjaSearch = v),
+                        ),
+                        const SizedBox(height: 8),
+                        ...filteredSekcje.map((s) => ListTile(
                               title: Text(s.nazwa),
                               subtitle: Text(s.dzial?.nazwa ?? '-'),
                               trailing: IconButton(
@@ -348,11 +409,17 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                                 },
                               ),
                             )),
+                        if (filteredSekcje.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: Text('Brak sekcji pasujących do wyszukiwania.'),
+                          ),
                       ],
                     ),
                   ),
                   _CardSection(
                     title: 'Maszyny',
+                    badgeText: '${filteredMaszyny.length}/${_maszyny.length}',
                     child: Column(
                       children: [
                         DropdownButtonFormField<int>(
@@ -393,7 +460,15 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        ..._maszyny.map((m) => ListTile(
+                        TextField(
+                          decoration: const InputDecoration(
+                            labelText: 'Szukaj maszyny / działu / sekcji',
+                            prefixIcon: Icon(Icons.search),
+                          ),
+                          onChanged: (v) => setState(() => _maszynaSearch = v),
+                        ),
+                        const SizedBox(height: 8),
+                        ...filteredMaszyny.map((m) => ListTile(
                               title: Text(m.nazwa),
                               subtitle: Text('${m.dzial?.nazwa ?? '-'} / ${m.sekcja?.nazwa ?? '-'}'),
                               trailing: IconButton(
@@ -404,11 +479,17 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                                 },
                               ),
                             )),
+                        if (filteredMaszyny.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: Text('Brak maszyn pasujących do wyszukiwania.'),
+                          ),
                       ],
                     ),
                   ),
                   _CardSection(
                     title: 'Osoby',
+                    badgeText: '${filteredOsoby.length}/${_osoby.length}',
                     child: Column(
                       children: [
                         DropdownButtonFormField<int>(
@@ -434,7 +515,15 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        ..._osoby.map((o) => ListTile(
+                        TextField(
+                          decoration: const InputDecoration(
+                            labelText: 'Szukaj osoby',
+                            prefixIcon: Icon(Icons.search),
+                          ),
+                          onChanged: (v) => setState(() => _osobaSearch = v),
+                        ),
+                        const SizedBox(height: 8),
+                        ...filteredOsoby.map((o) => ListTile(
                               title: Text(o.imieNazwisko),
                               trailing: IconButton(
                                 icon: const Icon(Icons.delete, color: Colors.red),
@@ -444,11 +533,17 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                                 },
                               ),
                             )),
+                        if (filteredOsoby.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: Text('Brak osób pasujących do wyszukiwania.'),
+                          ),
                       ],
                     ),
                   ),
                   _CardSection(
                     title: 'Użytkownicy (API) – role i kafelki',
+                    badgeText: '${filteredUsers.length}/${_users.length}',
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -516,7 +611,15 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                         const Divider(height: 24),
                         const Text('Lista użytkowników:'),
                         const SizedBox(height: 8),
-                        ..._users.map((u) => ListTile(
+                        TextField(
+                          decoration: const InputDecoration(
+                            labelText: 'Szukaj użytkownika API',
+                            prefixIcon: Icon(Icons.search),
+                          ),
+                          onChanged: (v) => setState(() => _apiUserSearch = v),
+                        ),
+                        const SizedBox(height: 8),
+                        ...filteredUsers.map((u) => ListTile(
                               title: Text(u.username),
                               subtitle: Text('Role: ' + (u.roles.join(', ')) + '\nKafelki: ' + (u.modules.join(', '))),
                               isThreeLine: true,
@@ -528,6 +631,11 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                                 },
                               ),
                             )),
+                        if (filteredUsers.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: Text('Brak użytkowników API pasujących do wyszukiwania.'),
+                          ),
                       ],
                     ),
                   ),
@@ -596,23 +704,33 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
 class _CardSection extends StatelessWidget {
   final String title;
   final Widget child;
-  const _CardSection({required this.title, required this.child});
+  final String? badgeText;
+  final bool initiallyExpanded;
+  const _CardSection({
+    required this.title,
+    required this.child,
+    this.badgeText,
+    this.initiallyExpanded = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title,
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const Divider(),
-            child,
-          ],
+      child: ExpansionTile(
+        initiallyExpanded: initiallyExpanded,
+        maintainState: true,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+        title: Text(
+          title,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
+        subtitle: badgeText != null ? Text('Pozycji: $badgeText') : null,
+        children: [
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          child,
+        ],
       ),
     );
   }
