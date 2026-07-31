@@ -48,6 +48,10 @@ public final class ZgloszenieMapper {
                 if (z.getMaszyna().getDzial() != null) {
                     dto.setMaszynaDzialNazwa(z.getMaszyna().getDzial().getNazwa());
                 }
+                if (z.getMaszyna().getSekcja() != null) {
+                    dto.setMaszynaSekcjaId(z.getMaszyna().getSekcja().getId());
+                    dto.setMaszynaSekcjaNazwa(z.getMaszyna().getSekcja().getNazwa());
+                }
             }
         } catch (Exception e) {
             // Lazy loading failed - maszyna not fetched

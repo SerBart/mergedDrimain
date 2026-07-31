@@ -15,12 +15,15 @@ import drimer.drimain.repository.OsobaRepository;
 import drimer.drimain.api.dto.SimpleDzialDTO;
 import drimer.drimain.api.dto.SimpleMaszynaDTO;
 import drimer.drimain.api.dto.SimpleOsobaDTO;
+import drimer.drimain.api.dto.SimpleSekcjaDTO;
 import drimer.drimain.repository.DzialRepository;
 import drimer.drimain.api.dto.DzialDTO;
 import drimer.drimain.api.dto.MaszynaSelectDTO;
+import drimer.drimain.api.dto.SekcjaDTO;
 import drimer.drimain.repository.UserRepository;
 import drimer.drimain.model.Osoba;
 import drimer.drimain.model.Maszyna;
+import drimer.drimain.repository.SekcjaRepository;
 
 @RestController
 @RequestMapping("/api/meta")
@@ -30,6 +33,7 @@ public class MetaController {
     private final MaszynaRepository maszynaRepository;
     private final OsobaRepository osobaRepository;
     private final DzialRepository dzialRepository;
+    private final SekcjaRepository sekcjaRepository;
     private final UserRepository userRepository;
 
     @GetMapping("/statusy/raporty")
@@ -65,6 +69,12 @@ public class MetaController {
                 d.setId(m.getDzial().getId());
                 d.setNazwa(m.getDzial().getNazwa());
                 dto.setDzial(d);
+            }
+            if (m.getSekcja() != null) {
+                SimpleSekcjaDTO s = new SimpleSekcjaDTO();
+                s.setId(m.getSekcja().getId());
+                s.setNazwa(m.getSekcja().getNazwa());
+                dto.setSekcja(s);
             }
             return dto;
         }).toList();
@@ -127,6 +137,25 @@ public class MetaController {
         }).toList();
     }
 
+    @GetMapping("/sekcje-simple")
+    public List<SekcjaDTO> simpleSekcje(@RequestParam(name = "dzialId", required = false) Long dzialId) {
+        return (dzialId != null ? sekcjaRepository.findByDzial_IdOrderByNazwaAsc(dzialId) : sekcjaRepository.findAllByOrderByNazwaAsc())
+                .stream()
+                .map(s -> {
+                    SekcjaDTO dto = new SekcjaDTO();
+                    dto.setId(s.getId());
+                    dto.setNazwa(s.getNazwa());
+                    if (s.getDzial() != null) {
+                        DzialDTO d = new DzialDTO();
+                        d.setId(s.getDzial().getId());
+                        d.setNazwa(s.getDzial().getNazwa());
+                        dto.setDzial(d);
+                    }
+                    return dto;
+                })
+                .toList();
+    }
+
     // Alias: lista maszyn w formacie kompatybilnym z UI select (id, name, label, nazwa)
     @GetMapping("/maszyny")
     public java.util.List<MaszynaSelectDTO> maszyny() {
@@ -135,7 +164,7 @@ public class MetaController {
             dto.setId(m.getId());
             dto.setNazwa(m.getNazwa());
             dto.setName(m.getNazwa());
-            dto.setLabel(m.getNazwa());
+            dto.setLabel(m.getSekcja() != null ? (m.getNazwa() + " [" + m.getSekcja().getNazwa() + "]") : m.getNazwa());
             return dto;
         }).toList();
     }

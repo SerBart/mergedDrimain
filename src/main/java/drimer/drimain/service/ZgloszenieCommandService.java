@@ -162,6 +162,21 @@ public class ZgloszenieCommandService {
             }
         }
 
+        if (req.getMaszynaId() != null) {
+            Maszyna maszyna = maszynaRepository.findById(req.getMaszynaId())
+                    .orElseThrow(() -> new IllegalArgumentException("Maszyna not found"));
+            if (!Objects.equals(z.getMaszyna() == null ? null : z.getMaszyna().getId(), maszyna.getId())) {
+                z.setMaszyna(maszyna);
+                changedFields.add("maszynaId");
+            }
+            // Gdy klient nie podał działu jawnie, synchronizujemy go z maszyną.
+            if (req.getDzialId() == null && maszyna.getDzial() != null
+                    && !Objects.equals(z.getDzial() == null ? null : z.getDzial().getId(), maszyna.getDzial().getId())) {
+                z.setDzial(maszyna.getDzial());
+                changedFields.add("dzialId");
+            }
+        }
+
 
         // Save
         Zgloszenie saved = zgloszenieRepository.save(z);

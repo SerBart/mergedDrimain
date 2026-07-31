@@ -46,7 +46,7 @@ class _ZgloszeniaScreenModernState
   String _query = '';
   String _statusFilter = 'WSZYSTKIE';
   final _dtf = DateFormat('yyyy-MM-dd HH:mm');
-  int _sortCol = 0; // 0: Data, 1: Typ, 2: Status, 3: Maszyna, 4: Dział, 5: Temat, 6: Osoba
+  int _sortCol = 0; // 0: Data, 1: Typ, 2: Status, 3: Maszyna, 4: Dział, 5: Sekcja, 6: Temat, 7: Osoba
   bool _asc = false;
 
   bool _busy = false;
@@ -163,6 +163,9 @@ class _ZgloszeniaScreenModernState
             z.imie.toLowerCase().contains(q) ||
             z.nazwisko.toLowerCase().contains(q) ||
             z.status.toLowerCase().contains(q) ||
+            (z.maszyna?.nazwa.toLowerCase().contains(q) ?? false) ||
+            (z.maszyna?.dzial?.nazwa.toLowerCase().contains(q) ?? false) ||
+            (z.maszyna?.sekcja?.nazwa.toLowerCase().contains(q) ?? false) ||
             z.id.toString().contains(q);
       }).toList();
     }
@@ -189,10 +192,13 @@ class _ZgloszeniaScreenModernState
         case 4: // Dział (nazwa działu powiązanego z maszyną)
           cmp = (a.maszyna?.dzial?.nazwa ?? '').compareTo(b.maszyna?.dzial?.nazwa ?? '');
           break;
-        case 5: // Temat
+        case 5: // Sekcja
+          cmp = (a.maszyna?.sekcja?.nazwa ?? '').compareTo(b.maszyna?.sekcja?.nazwa ?? '');
+          break;
+        case 6: // Temat
           cmp = a.temat.compareTo(b.temat);
           break;
-        case 6: // Osoba (nazwisko potem imię)
+        case 7: // Osoba (nazwisko potem imię)
           cmp = (a.nazwisko + a.imie).compareTo(b.nazwisko + b.imie);
           break;
         default:
@@ -708,6 +714,7 @@ class _ZgloszeniaScreenModernState
                   _detailRow('Status', z.status),
                   if (z.maszyna != null) _detailRow('Maszyna', z.maszyna!.nazwa),
                   if (z.maszyna?.dzial != null) _detailRow('Dział', z.maszyna!.dzial!.nazwa),
+                  if (z.maszyna?.sekcja != null) _detailRow('Sekcja', z.maszyna!.sekcja!.nazwa),
                   _detailRow('Osoba', '${z.imie} ${z.nazwisko}'),
                   const SizedBox(height: 12),
                   const Text('Opis:', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -1005,7 +1012,10 @@ class _ZgloszeniaScreenModernState
                                   final q = tev.text.trim().toLowerCase();
                                   final all = ref.read(mockRepoProvider).getMaszyny();
                                   if (q.isEmpty) return all;
-                                  return all.where((m) => m.nazwa.toLowerCase().contains(q));
+                                  return all.where((m) {
+                                    final sekcja = m.sekcja?.nazwa.toLowerCase() ?? '';
+                                    return m.nazwa.toLowerCase().contains(q) || sekcja.contains(q);
+                                  });
                                 },
                                 onSelected: (Maszyna sel) {
                                   setState(() {
@@ -1061,6 +1071,7 @@ class _ZgloszeniaScreenModernState
                                             return ListTile(
                                               dense: true,
                                               title: Text(m.nazwa),
+                                              subtitle: Text(m.sekcja?.nazwa ?? '-'),
                                               onTap: () => onSelected(m),
                                             );
                                           },
@@ -1231,7 +1242,10 @@ class _ZgloszeniaScreenModernState
   List<Maszyna> _filteredMaszyny(List<Maszyna> all) {
     final q = _maszynaSearchText.trim().toLowerCase();
     if (q.isEmpty) return all;
-    return all.where((m) => m.nazwa.toLowerCase().contains(q)).toList();
+    return all.where((m) {
+      final sekcja = m.sekcja?.nazwa.toLowerCase() ?? '';
+      return m.nazwa.toLowerCase().contains(q) || sekcja.contains(q);
+    }).toList();
   }
 
   void _onSelectDzial(Dzial? dz) async {
@@ -1406,6 +1420,7 @@ class _ZgloszeniaScreenModernState
                                       const SizedBox(height: 8),
                                       Text('Maszyna: ${z.maszyna?.nazwa ?? '-'}', style: const TextStyle(fontSize: 13)),
                                       Text('Dział: ${z.maszyna?.dzial?.nazwa ?? '-'}', style: const TextStyle(fontSize: 13)),
+                                      Text('Sekcja: ${z.maszyna?.sekcja?.nazwa ?? '-'}', style: const TextStyle(fontSize: 13)),
                                       const SizedBox(height: 6),
                                       Text('Osoba: ${z.imie} ${z.nazwisko}', style: const TextStyle(fontSize: 13)),
                                     ],
@@ -1440,6 +1455,10 @@ class _ZgloszeniaScreenModernState
                             ),
                             DataColumn(
                               label: const Text('Dział'),
+                              onSort: (i, asc) => _onSort(i, asc),
+                            ),
+                            DataColumn(
+                              label: const Text('Sekcja'),
                               onSort: (i, asc) => _onSort(i, asc),
                             ),
                             DataColumn(
@@ -1482,6 +1501,7 @@ class _ZgloszeniaScreenModernState
                                 DataCell(_statusChip(z.status)),
                                 DataCell(Text(z.maszyna?.nazwa ?? '-')),
                                 DataCell(Text(z.maszyna?.dzial?.nazwa ?? '-')),
+                                DataCell(Text(z.maszyna?.sekcja?.nazwa ?? '-')),
                                 DataCell(
                                   Tooltip(
                                     message: z.temat,

@@ -167,6 +167,18 @@ public class HarmonogramRestController {
             SimpleMaszynaDTO maszynaDto = new SimpleMaszynaDTO();
             maszynaDto.setId(h.getMaszyna().getId());
             maszynaDto.setNazwa(h.getMaszyna().getNazwa());
+            if (h.getMaszyna().getDzial() != null) {
+                SimpleDzialDTO d = new SimpleDzialDTO();
+                d.setId(h.getMaszyna().getDzial().getId());
+                d.setNazwa(h.getMaszyna().getDzial().getNazwa());
+                maszynaDto.setDzial(d);
+            }
+            if (h.getMaszyna().getSekcja() != null) {
+                SimpleSekcjaDTO s = new SimpleSekcjaDTO();
+                s.setId(h.getMaszyna().getSekcja().getId());
+                s.setNazwa(h.getMaszyna().getSekcja().getNazwa());
+                maszynaDto.setSekcja(s);
+            }
             dto.setMaszyna(maszynaDto);
         }
         

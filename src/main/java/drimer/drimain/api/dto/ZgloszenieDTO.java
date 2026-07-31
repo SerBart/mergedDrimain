@@ -50,6 +50,8 @@ public class ZgloszenieDTO {
     private Long maszynaId;
     private String maszynaNazwa;
     private String maszynaDzialNazwa;
+    private Long maszynaSekcjaId;
+    private String maszynaSekcjaNazwa;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -109,4 +111,8 @@ public class ZgloszenieDTO {
     public void setMaszynaNazwa(String maszynaNazwa) { this.maszynaNazwa = maszynaNazwa; }
     public String getMaszynaDzialNazwa() { return maszynaDzialNazwa; }
     public void setMaszynaDzialNazwa(String maszynaDzialNazwa) { this.maszynaDzialNazwa = maszynaDzialNazwa; }
+    public Long getMaszynaSekcjaId() { return maszynaSekcjaId; }
+    public void setMaszynaSekcjaId(Long maszynaSekcjaId) { this.maszynaSekcjaId = maszynaSekcjaId; }
+    public String getMaszynaSekcjaNazwa() { return maszynaSekcjaNazwa; }
+    public void setMaszynaSekcjaNazwa(String maszynaSekcjaNazwa) { this.maszynaSekcjaNazwa = maszynaSekcjaNazwa; }
 }

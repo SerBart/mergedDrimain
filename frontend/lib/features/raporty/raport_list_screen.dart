@@ -139,7 +139,7 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
         if (m != null && m.dzial == null) {
           final known = mock.maszyny.firstWhereOrNull((km) => km.id == m.id);
           if (known != null && known.dzial != null) {
-            final enrichedMaszyna = Maszyna(id: m.id, nazwa: m.nazwa, dzial: known.dzial);
+            final enrichedMaszyna = Maszyna(id: m.id, nazwa: m.nazwa, dzial: known.dzial, sekcja: known.sekcja);
             rr = rr.copyWith(maszyna: enrichedMaszyna);
           }
         }
@@ -179,6 +179,7 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
           r.status.toLowerCase().contains(q) ||
           (r.osoba?.imieNazwisko.toLowerCase().contains(q) ?? false) ||
           (r.maszyna?.dzial?.nazwa.toLowerCase().contains(q) ?? false) ||
+          (r.maszyna?.sekcja?.nazwa.toLowerCase().contains(q) ?? false) ||
           r.opis.toLowerCase().contains(q);
     }).toList();
     // Korekta strony jeśli poza zakresem po filtracji
@@ -196,7 +197,8 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
         case 3: cmp = a.dataNaprawy.compareTo(b.dataNaprawy); break; // Data
         case 4: cmp = (a.osoba?.imieNazwisko ?? '').compareTo(b.osoba?.imieNazwisko ?? ''); break; // Osoba
         case 5: cmp = (a.maszyna?.dzial?.nazwa ?? '').compareTo(b.maszyna?.dzial?.nazwa ?? ''); break; // Dzial
-        case 6: cmp = a.opis.compareTo(b.opis); break; // Opis
+        case 6: cmp = (a.maszyna?.sekcja?.nazwa ?? '').compareTo(b.maszyna?.sekcja?.nazwa ?? ''); break; // Sekcja
+        case 7: cmp = a.opis.compareTo(b.opis); break; // Opis
         default: cmp = a.id.compareTo(b.id);
       }
       return _sortAsc ? cmp : -cmp;
@@ -214,11 +216,12 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
 
   // NOWE: eksport CSV aktualnie filtrowanych danych (pełna lista, nie tylko bieżąca strona)
   void _exportCsv(List<Raport> all) async {
-    final header = ['ID','Maszyna','Dzial','Typ','Status','Data','CzasOd','CzasDo','Osoba','Opis'];
+    final header = ['ID','Maszyna','Dzial','Sekcja','Typ','Status','Data','CzasOd','CzasDo','Osoba','Opis'];
     final rows = all.map((r) => [
       r.id.toString(),
       r.maszyna?.nazwa ?? '',
       r.maszyna?.dzial?.nazwa ?? '',
+      r.maszyna?.sekcja?.nazwa ?? '',
       r.typNaprawy,
       r.status,
       '${r.dataNaprawy.year}-${r.dataNaprawy.month.toString().padLeft(2,'0')}-${r.dataNaprawy.day.toString().padLeft(2,'0')}',
@@ -464,6 +467,7 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
             children: [
               _detailRow('Maszyna', r.maszyna?.nazwa ?? '-'),
               _detailRow('Dział', r.maszyna?.dzial?.nazwa ?? '-'),
+              _detailRow('Sekcja', r.maszyna?.sekcja?.nazwa ?? '-'),
               _detailRow('Typ', r.typNaprawy),
               _detailRow('Status', r.status),
               _detailRow('Data', '${r.dataNaprawy.year}-${r.dataNaprawy.month.toString().padLeft(2, '0')}-${r.dataNaprawy.day.toString().padLeft(2, '0')}'),
@@ -528,7 +532,7 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                       Expanded(
                         child: TextField(
                           decoration: const InputDecoration(
-                            labelText: 'Szukaj (maszyna / typ / status / osoba / dział / opis)',
+                            labelText: 'Szukaj (maszyna / typ / status / osoba / dział / sekcja / opis)',
                             prefixIcon: Icon(Icons.search),
                           ),
                           onChanged: (v) => setState(() => _query = v),
@@ -587,6 +591,7 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                       DataColumn(numeric: true, label: const Text('Data'), onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; })),
                       DataColumn(label: const Text('Osoba'), onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; })),
                       DataColumn(label: const Text('Dział'), onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; })),
+                      const DataColumn(label: Text('Sekcja')),
                       DataColumn(label: const Text('Opis'), onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; })),
                       DataColumn(label: const Text('Części'), onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; })),
                       const DataColumn(label: Text('Foto')),
@@ -604,6 +609,7 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                           DataCell(Text('${r.dataNaprawy.year}-${r.dataNaprawy.month.toString().padLeft(2, '0')}-${r.dataNaprawy.day.toString().padLeft(2, '0')}')),
                           DataCell(Text(r.osoba?.imieNazwisko ?? '-')),
                           DataCell(Text(r.maszyna?.dzial?.nazwa ?? '-')),
+                          DataCell(Text(r.maszyna?.sekcja?.nazwa ?? '-')),
                           DataCell(
                             InkWell(
                               onTap: () => setState(() {

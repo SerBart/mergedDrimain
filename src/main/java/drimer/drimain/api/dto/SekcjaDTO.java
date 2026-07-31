@@ -3,9 +3,9 @@ package drimer.drimain.api.dto;
 import lombok.Data;
 
 @Data
-public class SimpleMaszynaDTO {
+public class SekcjaDTO {
     private Long id;
     private String nazwa;
-    private SimpleDzialDTO dzial;
-    private SimpleSekcjaDTO sekcja;
+    private DzialDTO dzial;
 }
+

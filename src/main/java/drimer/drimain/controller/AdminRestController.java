@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 public class AdminRestController {
 
     private final DzialRepository dzialRepository;
+    private final SekcjaRepository sekcjaRepository;
     private final MaszynaRepository maszynaRepository;
     private final OsobaRepository osobaRepository;
     private final UserRepository userRepository;
@@ -103,6 +104,8 @@ public class AdminRestController {
                     .orElseThrow(() -> new IllegalArgumentException("Dzial not found"));
             maszyna.setDzial(dzial);
         }
+
+        applySekcja(maszyna, req.getSekcjaId());
         
         maszynaRepository.save(maszyna);
         return toMaszynaDto(maszyna);
@@ -119,10 +122,67 @@ public class AdminRestController {
             Dzial dzial = dzialRepository.findById(req.getDzialId())
                     .orElseThrow(() -> new IllegalArgumentException("Dzial not found"));
             maszyna.setDzial(dzial);
+        } else {
+            maszyna.setDzial(null);
         }
+
+        applySekcja(maszyna, req.getSekcjaId());
         
         maszynaRepository.save(maszyna);
         return toMaszynaDto(maszyna);
+    }
+
+    // ========== SEKCJE ==========
+
+    @GetMapping("/sekcje")
+    @Transactional(readOnly = true)
+    public List<SekcjaDTO> getSekcje(@RequestParam(required = false) Long dzialId) {
+        List<Sekcja> sekcje = dzialId != null
+                ? sekcjaRepository.findByDzial_IdOrderByNazwaAsc(dzialId)
+                : sekcjaRepository.findAllByOrderByNazwaAsc();
+        return sekcje.stream().map(this::toSekcjaDto).collect(Collectors.toList());
+    }
+
+    @PostMapping("/sekcje")
+    @ResponseStatus(HttpStatus.CREATED)
+    public SekcjaDTO createSekcja(@Valid @RequestBody SekcjaCreateRequest req) {
+        Dzial dzial = dzialRepository.findById(req.getDzialId())
+                .orElseThrow(() -> new IllegalArgumentException("Dzial not found"));
+        sekcjaRepository.findByDzial_IdAndNazwaIgnoreCase(req.getDzialId(), req.getNazwa().trim())
+                .ifPresent(existing -> {
+                    throw new IllegalArgumentException("Sekcja o tej nazwie już istnieje w tym dziale");
+                });
+        Sekcja sekcja = new Sekcja();
+        sekcja.setNazwa(req.getNazwa().trim());
+        sekcja.setDzial(dzial);
+        sekcjaRepository.save(sekcja);
+        return toSekcjaDto(sekcja);
+    }
+
+    @PutMapping("/sekcje/{id}")
+    public SekcjaDTO updateSekcja(@PathVariable Long id, @Valid @RequestBody SekcjaCreateRequest req) {
+        Sekcja sekcja = sekcjaRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Sekcja not found"));
+        Dzial dzial = dzialRepository.findById(req.getDzialId())
+                .orElseThrow(() -> new IllegalArgumentException("Dzial not found"));
+        sekcja.setNazwa(req.getNazwa().trim());
+        sekcja.setDzial(dzial);
+        sekcjaRepository.save(sekcja);
+        return toSekcjaDto(sekcja);
+    }
+
+    @DeleteMapping("/sekcje/{id}")
+    @Transactional
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteSekcja(@PathVariable Long id) {
+        Sekcja sekcja = sekcjaRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Sekcja not found"));
+        List<Maszyna> machines = maszynaRepository.findBySekcja_Id(id);
+        machines.forEach(m -> m.setSekcja(null));
+        if (!machines.isEmpty()) {
+            maszynaRepository.saveAll(machines);
+        }
+        sekcjaRepository.delete(sekcja);
     }
 
     @DeleteMapping("/maszyny/{id}")
@@ -309,8 +369,39 @@ public class AdminRestController {
         if (maszyna.getDzial() != null) {
             dto.setDzial(toDzialDto(maszyna.getDzial()));
         }
+
+        if (maszyna.getSekcja() != null) {
+            dto.setSekcja(toSekcjaDto(maszyna.getSekcja()));
+        }
         
         return dto;
+    }
+
+    private SekcjaDTO toSekcjaDto(Sekcja sekcja) {
+        SekcjaDTO dto = new SekcjaDTO();
+        dto.setId(sekcja.getId());
+        dto.setNazwa(sekcja.getNazwa());
+        if (sekcja.getDzial() != null) {
+            dto.setDzial(toDzialDto(sekcja.getDzial()));
+        }
+        return dto;
+    }
+
+    private void applySekcja(Maszyna maszyna, Long sekcjaId) {
+        if (sekcjaId == null) {
+            maszyna.setSekcja(null);
+            return;
+        }
+        Sekcja sekcja = sekcjaRepository.findById(sekcjaId)
+                .orElseThrow(() -> new IllegalArgumentException("Sekcja not found"));
+        if (maszyna.getDzial() != null && sekcja.getDzial() != null
+                && !maszyna.getDzial().getId().equals(sekcja.getDzial().getId())) {
+            throw new IllegalArgumentException("Sekcja musi należeć do wybranego działu maszyny");
+        }
+        if (maszyna.getDzial() == null) {
+            maszyna.setDzial(sekcja.getDzial());
+        }
+        maszyna.setSekcja(sekcja);
     }
 
     private OsobaDTO toOsobaDto(Osoba osoba) {

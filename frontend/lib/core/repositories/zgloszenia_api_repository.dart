@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import '../models/zgloszenie.dart';
 import '../models/maszyna.dart';
 import '../models/dzial.dart';
+import '../models/sekcja.dart';
 import '../services/secure_storage_service.dart';
 
 class ZgloszeniaApiRepository {
@@ -107,13 +108,18 @@ class ZgloszeniaApiRepository {
     final mId = (j['maszynaId'] as num?)?.toInt();
     final mName = (j['maszynaNazwa'] ?? '').toString().trim();
     final mDzialName = (j['maszynaDzialNazwa'] ?? '').toString().trim();
+    final mSekcjaName = (j['maszynaSekcjaNazwa'] ?? '').toString().trim();
+    final mSekcjaId = (j['maszynaSekcjaId'] as num?)?.toInt();
 
     // Jeśli backend jednak zwrócił pełen obiekt, to bierzemy go w pierwszej kolejności.
     if (j['maszyna'] is Map<String, dynamic>) {
       maszyna = Maszyna.fromJson((j['maszyna'] as Map).cast<String, dynamic>());
     } else if (mId != null && mId > 0 && mName.isNotEmpty) {
       final dzial = mDzialName.isNotEmpty ? Dzial(id: 0, nazwa: mDzialName) : null;
-      maszyna = Maszyna(id: mId, nazwa: mName, dzial: dzial);
+      final sekcja = (mSekcjaName.isNotEmpty || (mSekcjaId != null && mSekcjaId > 0))
+          ? Sekcja(id: mSekcjaId ?? 0, nazwa: mSekcjaName, dzial: dzial)
+          : null;
+      maszyna = Maszyna(id: mId, nazwa: mName, dzial: dzial, sekcja: sekcja);
     }
 
     return Zgloszenie(

@@ -7,4 +7,5 @@ public class MaszynaDTO {
     private Long id;
     private String nazwa;
     private DzialDTO dzial;
+    private SekcjaDTO sekcja;
 }

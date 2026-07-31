@@ -86,6 +86,8 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
       list = list.where((h) =>
           (h.opis.toLowerCase().contains(q)) ||
           ((h.maszyna?.nazwa.toLowerCase() ?? '').contains(q)) ||
+          ((h.maszyna?.dzial?.nazwa.toLowerCase() ?? '').contains(q)) ||
+          ((h.maszyna?.sekcja?.nazwa.toLowerCase() ?? '').contains(q)) ||
           ((h.osoba?.imieNazwisko.toLowerCase() ?? '').contains(q)));
     }
     return list.toList();
@@ -103,13 +105,19 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
         case 1: // Maszyna
           cmp = (a.maszyna?.nazwa ?? '').compareTo(b.maszyna?.nazwa ?? '');
           break;
-        case 2: // Osoba
+        case 2: // Dział
+          cmp = (a.maszyna?.dzial?.nazwa ?? '').compareTo(b.maszyna?.dzial?.nazwa ?? '');
+          break;
+        case 3: // Sekcja
+          cmp = (a.maszyna?.sekcja?.nazwa ?? '').compareTo(b.maszyna?.sekcja?.nazwa ?? '');
+          break;
+        case 4: // Osoba
           cmp = (a.osoba?.imieNazwisko ?? '').compareTo(b.osoba?.imieNazwisko ?? '');
           break;
-        case 3: // Czas trwania
+        case 5: // Czas trwania
           cmp = (a.durationMinutes ?? 0).compareTo(b.durationMinutes ?? 0);
           break;
-        case 4: // Status
+        case 6: // Status
           cmp = (a.status).compareTo(b.status);
           break;
         default: // Opis
@@ -381,6 +389,10 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                               onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; }),
                             ),
                             DataColumn(
+                              label: const Text('Sekcja'),
+                              onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; }),
+                            ),
+                            DataColumn(
                               label: const Text('Osoba'),
                               onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; }),
                             ),
@@ -403,6 +415,7 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                                 DataCell(Text(dateStr)),
                                 DataCell(Text(h.maszyna?.nazwa ?? '-')),
                                 DataCell(Text(h.maszyna?.dzial?.nazwa ?? '-')),
+                                DataCell(Text(h.maszyna?.sekcja?.nazwa ?? '-')),
                                 DataCell(Text(h.osoba?.imieNazwisko ?? '-')),
                                 DataCell(Text((h.durationMinutes ?? 0).toString())),
                                 DataCell(Container(
@@ -714,7 +727,12 @@ class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
                           ? [DropdownMenuItem(child: Text('Ładowanie maszyn...'))]
                           : _maszynyDlaDzialu.isEmpty
                               ? [DropdownMenuItem(child: Text(_selectedDzial == null ? 'Najpierw wybierz dział' : 'Brak maszyn dla tego działu'))]
-                              : _maszynyDlaDzialu.map((m) => DropdownMenuItem(value: m, child: Text(m.nazwa))).toList(),
+                              : _maszynyDlaDzialu
+                                  .map((m) => DropdownMenuItem(
+                                        value: m,
+                                        child: Text(m.sekcja != null ? '${m.nazwa} [${m.sekcja!.nazwa}]' : m.nazwa),
+                                      ))
+                                  .toList(),
                       onChanged: _selectedDzial == null || _loadingMaszyny ? null : (v) => setState(() => _maszyna = v),
                       validator: (v) => v == null ? 'Wybierz maszynę' : null,
                     ),

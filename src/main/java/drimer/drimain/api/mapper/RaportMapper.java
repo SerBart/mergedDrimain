@@ -49,6 +49,12 @@ public class RaportMapper {
                     d.setNazwa(r.getMaszyna().getDzial().getNazwa());
                     m.setDzial(d);
                 }
+                if (r.getMaszyna().getSekcja() != null) {
+                    SimpleSekcjaDTO s = new SimpleSekcjaDTO();
+                    s.setId(r.getMaszyna().getSekcja().getId());
+                    s.setNazwa(r.getMaszyna().getSekcja().getNazwa());
+                    m.setSekcja(s);
+                }
                 dto.setMaszyna(m);
             }
         } catch (Exception e) {

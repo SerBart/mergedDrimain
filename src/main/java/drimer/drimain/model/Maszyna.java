@@ -16,4 +16,8 @@ public class Maszyna {
 
     @ManyToOne
     private Dzial dzial;
+
+    @ManyToOne
+    @JoinColumn(name = "sekcja_id")
+    private drimer.drimain.model.Sekcja sekcja;
 }

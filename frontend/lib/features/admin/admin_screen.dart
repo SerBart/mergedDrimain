@@ -6,6 +6,7 @@ import '../../core/constants/app_roles.dart';
 import '../../widgets/dialogs.dart';
 import '../../core/models/dzial.dart';
 import '../../core/models/maszyna.dart';
+import '../../core/models/sekcja.dart';
 import '../../core/models/osoba.dart';
 import '../../core/models/admin_user.dart';
 import '../../widgets/top_app_bar.dart';
@@ -19,8 +20,11 @@ class AdminScreen extends ConsumerStatefulWidget {
 
 class _AdminScreenState extends ConsumerState<AdminScreen> {
   final _dzialCtrl = TextEditingController();
+  final _sekcjaCtrl = TextEditingController();
+  int? _sekcjaDzialId;
   final _maszynaCtrl = TextEditingController();
   int? _maszynaDzialId;
+  int? _maszynaSekcjaId;
   final _osobaCtrl = TextEditingController(); // imie i nazwisko
   int? _osobaDzialId; // nowy: dział dla osoby
   final _userLoginCtrl = TextEditingController();
@@ -36,6 +40,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
 
   bool _loading = true;
   List<Dzial> _dzialy = [];
+  List<Sekcja> _sekcje = [];
   List<Maszyna> _maszyny = [];
   List<Osoba> _osoby = [];
 
@@ -52,6 +57,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
   @override
   void dispose() {
     _dzialCtrl.dispose();
+    _sekcjaCtrl.dispose();
     _maszynaCtrl.dispose();
     _osobaCtrl.dispose();
     _userLoginCtrl.dispose();
@@ -67,18 +73,32 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
       final api = ref.read(adminApiRepositoryProvider);
       final results = await Future.wait([
         api.getDzialy(),
+        api.getSekcje(),
         api.getMaszyny(),
         api.getOsoby(),
         api.getUsers(),
         api.getModulesCatalog(),
       ]);
       _dzialy = results[0] as List<Dzial>;
-      _maszyny = results[1] as List<Maszyna>;
-      _osoby = results[2] as List<Osoba>;
-      _users = results[3] as List<AdminUser>;
-      _modulesCatalog = (results[4] as List).cast<String>();
+      _sekcje = results[1] as List<Sekcja>;
+      _maszyny = results[2] as List<Maszyna>;
+      _osoby = results[3] as List<Osoba>;
+      _users = results[4] as List<AdminUser>;
+      _modulesCatalog = (results[5] as List).cast<String>();
       // sanity: wyczyść nieistniejące wybory działu
       if (_maszynaDzialId != null && !_dzialy.any((d) => d.id == _maszynaDzialId)) _maszynaDzialId = null;
+      if (_sekcjaDzialId != null && !_dzialy.any((d) => d.id == _sekcjaDzialId)) _sekcjaDzialId = null;
+      if (_maszynaSekcjaId != null && !_sekcje.any((s) => s.id == _maszynaSekcjaId)) _maszynaSekcjaId = null;
+      if (_maszynaDzialId != null && _maszynaSekcjaId != null) {
+        Sekcja? sec;
+        for (final s in _sekcje) {
+          if (s.id == _maszynaSekcjaId) {
+            sec = s;
+            break;
+          }
+        }
+        if (sec == null || sec.dzial?.id != _maszynaDzialId) _maszynaSekcjaId = null;
+      }
       if (_apiUserDzialId != null && !_dzialy.any((d) => d.id == _apiUserDzialId)) _apiUserDzialId = null;
       if (_osobaDzialId != null && !_dzialy.any((d) => d.id == _osobaDzialId)) _osobaDzialId = null;
     } catch (e) {
@@ -113,12 +133,35 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
     }
   }
 
+  Future<void> _addSekcja() async {
+    final name = _sekcjaCtrl.text.trim();
+    final dzialId = _sekcjaDzialId;
+    if (name.isEmpty || dzialId == null) return;
+    try {
+      await ref.read(adminApiRepositoryProvider).addSekcja(nazwa: name, dzialId: dzialId);
+      _sekcjaCtrl.clear();
+      await _loadAll();
+    } catch (e) {
+      _showError('Błąd dodawania sekcji: $e');
+    }
+  }
+
+  Future<void> _deleteSekcja(int id) async {
+    try {
+      await ref.read(adminApiRepositoryProvider).deleteSekcja(id);
+      await _loadAll();
+    } catch (e) {
+      _showError('Błąd usuwania sekcji: $e');
+    }
+  }
+
   Future<void> _addMaszyna() async {
     final nazwa = _maszynaCtrl.text.trim();
     final dzialId = _maszynaDzialId;
-    if (nazwa.isEmpty || dzialId == null) return;
+    final sekcjaId = _maszynaSekcjaId;
+    if (nazwa.isEmpty || dzialId == null || sekcjaId == null) return;
     try {
-      await ref.read(adminApiRepositoryProvider).addMaszyna(nazwa, dzialId);
+      await ref.read(adminApiRepositoryProvider).addMaszyna(nazwa, dzialId, sekcjaId: sekcjaId);
       _maszynaCtrl.clear();
       await _loadAll();
     } catch (e) {
@@ -266,6 +309,49 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                     ),
                   ),
                   _CardSection(
+                    title: 'Sekcje',
+                    child: Column(
+                      children: [
+                        DropdownButtonFormField<int>(
+                          value: _sekcjaDzialId,
+                          decoration: const InputDecoration(labelText: 'Dział sekcji'),
+                          items: _dzialy
+                              .map((d) => DropdownMenuItem(value: d.id, child: Text(d.nazwa)))
+                              .toList(),
+                          onChanged: (v) => setState(() => _sekcjaDzialId = v),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _sekcjaCtrl,
+                                decoration: const InputDecoration(labelText: 'Nazwa sekcji'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton(
+                              onPressed: _addSekcja,
+                              child: const Text('Dodaj'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        ..._sekcje.map((s) => ListTile(
+                              title: Text(s.nazwa),
+                              subtitle: Text(s.dzial?.nazwa ?? '-'),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.delete, color: Colors.red),
+                                onPressed: () async {
+                                  final ok = await showConfirmDialog(context, 'Usuń sekcję', 'Usunąć ${s.nazwa}?');
+                                  if (ok == true) await _deleteSekcja(s.id);
+                                },
+                              ),
+                            )),
+                      ],
+                    ),
+                  ),
+                  _CardSection(
                     title: 'Maszyny',
                     child: Column(
                       children: [
@@ -275,7 +361,20 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                           items: _dzialy
                               .map((d) => DropdownMenuItem(value: d.id, child: Text(d.nazwa)))
                               .toList(),
-                          onChanged: (v) => setState(() => _maszynaDzialId = v),
+                          onChanged: (v) => setState(() {
+                            _maszynaDzialId = v;
+                            _maszynaSekcjaId = null;
+                          }),
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<int>(
+                          value: _maszynaSekcjaId,
+                          decoration: const InputDecoration(labelText: 'Sekcja'),
+                          items: _sekcje
+                              .where((s) => _maszynaDzialId == null || s.dzial?.id == _maszynaDzialId)
+                              .map((s) => DropdownMenuItem(value: s.id, child: Text(s.nazwa)))
+                              .toList(),
+                          onChanged: (v) => setState(() => _maszynaSekcjaId = v),
                         ),
                         const SizedBox(height: 8),
                         Row(
@@ -296,7 +395,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                         const SizedBox(height: 12),
                         ..._maszyny.map((m) => ListTile(
                               title: Text(m.nazwa),
-                              subtitle: Text(m.dzial?.nazwa ?? '-'),
+                              subtitle: Text('${m.dzial?.nazwa ?? '-'} / ${m.sekcja?.nazwa ?? '-'}'),
                               trailing: IconButton(
                                 icon: const Icon(Icons.delete, color: Colors.red),
                                 onPressed: () async {
@@ -486,7 +585,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                     ),
                   ),
                   const SizedBox(height: 40),
-                  const Center(child: Text('Działy/Maszyny/Osoby zapisują się do bazy. Sekcja Użytkownicy (API) to realni użytkownicy z rolami i kafelkami. Sekcja Użytkownicy (DEMO) to lokalny mock.')),
+                  const Center(child: Text('Działy/Sekcje/Maszyny/Osoby zapisują się do bazy. Sekcja Użytkownicy (API) to realni użytkownicy z rolami i kafelkami. Sekcja Użytkownicy (DEMO) to lokalny mock.')),
                 ],
               ),
             ),

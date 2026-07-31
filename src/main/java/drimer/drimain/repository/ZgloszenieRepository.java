@@ -17,15 +17,15 @@ public interface ZgloszenieRepository extends JpaRepository<Zgloszenie, Long>, J
 
     // Nadpisujemy findAll, aby dociągać relacje autor i dzial (unikamy LazyInitializationException przy mapowaniu)
     @Override
-    @EntityGraph(attributePaths = {"autor", "dzial"})
+    @EntityGraph(attributePaths = {"autor", "dzial", "maszyna", "maszyna.dzial", "maszyna.sekcja"})
     List<Zgloszenie> findAll();
 
     @Override
-    @EntityGraph(attributePaths = {"autor", "dzial"})
+    @EntityGraph(attributePaths = {"autor", "dzial", "maszyna", "maszyna.dzial", "maszyna.sekcja"})
     Page<Zgloszenie> findAll(Pageable pageable);
 
     @Override
-    @EntityGraph(attributePaths = {"autor", "dzial"})
+    @EntityGraph(attributePaths = {"autor", "dzial", "maszyna", "maszyna.dzial", "maszyna.sekcja"})
     Optional<Zgloszenie> findById(Long id);
 
     // Dodatkowe findery (z zachowaniem LAZY/EAGER wg potrzeb)

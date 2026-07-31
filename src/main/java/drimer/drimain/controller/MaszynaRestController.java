@@ -2,6 +2,7 @@ package drimer.drimain.controller;
 
 import drimer.drimain.api.dto.SimpleMaszynaDTO;
 import drimer.drimain.api.dto.SimpleDzialDTO;
+import drimer.drimain.api.dto.SimpleSekcjaDTO;
 import drimer.drimain.api.dto.MaszynaSelectDTO;
 import drimer.drimain.repository.MaszynaRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,10 +24,12 @@ public class MaszynaRestController {
     @GetMapping
     @PreAuthorize("hasAnyRole('USER','ADMIN','BIURO','MAGAZYN')")
     public List<SimpleMaszynaDTO> list(@RequestParam Optional<String> q,
-                                       @RequestParam Optional<Long> dzialId) {
+                                       @RequestParam Optional<Long> dzialId,
+                                       @RequestParam Optional<Long> sekcjaId) {
         return maszynaRepository.findAll().stream()
                 .filter(m -> q.map(s -> m.getNazwa() != null && m.getNazwa().toLowerCase().contains(s.toLowerCase())).orElse(true))
                 .filter(m -> dzialId.map(id -> m.getDzial() != null && id.equals(m.getDzial().getId())).orElse(true))
+                .filter(m -> sekcjaId.map(id -> m.getSekcja() != null && id.equals(m.getSekcja().getId())).orElse(true))
                 .map(m -> {
                     SimpleMaszynaDTO dto = new SimpleMaszynaDTO();
                     dto.setId(m.getId());
@@ -37,6 +40,12 @@ public class MaszynaRestController {
                         d.setNazwa(m.getDzial().getNazwa());
                         dto.setDzial(d);
                     }
+                    if (m.getSekcja() != null) {
+                        SimpleSekcjaDTO s = new SimpleSekcjaDTO();
+                        s.setId(m.getSekcja().getId());
+                        s.setNazwa(m.getSekcja().getNazwa());
+                        dto.setSekcja(s);
+                    }
                     return dto;
                 })
                 .collect(Collectors.toList());
@@ -45,16 +54,18 @@ public class MaszynaRestController {
     @GetMapping("/select")
     @PreAuthorize("hasAnyRole('USER','ADMIN','BIURO','MAGAZYN')")
     public List<MaszynaSelectDTO> listForSelect(@RequestParam Optional<String> q,
-                                                @RequestParam Optional<Long> dzialId) {
+                                                @RequestParam Optional<Long> dzialId,
+                                                @RequestParam Optional<Long> sekcjaId) {
         return maszynaRepository.findAll().stream()
                 .filter(m -> q.map(s -> m.getNazwa() != null && m.getNazwa().toLowerCase().contains(s.toLowerCase())).orElse(true))
                 .filter(m -> dzialId.map(id -> m.getDzial() != null && id.equals(m.getDzial().getId())).orElse(true))
+                .filter(m -> sekcjaId.map(id -> m.getSekcja() != null && id.equals(m.getSekcja().getId())).orElse(true))
                 .map(m -> {
                     MaszynaSelectDTO dto = new MaszynaSelectDTO();
                     dto.setId(m.getId());
                     dto.setNazwa(m.getNazwa());
                     dto.setName(m.getNazwa());
-                    dto.setLabel(m.getNazwa());
+                    dto.setLabel(m.getSekcja() != null ? m.getNazwa() + " [" + m.getSekcja().getNazwa() + "]" : m.getNazwa());
                     return dto;
                 })
                 .collect(java.util.stream.Collectors.toList());

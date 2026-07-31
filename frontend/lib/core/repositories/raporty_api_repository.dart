@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/raport.dart';
 import '../models/maszyna.dart';
 import '../models/dzial.dart';
+import '../models/sekcja.dart';
 import '../models/osoba.dart';
 import '../models/part.dart';
 import '../models/part_usage.dart';
@@ -215,6 +216,7 @@ class RaportyApiRepository {
     int id = 0;
     String nazwa = '';
     Dzial? dzial;
+    Sekcja? sekcja;
 
     if (raw is Map) {
       final m = raw.cast<String, dynamic>();
@@ -230,6 +232,18 @@ class RaportyApiRepository {
         );
       } else if (rawDzial is String && rawDzial.trim().isNotEmpty) {
         dzial = Dzial(id: 0, nazwa: rawDzial.trim());
+      }
+
+      final rawSekcja = m['sekcja'];
+      if (rawSekcja is Map) {
+        final s = rawSekcja.cast<String, dynamic>();
+        sekcja = Sekcja(
+          id: (s['id'] as num?)?.toInt() ?? 0,
+          nazwa: (s['nazwa'] ?? s['name'] ?? '').toString(),
+          dzial: dzial,
+        );
+      } else if (rawSekcja is String && rawSekcja.trim().isNotEmpty) {
+        sekcja = Sekcja(id: 0, nazwa: rawSekcja.trim(), dzial: dzial);
       }
     }
 
@@ -248,8 +262,16 @@ class RaportyApiRepository {
       }
     }
 
+    if (sekcja == null) {
+      final sekcjaNazwa = (j['maszynaSekcjaNazwa'] ?? j['sekcjaNazwa'] ?? '').toString().trim();
+      final sekcjaId = (j['maszynaSekcjaId'] as num?)?.toInt() ?? (j['sekcjaId'] as num?)?.toInt() ?? 0;
+      if (sekcjaNazwa.isNotEmpty || sekcjaId > 0) {
+        sekcja = Sekcja(id: sekcjaId, nazwa: sekcjaNazwa, dzial: dzial);
+      }
+    }
+
     if (id <= 0 && nazwa.trim().isEmpty) return null;
-    return Maszyna(id: id, nazwa: nazwa, dzial: dzial);
+    return Maszyna(id: id, nazwa: nazwa, dzial: dzial, sekcja: sekcja);
   }
 
   /// Wgrywa zdjęcia do raportu. Zwraca listę nowych pełnych URL-i.

@@ -13,11 +13,11 @@ import java.util.Optional;
 public interface RaportRepository extends JpaRepository<Raport, Long>, JpaSpecificationExecutor<Raport> {
 
     @Override
-    @EntityGraph(attributePaths = {"maszyna", "maszyna.dzial", "osoba", "partUsages", "partUsages.part", "zdjecia"})
+    @EntityGraph(attributePaths = {"maszyna", "maszyna.dzial", "maszyna.sekcja", "osoba", "partUsages", "partUsages.part", "zdjecia"})
     Page<Raport> findAll(Specification<Raport> spec, Pageable pageable);
 
     @Override
-    @EntityGraph(attributePaths = {"maszyna", "maszyna.dzial", "osoba", "partUsages", "partUsages.part", "zdjecia"})
+    @EntityGraph(attributePaths = {"maszyna", "maszyna.dzial", "maszyna.sekcja", "osoba", "partUsages", "partUsages.part", "zdjecia"})
     Optional<Raport> findById(Long id);
 
     Optional<Raport> findByZgloszenieId(Long zgloszenieId);

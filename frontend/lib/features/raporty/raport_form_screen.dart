@@ -495,7 +495,10 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
                 final q = tev.text.trim().toLowerCase();
                 final all = ref.read(mockRepoProvider).getMaszyny();
                 if (q.isEmpty) return all; // pełna lista bez wpisywania
-                return all.where((m) => m.nazwa.toLowerCase().contains(q));
+                return all.where((m) {
+                  final sekcja = m.sekcja?.nazwa.toLowerCase() ?? '';
+                  return m.nazwa.toLowerCase().contains(q) || sekcja.contains(q);
+                });
               },
               onSelected: (Maszyna sel) {
                 setState(() {
@@ -550,6 +553,7 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
                           return ListTile(
                             dense: true,
                             title: Text(m.nazwa),
+                            subtitle: Text(m.sekcja?.nazwa ?? '-'),
                             onTap: () => onSelected(m),
                           );
                         },

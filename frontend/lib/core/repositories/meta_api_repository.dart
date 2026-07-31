@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import '../models/maszyna.dart';
 import '../models/osoba.dart';
 import '../models/dzial.dart';
+import '../models/sekcja.dart';
 import '../services/secure_storage_service.dart';
 
 class MetaApiRepository {
@@ -47,6 +48,17 @@ class MetaApiRepository {
     );
     final list = (resp.data as List).cast<Map<String, dynamic>>();
     return list.map(Dzial.fromJson).toList();
+  }
+
+  Future<List<Sekcja>> fetchSekcjeSimple({int? dzialId}) async {
+    final token = await _readToken();
+    final resp = await _dio.get(
+      '/api/meta/sekcje-simple',
+      queryParameters: dzialId != null ? {'dzialId': dzialId} : null,
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    final list = (resp.data as List).cast<Map<String, dynamic>>();
+    return list.map(Sekcja.fromJson).toList();
   }
 
   Future<String> _readToken() async {

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import '../models/dzial.dart';
 import '../models/maszyna.dart';
+import '../models/sekcja.dart';
 import '../models/osoba.dart';
 import '../models/admin_user.dart';
 import '../services/secure_storage_service.dart';
@@ -118,6 +119,35 @@ class AdminApiRepository {
     );
   }
 
+  Future<List<Sekcja>> getSekcje({int? dzialId}) async {
+    final token = await _token();
+    final resp = await _dio.get(
+      '/api/admin/sekcje',
+      queryParameters: dzialId != null ? {'dzialId': dzialId} : null,
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    final list = (resp.data as List).cast<Map<String, dynamic>>();
+    return list.map(Sekcja.fromJson).toList();
+  }
+
+  Future<Sekcja> addSekcja({required String nazwa, required int dzialId}) async {
+    final token = await _token();
+    final resp = await _dio.post(
+      '/api/admin/sekcje',
+      data: {'nazwa': nazwa, 'dzialId': dzialId},
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    return Sekcja.fromJson((resp.data as Map).cast<String, dynamic>());
+  }
+
+  Future<void> deleteSekcja(int id) async {
+    final token = await _token();
+    await _dio.delete(
+      '/api/admin/sekcje/$id',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  }
+
   Future<List<Maszyna>> getMaszyny() async {
     final token = await _token();
     final resp = await _dio.get(
@@ -128,11 +158,15 @@ class AdminApiRepository {
     return list.map(Maszyna.fromJson).toList();
   }
 
-  Future<Maszyna> addMaszyna(String nazwa, int dzialId) async {
+  Future<Maszyna> addMaszyna(String nazwa, int dzialId, {int? sekcjaId}) async {
     final token = await _token();
     final resp = await _dio.post(
       '/api/admin/maszyny',
-      data: {'nazwa': nazwa, 'dzialId': dzialId},
+      data: {
+        'nazwa': nazwa,
+        'dzialId': dzialId,
+        if (sekcjaId != null) 'sekcjaId': sekcjaId,
+      },
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
     return Maszyna.fromJson((resp.data as Map).cast<String, dynamic>());

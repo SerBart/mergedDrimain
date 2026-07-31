@@ -8,4 +8,5 @@ import java.util.List;
 public interface MaszynaRepository extends JpaRepository<Maszyna, Long> {
     List<Maszyna> findByDzial_Id(Long dzialId);
     List<Maszyna> findByDzial_NazwaIgnoreCase(String nazwa);
+    List<Maszyna> findBySekcja_Id(Long sekcjaId);
 }
