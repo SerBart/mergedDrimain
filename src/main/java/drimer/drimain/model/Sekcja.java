@@ -8,7 +8,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @Table(name = "sekcje", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_sekcje_dzial_nazwa", columnNames = {"dzial_id", "nazwa"})
+        @UniqueConstraint(name = "uk_sekcje_maszyna_nazwa", columnNames = {"maszyna_id", "nazwa"})
 })
 public class Sekcja {
     @Id
@@ -19,7 +19,7 @@ public class Sekcja {
     private String nazwa;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "dzial_id", nullable = false)
-    private Dzial dzial;
+    @JoinColumn(name = "maszyna_id")
+    private Maszyna maszyna;
 }
 

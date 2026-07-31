@@ -50,11 +50,14 @@ class MetaApiRepository {
     return list.map(Dzial.fromJson).toList();
   }
 
-  Future<List<Sekcja>> fetchSekcjeSimple({int? dzialId}) async {
+  Future<List<Sekcja>> fetchSekcjeSimple({int? maszynaId, int? dzialId}) async {
     final token = await _readToken();
+    final qp = <String, dynamic>{};
+    if (maszynaId != null) qp['maszynaId'] = maszynaId;
+    if (dzialId != null) qp['dzialId'] = dzialId;
     final resp = await _dio.get(
       '/api/meta/sekcje-simple',
-      queryParameters: dzialId != null ? {'dzialId': dzialId} : null,
+      queryParameters: qp.isEmpty ? null : qp,
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
     final list = (resp.data as List).cast<Map<String, dynamic>>();

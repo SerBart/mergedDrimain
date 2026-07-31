@@ -10,6 +10,6 @@ public class SekcjaCreateRequest {
     private String nazwa;
 
     @NotNull
-    private Long dzialId;
+    private Long maszynaId;
 }
 

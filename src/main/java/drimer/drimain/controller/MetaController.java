@@ -138,17 +138,30 @@ public class MetaController {
     }
 
     @GetMapping("/sekcje-simple")
-    public List<SekcjaDTO> simpleSekcje(@RequestParam(name = "dzialId", required = false) Long dzialId) {
-        return (dzialId != null ? sekcjaRepository.findByDzial_IdOrderByNazwaAsc(dzialId) : sekcjaRepository.findAllByOrderByNazwaAsc())
+    public List<SekcjaDTO> simpleSekcje(@RequestParam(name = "maszynaId", required = false) Long maszynaId,
+                                        @RequestParam(name = "dzialId", required = false) Long dzialId) {
+        List<drimer.drimain.model.Sekcja> sekcje;
+        if (maszynaId != null) {
+            sekcje = sekcjaRepository.findByMaszyna_IdOrderByNazwaAsc(maszynaId);
+        } else if (dzialId != null) {
+            sekcje = sekcjaRepository.findByMaszyna_Dzial_IdOrderByNazwaAsc(dzialId);
+        } else {
+            sekcje = sekcjaRepository.findAllByOrderByNazwaAsc();
+        }
+        return sekcje
                 .stream()
                 .map(s -> {
                     SekcjaDTO dto = new SekcjaDTO();
                     dto.setId(s.getId());
                     dto.setNazwa(s.getNazwa());
-                    if (s.getDzial() != null) {
+                    if (s.getMaszyna() != null) {
+                        dto.setMaszynaId(s.getMaszyna().getId());
+                        dto.setMaszynaNazwa(s.getMaszyna().getNazwa());
+                    }
+                    if (s.getMaszyna() != null && s.getMaszyna().getDzial() != null) {
                         DzialDTO d = new DzialDTO();
-                        d.setId(s.getDzial().getId());
-                        d.setNazwa(s.getDzial().getNazwa());
+                        d.setId(s.getMaszyna().getDzial().getId());
+                        d.setNazwa(s.getMaszyna().getDzial().getNazwa());
                         dto.setDzial(d);
                     }
                     return dto;

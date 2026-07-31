@@ -21,7 +21,7 @@ class AdminScreen extends ConsumerStatefulWidget {
 class _AdminScreenState extends ConsumerState<AdminScreen> {
   final _dzialCtrl = TextEditingController();
   final _sekcjaCtrl = TextEditingController();
-  int? _sekcjaDzialId;
+  int? _sekcjaMaszynaId;
   final _maszynaCtrl = TextEditingController();
   int? _maszynaDzialId;
   int? _maszynaSekcjaId;
@@ -93,7 +93,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
       _modulesCatalog = (results[5] as List).cast<String>();
       // sanity: wyczyść nieistniejące wybory działu
       if (_maszynaDzialId != null && !_dzialy.any((d) => d.id == _maszynaDzialId)) _maszynaDzialId = null;
-      if (_sekcjaDzialId != null && !_dzialy.any((d) => d.id == _sekcjaDzialId)) _sekcjaDzialId = null;
+      if (_sekcjaMaszynaId != null && !_maszyny.any((m) => m.id == _sekcjaMaszynaId)) _sekcjaMaszynaId = null;
       if (_maszynaSekcjaId != null && !_sekcje.any((s) => s.id == _maszynaSekcjaId)) _maszynaSekcjaId = null;
       if (_maszynaDzialId != null && _maszynaSekcjaId != null) {
         Sekcja? sec;
@@ -141,10 +141,10 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
 
   Future<void> _addSekcja() async {
     final name = _sekcjaCtrl.text.trim();
-    final dzialId = _sekcjaDzialId;
-    if (name.isEmpty || dzialId == null) return;
+    final maszynaId = _sekcjaMaszynaId;
+    if (name.isEmpty || maszynaId == null) return;
     try {
-      await ref.read(adminApiRepositoryProvider).addSekcja(nazwa: name, dzialId: dzialId);
+      await ref.read(adminApiRepositoryProvider).addSekcja(nazwa: name, maszynaId: maszynaId);
       _sekcjaCtrl.clear();
       await _loadAll();
     } catch (e) {
@@ -165,7 +165,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
     final nazwa = _maszynaCtrl.text.trim();
     final dzialId = _maszynaDzialId;
     final sekcjaId = _maszynaSekcjaId;
-    if (nazwa.isEmpty || dzialId == null || sekcjaId == null) return;
+    if (nazwa.isEmpty || dzialId == null) return;
     try {
       await ref.read(adminApiRepositoryProvider).addMaszyna(nazwa, dzialId, sekcjaId: sekcjaId);
       _maszynaCtrl.clear();
@@ -281,15 +281,20 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
       return d.nazwa.toLowerCase().contains(dzialQuery);
     }).toList();
     final filteredSekcje = _sekcje.where((s) {
+      final maszynaName = s.maszynaNazwa?.toLowerCase() ?? '';
       final dzialName = s.dzial?.nazwa.toLowerCase() ?? '';
-      return s.nazwa.toLowerCase().contains(sekcjaQuery) || dzialName.contains(sekcjaQuery);
+      return s.nazwa.toLowerCase().contains(sekcjaQuery) ||
+          maszynaName.contains(sekcjaQuery) ||
+          dzialName.contains(sekcjaQuery);
     }).toList();
     final filteredMaszyny = _maszyny.where((m) {
       final dzialName = m.dzial?.nazwa.toLowerCase() ?? '';
       final sekcjaName = m.sekcja?.nazwa.toLowerCase() ?? '';
+      final parentMaszynaName = m.sekcja?.maszynaNazwa?.toLowerCase() ?? '';
       return m.nazwa.toLowerCase().contains(maszynaQuery) ||
           dzialName.contains(maszynaQuery) ||
-          sekcjaName.contains(maszynaQuery);
+          sekcjaName.contains(maszynaQuery) ||
+          parentMaszynaName.contains(maszynaQuery);
     }).toList();
     final filteredOsoby = _osoby.where((o) {
       return o.imieNazwisko.toLowerCase().contains(osobaQuery);
@@ -366,12 +371,17 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                     child: Column(
                       children: [
                         DropdownButtonFormField<int>(
-                          value: _sekcjaDzialId,
-                          decoration: const InputDecoration(labelText: 'Dział sekcji'),
-                          items: _dzialy
-                              .map((d) => DropdownMenuItem(value: d.id, child: Text(d.nazwa)))
+                          value: _sekcjaMaszynaId,
+                          decoration: const InputDecoration(labelText: 'Maszyna nadrzędna sekcji'),
+                          items: _maszyny
+                              .map((m) => DropdownMenuItem(
+                                    value: m.id,
+                                    child: Text(
+                                      m.dzial != null ? '${m.nazwa} (${m.dzial!.nazwa})' : m.nazwa,
+                                    ),
+                                  ))
                               .toList(),
-                          onChanged: (v) => setState(() => _sekcjaDzialId = v),
+                          onChanged: (v) => setState(() => _sekcjaMaszynaId = v),
                         ),
                         const SizedBox(height: 8),
                         Row(
@@ -392,7 +402,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                         const SizedBox(height: 12),
                         TextField(
                           decoration: const InputDecoration(
-                            labelText: 'Szukaj sekcji',
+                            labelText: 'Szukaj sekcji / maszyny / działu',
                             prefixIcon: Icon(Icons.search),
                           ),
                           onChanged: (v) => setState(() => _sekcjaSearch = v),
@@ -400,7 +410,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                         const SizedBox(height: 8),
                         ...filteredSekcje.map((s) => ListTile(
                               title: Text(s.nazwa),
-                              subtitle: Text(s.dzial?.nazwa ?? '-'),
+                              subtitle: Text('${s.maszynaNazwa ?? '-'} / ${s.dzial?.nazwa ?? '-'}'),
                               trailing: IconButton(
                                 icon: const Icon(Icons.delete, color: Colors.red),
                                 onPressed: () async {
@@ -436,10 +446,15 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                         const SizedBox(height: 8),
                         DropdownButtonFormField<int>(
                           value: _maszynaSekcjaId,
-                          decoration: const InputDecoration(labelText: 'Sekcja'),
+                          decoration: const InputDecoration(labelText: 'Sekcja (opcjonalnie)'),
                           items: _sekcje
                               .where((s) => _maszynaDzialId == null || s.dzial?.id == _maszynaDzialId)
-                              .map((s) => DropdownMenuItem(value: s.id, child: Text(s.nazwa)))
+                              .map((s) => DropdownMenuItem(
+                                    value: s.id,
+                                    child: Text(
+                                      s.maszynaNazwa != null ? '${s.nazwa} (${s.maszynaNazwa})' : s.nazwa,
+                                    ),
+                                  ))
                               .toList(),
                           onChanged: (v) => setState(() => _maszynaSekcjaId = v),
                         ),
@@ -462,7 +477,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                         const SizedBox(height: 12),
                         TextField(
                           decoration: const InputDecoration(
-                            labelText: 'Szukaj maszyny / działu / sekcji',
+                            labelText: 'Szukaj maszyny / działu / sekcji / linii',
                             prefixIcon: Icon(Icons.search),
                           ),
                           onChanged: (v) => setState(() => _maszynaSearch = v),
@@ -470,7 +485,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                         const SizedBox(height: 8),
                         ...filteredMaszyny.map((m) => ListTile(
                               title: Text(m.nazwa),
-                              subtitle: Text('${m.dzial?.nazwa ?? '-'} / ${m.sekcja?.nazwa ?? '-'}'),
+                              subtitle: Text('${m.dzial?.nazwa ?? '-'} / ${m.sekcja?.nazwa ?? '-'} / ${m.sekcja?.maszynaNazwa ?? '-'}'),
                               trailing: IconButton(
                                 icon: const Icon(Icons.delete, color: Colors.red),
                                 onPressed: () async {
@@ -693,7 +708,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                     ),
                   ),
                   const SizedBox(height: 40),
-                  const Center(child: Text('Działy/Sekcje/Maszyny/Osoby zapisują się do bazy. Sekcja Użytkownicy (API) to realni użytkownicy z rolami i kafelkami. Sekcja Użytkownicy (DEMO) to lokalny mock.')),
+                  const Center(child: Text('Działy/Sekcje/Maszyny/Osoby zapisują się do bazy. Sekcje są przypisywane do maszyn nadrzędnych (np. linii). Sekcja Użytkownicy (API) to realni użytkownicy z rolami i kafelkami. Sekcja Użytkownicy (DEMO) to lokalny mock.')),
                 ],
               ),
             ),
