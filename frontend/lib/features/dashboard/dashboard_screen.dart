@@ -201,9 +201,27 @@ class _DashboardItem extends StatefulWidget {
 class _DashboardItemState extends State<_DashboardItem> {
   bool _hovered = false;
   bool _pressed = false;
+  bool _navigating = false;
 
   void _setHovered(bool v) => setState(() => _hovered = v);
   void _setPressed(bool v) => setState(() => _pressed = v);
+
+  Future<void> _tapAndNavigate(VoidCallback action) async {
+    if (_navigating) return;
+    setState(() {
+      _navigating = true;
+      _pressed = true;
+    });
+    await Future.delayed(const Duration(milliseconds: 90));
+    if (mounted) {
+      setState(() => _pressed = false);
+    }
+    await Future.delayed(const Duration(milliseconds: 40));
+    action();
+    if (mounted) {
+      setState(() => _navigating = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -227,7 +245,7 @@ class _DashboardItemState extends State<_DashboardItem> {
                 ? () => ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('Brak uprawnien do modulu: ${widget.requiredModule ?? widget.label}')),
                     )
-                : widget.onTap,
+                : () => _tapAndNavigate(widget.onTap),
             child: Ink(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(24),

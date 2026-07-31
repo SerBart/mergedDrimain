@@ -24,19 +24,18 @@ CustomTransitionPage<void> _smoothPage({
   return CustomTransitionPage<void>(
     key: state.pageKey,
     child: child,
-    transitionDuration: const Duration(milliseconds: 260),
-    reverseTransitionDuration: const Duration(milliseconds: 200),
+    transitionDuration: const Duration(milliseconds: 220),
+    reverseTransitionDuration: const Duration(milliseconds: 170),
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
       final fade = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
-      final slide = Tween<Offset>(
-        begin: const Offset(0.02, 0),
-        end: Offset.zero,
-      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic));
+      final scale = Tween<double>(begin: 0.992, end: 1.0).animate(
+        CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+      );
 
       return FadeTransition(
         opacity: fade,
-        child: SlideTransition(
-          position: slide,
+        child: ScaleTransition(
+          scale: scale,
           child: child,
         ),
       );

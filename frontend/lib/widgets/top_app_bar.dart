@@ -101,24 +101,24 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
       ),
       title: Row(
         children: [
-          // Logo container with subtle border and rounded corners
+          // Brand icon container
           Container(
             width: 48,
             height: 48,
-            padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.06),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white.withOpacity(0.06)),
+              borderRadius: BorderRadius.circular(12),
+              gradient: LinearGradient(
+                colors: [Colors.white.withOpacity(0.28), Colors.white.withOpacity(0.10)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              border: Border.all(color: Colors.white.withOpacity(0.24)),
             ),
-            // Prefer SVG if available, fallback to PNG
-            child: Builder(builder: (ctx) {
-              try {
-                return SvgPicture.asset('assets/images/logo.svg', fit: BoxFit.contain);
-              } catch (_) {
-                return Image.asset('assets/images/logo.png', fit: BoxFit.contain);
-              }
-            }),
+            child: const Icon(
+              Icons.precision_manufacturing_rounded,
+              color: Colors.white,
+              size: 28,
+            ),
           ),
           const SizedBox(width: 12),
           Column(
