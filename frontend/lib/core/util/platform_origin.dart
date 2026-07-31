@@ -2,5 +2,7 @@ import 'platform_origin_stub.dart' if (dart.library.html) 'platform_origin_web.d
 
 class PlatformOrigin {
   static String? origin() => impl.origin();
+
+  static String? runtimeApiBase() => impl.runtimeApiBase();
 }
 

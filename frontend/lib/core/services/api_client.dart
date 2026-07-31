@@ -9,16 +9,19 @@ class ApiClient {
   ApiClient._(this._dio);
 
   factory ApiClient({String? baseUrl}) {
-    // Prefer explicit param, then build-time define, then web origin, finally localhost
+    // Prefer explicit param, then runtime config, then build-time define, then web-aware fallback, finally localhost
+    final runtimeBase = kIsWeb ? PlatformOrigin.runtimeApiBase() : null;
     final defineBase = const String.fromEnvironment('API_BASE', defaultValue: '');
 
-    String resolvedBaseUrl = baseUrl ?? defineBase;
+    String resolvedBaseUrl = baseUrl ?? runtimeBase ?? defineBase;
 
     if (kIsWeb) {
       final origin = PlatformOrigin.origin();
       if (_isLocalOrigin(origin)) {
         // For local web development always use same-origin API to avoid CORS.
         resolvedBaseUrl = origin!;
+      } else if (resolvedBaseUrl.isEmpty) {
+        resolvedBaseUrl = _defaultWebApiBase(origin);
       }
     }
 
@@ -52,5 +55,24 @@ class ApiClient {
     if (uri == null) return false;
     final host = uri.host.toLowerCase();
     return host == 'localhost' || host == '127.0.0.1';
+  }
+
+  static String _defaultWebApiBase(String? origin) {
+    final uri = origin != null ? Uri.tryParse(origin) : null;
+    final host = uri?.host.toLowerCase();
+
+    if (host == null || host.isEmpty) {
+      return 'https://app.drimain.com';
+    }
+
+    if (host == 'app.drimain.com' || host == 'mergeddrimain-production.up.railway.app') {
+      return origin!;
+    }
+
+    if (host.endsWith('.up.railway.app') || host.startsWith('site-')) {
+      return 'https://app.drimain.com';
+    }
+
+    return origin!;
   }
 }
