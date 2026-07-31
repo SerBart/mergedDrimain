@@ -24,6 +24,7 @@ import drimer.drimain.repository.UserRepository;
 import drimer.drimain.model.Osoba;
 import drimer.drimain.model.Maszyna;
 import drimer.drimain.repository.SekcjaRepository;
+import org.springframework.transaction.annotation.Transactional;
 
 @RestController
 @RequestMapping("/api/meta")
@@ -138,6 +139,7 @@ public class MetaController {
     }
 
     @GetMapping("/sekcje-simple")
+    @Transactional(readOnly = true)
     public List<SekcjaDTO> simpleSekcje(@RequestParam(name = "dzialId", required = false) Long dzialId) {
         return (dzialId != null ? sekcjaRepository.findByDzial_IdOrderByNazwaAsc(dzialId) : sekcjaRepository.findAllByOrderByNazwaAsc())
                 .stream()

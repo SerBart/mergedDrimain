@@ -894,6 +894,9 @@ class _ZgloszeniaScreenModernState
           builder: (context, setLocalState) {
             // Pobierz aktualne maszyny
             final maszyny = ref.read(mockRepoProvider).getMaszyny();
+            final sekcjeDlaWybranejMaszyny = _selectedMaszyna?.sekcja != null
+                ? <Sekcja>[_selectedMaszyna!.sekcja!]
+                : <Sekcja>[];
             // Filtruj maszyny dla wybranego działu
             final maszynyDlaDzialu = _selectedDzial != null
                 ? maszyny.where((m) => m.dzial?.id == _selectedDzial!.id).toList()
@@ -936,56 +939,18 @@ class _ZgloszeniaScreenModernState
                             setLocalState(() {
                               _selectedDzial = v;
                               _selectedSekcja = null;
-                              _sekcjeLoaded = [];
                               _selectedMaszyna = null;
                               _maszynaSearchText = '';
-                              _loadingSekcje = true;
                               _loadingMaszyny = true;
                             });
                             if (v != null) {
-                              await _fetchSekcjeForDzial();
                               await _fetchMaszynyForDzial();
                             }
                             setLocalState(() {
-                              _loadingSekcje = false;
                               _loadingMaszyny = false;
                             });
                           },
                         ),
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<Sekcja>(
-                          value: _selectedSekcja,
-                          decoration: const InputDecoration(
-                            labelText: 'Sekcja (opcjonalnie)',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: _sekcjeLoaded
-                              .map((s) => DropdownMenuItem<Sekcja>(
-                                    value: s,
-                                    child: Text(s.nazwa),
-                                  ))
-                              .toList(),
-                          onChanged: (_selectedDzial == null || _loadingSekcje)
-                              ? null
-                              : (v) {
-                                  setLocalState(() {
-                                    _selectedSekcja = v;
-                                    _selectedMaszyna = null;
-                                    _maszynaSearchText = '';
-                                  });
-                                },
-                        ),
-                        if (_sekcjeError != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                _sekcjeError!,
-                                style: const TextStyle(color: Colors.red, fontSize: 11),
-                              ),
-                            ),
-                          ),
                         // ROZSZERZONA DIAGNOSTYKA + SPINNER
                         Padding(
                           padding: const EdgeInsets.only(top: 6.0, bottom: 12.0),
@@ -1070,6 +1035,7 @@ class _ZgloszeniaScreenModernState
                                 onSelected: (Maszyna sel) {
                                   setState(() {
                                     _selectedMaszyna = sel;
+                                    _selectedSekcja = sel.sekcja;
                                     _maszynaSearchText = sel.nazwa;
                                   });
                                 },
@@ -1099,6 +1065,7 @@ class _ZgloszeniaScreenModernState
                                       _maszynaSearchText = v;
                                       if (_selectedMaszyna != null && _selectedMaszyna!.nazwa != v) {
                                         _selectedMaszyna = null;
+                                        _selectedSekcja = null;
                                       }
                                     }),
                                     onSubmitted: (_) => onFieldSubmitted(),
@@ -1137,6 +1104,23 @@ class _ZgloszeniaScreenModernState
                                 Text(state.errorText!, style: const TextStyle(color: Colors.red, fontSize: 12)),
                             ],
                           ),
+                        ),
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<Sekcja>(
+                          value: _selectedSekcja,
+                          decoration: const InputDecoration(
+                            labelText: 'Sekcja (wg wybranej maszyny)',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: sekcjeDlaWybranejMaszyny
+                              .map((s) => DropdownMenuItem<Sekcja>(
+                                    value: s,
+                                    child: Text(s.nazwa),
+                                  ))
+                              .toList(),
+                          onChanged: sekcjeDlaWybranejMaszyny.isEmpty
+                              ? null
+                              : (v) => setLocalState(() => _selectedSekcja = v),
                         ),
                         const SizedBox(height: 12),
                         Row(

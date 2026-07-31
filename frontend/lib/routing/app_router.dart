@@ -24,20 +24,68 @@ CustomTransitionPage<void> _smoothPage({
   return CustomTransitionPage<void>(
     key: state.pageKey,
     child: child,
-    transitionDuration: const Duration(milliseconds: 220),
-    reverseTransitionDuration: const Duration(milliseconds: 170),
+    transitionDuration: const Duration(milliseconds: 420),
+    reverseTransitionDuration: const Duration(milliseconds: 280),
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      final fade = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
-      final scale = Tween<double>(begin: 0.992, end: 1.0).animate(
-        CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+      final overlayOpacity = TweenSequence<double>([
+        TweenSequenceItem(
+          tween: Tween<double>(begin: 0, end: 0.94)
+              .chain(CurveTween(curve: Curves.easeOutCubic)),
+          weight: 34,
+        ),
+        TweenSequenceItem(tween: ConstantTween<double>(0.94), weight: 26),
+        TweenSequenceItem(
+          tween: Tween<double>(begin: 0.94, end: 0)
+              .chain(CurveTween(curve: Curves.easeInCubic)),
+          weight: 40,
+        ),
+      ]).animate(animation);
+      final nextFade = CurvedAnimation(
+        parent: animation,
+        curve: const Interval(0.62, 1.0, curve: Curves.easeOutCubic),
+      );
+      final loaderOpacity = TweenSequence<double>([
+        TweenSequenceItem(
+          tween: Tween<double>(begin: 0, end: 1)
+              .chain(CurveTween(curve: Curves.easeOutCubic)),
+          weight: 40,
+        ),
+        TweenSequenceItem(tween: ConstantTween<double>(1), weight: 20),
+        TweenSequenceItem(
+          tween: Tween<double>(begin: 1, end: 0)
+              .chain(CurveTween(curve: Curves.easeInCubic)),
+          weight: 40,
+        ),
+      ]).animate(animation);
+      final gearSpin = Tween<double>(begin: 0, end: 1.2).animate(
+        CurvedAnimation(parent: animation, curve: Curves.linear),
       );
 
-      return FadeTransition(
-        opacity: fade,
-        child: ScaleTransition(
-          scale: scale,
-          child: child,
-        ),
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Opacity(opacity: nextFade.value, child: child),
+          if (overlayOpacity.value > 0.01 || loaderOpacity.value > 0.01)
+            ColoredBox(
+              color: Theme.of(context)
+                  .colorScheme
+                  .surface
+                  .withOpacity(overlayOpacity.value.clamp(0.0, 0.96).toDouble()),
+              child: Center(
+                child: Opacity(
+                  opacity: loaderOpacity.value,
+                  child: RotationTransition(
+                    turns: gearSpin,
+                    child: Icon(
+                      Icons.settings_rounded,
+                      size: 40,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       );
     },
   );

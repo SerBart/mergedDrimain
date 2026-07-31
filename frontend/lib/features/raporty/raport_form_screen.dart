@@ -7,6 +7,7 @@ import '../../core/models/maszyna.dart';
 import '../../core/models/osoba.dart';
 import '../../core/models/raport.dart';
 import '../../core/models/dzial.dart'; // nowy import
+import '../../core/models/sekcja.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/repositories/meta_api_repository.dart';
 import '../../core/constants/naprawy_constants.dart';
@@ -40,6 +41,7 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
 
   // Pola formularza
   Maszyna? _maszyna;
+  Sekcja? _sekcja;
   Osoba? _osoba;
   Dzial? _dzial; // wybrany dział
   final _typNaprawyCtrl = TextEditingController();
@@ -106,6 +108,7 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
       // Jeśli edycja i mamy maszynę z działem, ustaw dział i pobierz maszyny dla niego
       if (_maszyna?.dzial != null && _dzial == null) {
         _dzial = _maszyna!.dzial;
+        _sekcja = _maszyna?.sekcja;
         await _fetchMaszynyForDzial();
       }
     } catch (e) {
@@ -136,6 +139,7 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
       // Jeżeli obecnie wybrana maszyna nie należy do nowego zestawu – wyczyść
       if (_maszyna != null && !fetchedMaszyny.any((m) => m.id == _maszyna!.id)) {
         _maszyna = null;
+        _sekcja = null;
       }
     } catch (e) {
       _maszynyError = 'Błąd maszyn dla działu: $e';
@@ -162,6 +166,7 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
 
     if (base != null) {
       _maszyna = base.maszyna;
+      _sekcja = base.maszyna?.sekcja;
       _osoba = base.osoba;
       _dzial = base.maszyna?.dzial; // null-safe
       _typNaprawyCtrl.text = base.typNaprawy;
@@ -335,6 +340,7 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
     setState(() {
       _dzial = dz;
       _maszyna = null; // reset maszyny przy zmianie działu
+      _sekcja = null;
       _maszynaSearchText = '';
     });
     if (dz != null) {
@@ -351,6 +357,12 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
     final q = _maszynaSearchText.trim().toLowerCase();
     if (q.isEmpty) return all;
     return all.where((m) => m.nazwa.toLowerCase().contains(q)).toList();
+  }
+
+  List<Sekcja> _sekcjeForSelectedMaszyna() {
+    final sekcja = _maszyna?.sekcja;
+    if (sekcja == null) return const [];
+    return [sekcja];
   }
 
   @override
@@ -503,6 +515,7 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
               onSelected: (Maszyna sel) {
                 setState(() {
                   _maszyna = sel;
+                  _sekcja = sel.sekcja;
                   _maszynaSearchText = sel.nazwa;
                 });
               },
@@ -531,6 +544,7 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
                     _maszynaSearchText = v;
                     if (_maszyna != null && _maszyna!.nazwa != v) {
                       _maszyna = null;
+                      _sekcja = null;
                     }
                   }),
                   onSubmitted: (_) => onFieldSubmitted(),
@@ -569,6 +583,17 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
               Text(state.errorText!, style: const TextStyle(color: Colors.red, fontSize: 12)),
           ],
         ),
+      ),
+      const SizedBox(height: 16),
+      DropdownButtonFormField<Sekcja>(
+        value: _sekcja,
+        decoration: const InputDecoration(labelText: 'Sekcja (wg wybranej maszyny)'),
+        items: _sekcjeForSelectedMaszyna()
+            .map((s) => DropdownMenuItem<Sekcja>(value: s, child: Text(s.nazwa)))
+            .toList(),
+        onChanged: _sekcjeForSelectedMaszyna().isEmpty
+            ? null
+            : (v) => setState(() => _sekcja = v),
       ),
       const SizedBox(height: 16),
       // OSOBA (opcjonalne)
