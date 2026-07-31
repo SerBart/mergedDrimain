@@ -101,23 +101,23 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
       ),
       title: Row(
         children: [
-          // Brand icon container
+          // Brand logo container
           Container(
-            width: 48,
+            width: 92,
             height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               gradient: LinearGradient(
-                colors: [Colors.white.withOpacity(0.28), Colors.white.withOpacity(0.10)],
+                colors: [Colors.white.withOpacity(0.22), Colors.white.withOpacity(0.08)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              border: Border.all(color: Colors.white.withOpacity(0.24)),
+              border: Border.all(color: Colors.white.withOpacity(0.22)),
             ),
-            child: const Icon(
-              Icons.precision_manufacturing_rounded,
-              color: Colors.white,
-              size: 28,
+            child: Image.asset(
+              'assets/images/logo.png',
+              fit: BoxFit.contain,
             ),
           ),
           const SizedBox(width: 12),
