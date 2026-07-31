@@ -48,6 +48,9 @@ public class ZgloszenieCreateRequest {
     @Positive(message = "ID działu musi być dodatnie")
     private Long dzialId;
     
+    @Positive(message = "ID sekcji musi być dodatnie")
+    private Long sekcjaId;
+    
     private Long autorId;
     
     @Pattern(regexp = "^(?i)data:image/(png|jpeg|jpg|gif);base64,[A-Za-z0-9+/=]*$", 

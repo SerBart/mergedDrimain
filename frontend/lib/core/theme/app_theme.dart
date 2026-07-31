@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 
 class AppTheme {
   static ThemeData light() {
-    final seed = const Color(0xFF2563EB);
+    // Vibrant violet seed gives the app a more modern visual identity.
+    final seed = const Color(0xFF7C3AED);
     final scheme = ColorScheme.fromSeed(seedColor: seed, brightness: Brightness.light);
     final base = ThemeData(
       useMaterial3: true,
@@ -13,11 +14,11 @@ class AppTheme {
     final textTheme = base.textTheme.copyWith(
       bodyMedium: base.textTheme.bodyMedium?.copyWith(color: Colors.black87),
       labelLarge: base.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
-      titleLarge: base.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+      titleLarge: base.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
     );
 
     return base.copyWith(
-      scaffoldBackgroundColor: const Color(0xFFF2F5F9),
+      scaffoldBackgroundColor: Colors.transparent,
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
         backgroundColor: scheme.primary,
@@ -27,12 +28,13 @@ class AppTheme {
       ),
       cardTheme: CardThemeData(
         color: Colors.white,
-        elevation: 1,
+        elevation: 0,
         margin: const EdgeInsets.symmetric(vertical: 12),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: BorderSide(color: Colors.black.withOpacity(.05)),
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: scheme.primary.withOpacity(.08)),
         ),
+        shadowColor: scheme.primary.withOpacity(.18),
         surfaceTintColor: Colors.white,
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -42,15 +44,15 @@ class AppTheme {
         labelStyle: const TextStyle(color: Colors.black87),
         hintStyle: const TextStyle(color: Colors.black45),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFCDD5DF)),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFDDD6FE)),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFCDD5DF)),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFDDD6FE)),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: seed, width: 2),
         ),
       ),
@@ -58,17 +60,17 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: scheme.primary,
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
           elevation: 0,
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
     );

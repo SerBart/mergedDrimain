@@ -14,6 +14,7 @@ class DashboardScreen extends ConsumerWidget {
     final auth = ref.watch(authStateProvider);
     final isAdmin = auth?.role == AppRoles.admin;
     final modules = auth?.modules ?? const {};
+    final scheme = Theme.of(context).colorScheme;
 
     bool has(String moduleKey) => modules.any((m) => m.toLowerCase() == moduleKey.toLowerCase());
 
@@ -21,7 +22,7 @@ class DashboardScreen extends ConsumerWidget {
       _DashboardItem(
         icon: FontAwesomeIcons.fileCircleCheck,
         label: 'Raporty',
-        color: Colors.indigo,
+        gradient: [scheme.primary, scheme.primary.withOpacity(.75)],
         onTap: () => context.go('/raporty'),
         requiredModule: 'Raporty',
         hasAccess: isAdmin || has('Raporty'),
@@ -29,7 +30,7 @@ class DashboardScreen extends ConsumerWidget {
       _DashboardItem(
         icon: FontAwesomeIcons.triangleExclamation,
         label: 'Zgłoszenia',
-        color: Colors.orange.shade700,
+        gradient: [const Color(0xFFF59E0B), const Color(0xFFF97316)],
         onTap: () => context.go('/zgloszenia'),
         requiredModule: 'Zgloszenia',
         hasAccess: isAdmin || has('Zgloszenia'),
@@ -37,7 +38,7 @@ class DashboardScreen extends ConsumerWidget {
       _DashboardItem(
         icon: FontAwesomeIcons.calendarDays,
         label: 'Harmonogramy',
-        color: Colors.green.shade700,
+        gradient: [const Color(0xFF10B981), const Color(0xFF059669)],
         onTap: () => context.go('/harmonogramy'),
         requiredModule: 'Harmonogramy',
         hasAccess: isAdmin || has('Harmonogramy'),
@@ -45,14 +46,13 @@ class DashboardScreen extends ConsumerWidget {
       _DashboardItem(
         icon: FontAwesomeIcons.clipboardCheck,
         label: 'Przeglądy',
-        color: Colors.blueGrey,
+        gradient: [const Color(0xFF0EA5E9), const Color(0xFF2563EB)],
         onTap: () => context.go('/przeglady'),
-        // dostęp zawsze (brak wymogu modułu)
       ),
       _DashboardItem(
         icon: FontAwesomeIcons.screwdriverWrench,
         label: 'Instrukcje napraw',
-        color: Colors.brown,
+        gradient: [const Color(0xFF8B5CF6), const Color(0xFF7C3AED)],
         onTap: () => context.go('/instrukcje'),
         requiredModule: 'Instrukcje',
         hasAccess: isAdmin || has('Instrukcje'),
@@ -60,7 +60,7 @@ class DashboardScreen extends ConsumerWidget {
       _DashboardItem(
         icon: FontAwesomeIcons.boxOpen,
         label: 'Części',
-        color: Colors.deepPurple,
+        gradient: [const Color(0xFFEC4899), const Color(0xFFDB2777)],
         onTap: () => context.go('/czesci'),
         requiredModule: 'Czesci',
         hasAccess: isAdmin || has('Czesci'),
@@ -69,24 +69,108 @@ class DashboardScreen extends ConsumerWidget {
         _DashboardItem(
           icon: FontAwesomeIcons.userShield,
           label: 'Panel Admina',
-          color: Colors.teal,
+          gradient: [const Color(0xFF14B8A6), const Color(0xFF0D9488)],
           onTap: () => context.go('/admin'),
         ),
     ];
 
+    final width = MediaQuery.of(context).size.width;
+    final crossAxisCount = width > 1300
+        ? 5
+        : width > 1024
+            ? 4
+            : width > 720
+                ? 3
+                : 2;
+
     return Scaffold(
       appBar: const TopAppBar(title: 'Dashboard'),
-      body: GridView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: items.length,
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount:
-              MediaQuery.of(context).size.width > 1000 ? 5 : (MediaQuery.of(context).size.width > 800 ? 4 : (MediaQuery.of(context).size.width > 500 ? 3 : 2)),
-          childAspectRatio: 0.95,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-        ),
-        itemBuilder: (_, i) => items[i],
+      body: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+              child: _WelcomePanel(isAdmin: isAdmin, modulesCount: modules.length),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            sliver: SliverGrid(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                childAspectRatio: 0.98,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (context, i) => items[i],
+                childCount: items.length,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WelcomePanel extends StatelessWidget {
+  final bool isAdmin;
+  final int modulesCount;
+
+  const _WelcomePanel({required this.isAdmin, required this.modulesCount});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final titleStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.w800,
+        );
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(.86),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: scheme.primary.withOpacity(.14)),
+        boxShadow: [
+          BoxShadow(
+            color: scheme.primary.withOpacity(.08),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                colors: [scheme.primary, scheme.secondary],
+              ),
+            ),
+            child: const Icon(Icons.dashboard_rounded, color: Colors.white),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Panel glowny', style: titleStyle),
+                const SizedBox(height: 4),
+                Text(
+                  isAdmin
+                      ? 'Masz dostep administracyjny. Wszystkie moduly sa aktywne.'
+                      : 'Dostepne moduly: $modulesCount. Wybierz kafelek, aby przejsc dalej.',
+                  style: const TextStyle(color: Colors.black54),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -95,19 +179,20 @@ class DashboardScreen extends ConsumerWidget {
 class _DashboardItem extends StatefulWidget {
   final IconData icon;
   final String label;
-  final Color color;
+  final List<Color> gradient;
   final VoidCallback onTap;
   final String? requiredModule;
   final bool hasAccess;
+
   const _DashboardItem({
     required this.icon,
     required this.label,
-    required this.color,
+    required this.gradient,
     required this.onTap,
     this.requiredModule,
     this.hasAccess = true,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   State<_DashboardItem> createState() => _DashboardItemState();
@@ -123,138 +208,92 @@ class _DashboardItemState extends State<_DashboardItem> {
   @override
   Widget build(BuildContext context) {
     final disabled = widget.requiredModule != null && !widget.hasAccess;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // responsywny rozmiar ikony - zwiększone wartości dla bardziej "wypasionej" apki
-        final tileWidth = constraints.maxWidth;
-        final iconSize = tileWidth > 260
-            ? 84.0
-            : tileWidth > 200
-                ? 72.0
-                : tileWidth > 140
-                    ? 60.0
-                    : 52.0;
-        final textStyle = TextStyle(
-          fontWeight: FontWeight.w800,
-          color: Colors.white,
-          fontSize: iconSize > 70 ? 18 : 15,
-          letterSpacing: 0.2,
-          shadows: [
-            Shadow(color: Colors.black.withOpacity(0.35), blurRadius: 6, offset: Offset(0, 2)),
-          ],
-        );
+    final baseScale = _hovered ? 1.02 : (_pressed ? 0.985 : 1.0);
 
-        final baseScale = _hovered ? 1.03 : (_pressed ? 0.98 : 1.0);
-
-        return MouseRegion(
-          onEnter: (_) => _setHovered(true),
-          onExit: (_) => _setHovered(false),
-          child: GestureDetector(
-            onTapDown: (_) => _setPressed(true),
-            onTapUp: (_) => _setPressed(false),
-            onTapCancel: () => _setPressed(false),
-            child: AnimatedScale(
-              scale: baseScale,
-              duration: Duration(milliseconds: 160),
-              curve: Curves.easeOutCubic,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(28),
-                onTap: disabled
-                    ? () => ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Brak uprawnień do modułu: ${widget.requiredModule ?? widget.label}')),
-                        )
-                    : widget.onTap,
-                child: Ink(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: disabled
-                          ? [Colors.grey.withOpacity(.55), Colors.grey.withOpacity(.35)]
-                          : [widget.color.withOpacity(.95), widget.color.withOpacity(.65)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+    return MouseRegion(
+      onEnter: (_) => _setHovered(true),
+      onExit: (_) => _setHovered(false),
+      child: GestureDetector(
+        onTapDown: (_) => _setPressed(true),
+        onTapUp: (_) => _setPressed(false),
+        onTapCancel: () => _setPressed(false),
+        child: AnimatedScale(
+          scale: baseScale,
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(24),
+            onTap: disabled
+                ? () => ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Brak uprawnien do modulu: ${widget.requiredModule ?? widget.label}')),
+                    )
+                : widget.onTap,
+            child: Ink(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                gradient: LinearGradient(
+                  colors: disabled
+                      ? [Colors.grey.shade500, Colors.grey.shade400]
+                      : widget.gradient,
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: disabled
+                    ? []
+                    : [
+                        BoxShadow(
+                          color: widget.gradient.first.withOpacity(0.3),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+              ),
+              child: Stack(
+                children: [
+                  Positioned(
+                    right: -12,
+                    top: -12,
+                    child: Container(
+                      width: 92,
+                      height: 92,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(.12),
+                      ),
                     ),
-                    borderRadius: BorderRadius.circular(28),
-                    boxShadow: disabled
-                        ? []
-                        : [
-                            BoxShadow(
-                              color: widget.color.withOpacity(0.28),
-                              blurRadius: 22,
-                              spreadRadius: 1,
-                              offset: const Offset(0, 10),
-                            ),
-                          ],
                   ),
-                  child: Stack(
-                    children: [
-                      // Duży, gradientowy okrąg dekoracyjny po prawej, z delikatnym blur/shadow
-                      Align(
-                        alignment: Alignment.topRight,
-                        child: Padding(
-                          padding: const EdgeInsets.only(top: 8, right: 8),
-                          child: Container(
-                            width: iconSize + 36,
-                            height: iconSize + 36,
-                            decoration: BoxDecoration(
-                              gradient: RadialGradient(
-                                colors: disabled
-                                    ? [Colors.white.withOpacity(0.04), Colors.white.withOpacity(0.01)]
-                                    : [Colors.white.withOpacity(0.14), Colors.white.withOpacity(0.03)],
-                                center: Alignment(-0.2, -0.2),
-                                radius: 0.9,
-                              ),
-                              shape: BoxShape.circle,
-                              boxShadow: disabled
-                                  ? []
-                                  : [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.12),
-                                        blurRadius: 12,
-                                        offset: Offset(0, 6),
-                                      ),
-                                    ],
-                            ),
+                  Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(widget.icon, size: 56, color: Colors.white),
+                        const SizedBox(height: 14),
+                        Text(
+                          widget.label,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                            letterSpacing: 0.2,
                           ),
                         ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            // Ikona z lekkim glow
-                            Container(
-                              padding: EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                // delikatny gradient pod ikoną aby wyglądała bardziej premium
-                                gradient: disabled
-                                    ? null
-                                    : LinearGradient(colors: [Colors.white.withOpacity(.12), Colors.white.withOpacity(.06)]),
-                              ),
-                              child: Icon(widget.icon, size: iconSize, color: Colors.white, shadows: [
-                                Shadow(color: Colors.black.withOpacity(0.35), blurRadius: 8, offset: Offset(0, 3)),
-                              ]),
-                            ),
-                            SizedBox(height: 14),
-                            Text(widget.label, textAlign: TextAlign.center, style: textStyle),
-                          ],
-                        ),
-                      ),
-                      if (disabled)
-                        Positioned(
-                          top: 10,
-                          right: 10,
-                          child: Icon(Icons.lock, color: Colors.white.withOpacity(.95)),
-                        )
-                    ],
+                      ],
+                    ),
                   ),
-                ),
+                  if (disabled)
+                    const Positioned(
+                      top: 10,
+                      right: 10,
+                      child: Icon(Icons.lock, color: Colors.white),
+                    ),
+                ],
               ),
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

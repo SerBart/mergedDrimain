@@ -8,6 +8,7 @@ import drimer.drimain.model.Dzial;
 import drimer.drimain.model.User;
 import drimer.drimain.model.Zgloszenie;
 import drimer.drimain.model.Maszyna;
+import drimer.drimain.model.Sekcja;
 import drimer.drimain.model.enums.ZgloszenieStatus;
 import drimer.drimain.repository.DzialRepository;
 import drimer.drimain.repository.UserRepository;
@@ -26,6 +27,7 @@ import java.util.List;
 import java.util.Objects;
 
 import drimer.drimain.repository.MaszynaRepository;
+import drimer.drimain.repository.SekcjaRepository;
 
 @Service
 @RequiredArgsConstructor
@@ -38,6 +40,7 @@ public class ZgloszenieCommandService {
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final MaszynaRepository maszynaRepository;
+    private final SekcjaRepository sekcjaRepository;
 
     public Zgloszenie create(ZgloszenieCreateRequest req, Authentication authentication) {
         Zgloszenie z = new Zgloszenie();
@@ -76,6 +79,22 @@ public class ZgloszenieCommandService {
             Dzial dzial = dzialRepository.findById(req.getDzialId())
                     .orElseThrow(() -> new IllegalArgumentException("Dzial not found"));
             z.setDzial(dzial);
+        }
+
+        // Optional section validation (selection from UI). Zgloszenie stores section via selected machine.
+        if (req.getSekcjaId() != null) {
+            Sekcja sekcja = sekcjaRepository.findById(req.getSekcjaId())
+                    .orElseThrow(() -> new IllegalArgumentException("Sekcja not found"));
+
+            if (z.getDzial() != null && sekcja.getDzial() != null
+                    && !Objects.equals(sekcja.getDzial().getId(), z.getDzial().getId())) {
+                throw new IllegalArgumentException("Wybrana sekcja nie należy do wskazanego działu");
+            }
+
+            if (z.getMaszyna() != null && z.getMaszyna().getSekcja() != null
+                    && !Objects.equals(z.getMaszyna().getSekcja().getId(), sekcja.getId())) {
+                throw new IllegalArgumentException("Wybrana maszyna nie należy do wskazanej sekcji");
+            }
         }
 
         // Set author from authentication

@@ -8,6 +8,7 @@ import '../../core/providers/app_providers.dart';
 import '../../core/models/zgloszenie.dart';
 import '../../core/models/maszyna.dart';
 import '../../core/models/dzial.dart';
+import '../../core/models/sekcja.dart';
 import '../../widgets/photo_picker_field.dart';
 import '../../widgets/centered_scroll_card.dart';
 import '../../widgets/top_app_bar.dart';
@@ -40,6 +41,7 @@ class _ZgloszeniaScreenModernState
   String _typSelected = 'Usterka';
   Maszyna? _selectedMaszyna;
   Dzial? _selectedDzial; // New: selected department
+  Sekcja? _selectedSekcja;
 
   // Wyszukiwanie / filtrowanie / sortowanie
   final _search = TextEditingController();
@@ -58,9 +60,12 @@ class _ZgloszeniaScreenModernState
   // Nowe: zmienne do obsługi dynamicznego ładowania maszyn dla działu
   bool _loadingDzialy = false;
   bool _loadingMaszyny = false;
+  bool _loadingSekcje = false;
   String? _metaError;
   String? _maszynyError;
+  String? _sekcjeError;
   List<Dzial> _dzialyLoaded = [];
+  List<Sekcja> _sekcjeLoaded = [];
   String _maszynaSearchText = '';
 
   @override
@@ -226,6 +231,8 @@ class _ZgloszeniaScreenModernState
     _photoBase64 = null;
     _selectedMaszyna = null;
     _selectedDzial = null;
+    _selectedSekcja = null;
+    _sekcjeLoaded = [];
   }
 
   Future<void> _add() async {
@@ -242,6 +249,7 @@ class _ZgloszeniaScreenModernState
         statusUi: _status,
         dataGodzina: DateTime.now(),
         dzialId: _selectedDzial?.id,
+        sekcjaId: _selectedSekcja?.id,
         maszynaId: _selectedMaszyna?.id,
       );
 
@@ -927,18 +935,57 @@ class _ZgloszeniaScreenModernState
                           onChanged: (v) async {
                             setLocalState(() {
                               _selectedDzial = v;
+                              _selectedSekcja = null;
+                              _sekcjeLoaded = [];
                               _selectedMaszyna = null;
                               _maszynaSearchText = '';
+                              _loadingSekcje = true;
                               _loadingMaszyny = true;
                             });
                             if (v != null) {
+                              await _fetchSekcjeForDzial();
                               await _fetchMaszynyForDzial();
-                              setLocalState(() {
-                                _loadingMaszyny = false;
-                              });
                             }
+                            setLocalState(() {
+                              _loadingSekcje = false;
+                              _loadingMaszyny = false;
+                            });
                           },
                         ),
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<Sekcja>(
+                          value: _selectedSekcja,
+                          decoration: const InputDecoration(
+                            labelText: 'Sekcja (opcjonalnie)',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: _sekcjeLoaded
+                              .map((s) => DropdownMenuItem<Sekcja>(
+                                    value: s,
+                                    child: Text(s.nazwa),
+                                  ))
+                              .toList(),
+                          onChanged: (_selectedDzial == null || _loadingSekcje)
+                              ? null
+                              : (v) {
+                                  setLocalState(() {
+                                    _selectedSekcja = v;
+                                    _selectedMaszyna = null;
+                                    _maszynaSearchText = '';
+                                  });
+                                },
+                        ),
+                        if (_sekcjeError != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                _sekcjeError!,
+                                style: const TextStyle(color: Colors.red, fontSize: 11),
+                              ),
+                            ),
+                          ),
                         // ROZSZERZONA DIAGNOSTYKA + SPINNER
                         Padding(
                           padding: const EdgeInsets.only(top: 6.0, bottom: 12.0),
@@ -1011,8 +1058,11 @@ class _ZgloszeniaScreenModernState
                                   }
                                   final q = tev.text.trim().toLowerCase();
                                   final all = ref.read(mockRepoProvider).getMaszyny();
-                                  if (q.isEmpty) return all;
-                                  return all.where((m) {
+                                  final bySection = _selectedSekcja == null
+                                      ? all
+                                      : all.where((m) => m.sekcja?.id == _selectedSekcja!.id).toList();
+                                  if (q.isEmpty) return bySection;
+                                  return bySection.where((m) {
                                     final sekcja = m.sekcja?.nazwa.toLowerCase() ?? '';
                                     return m.nazwa.toLowerCase().contains(q) || sekcja.contains(q);
                                   });
@@ -1235,6 +1285,40 @@ class _ZgloszeniaScreenModernState
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Nie udało się pobrać maszyn dla działu: $e')),
         );
+      }
+    }
+  }
+
+  Future<void> _fetchSekcjeForDzial() async {
+    if (_selectedDzial == null) {
+      setState(() {
+        _sekcjeLoaded = [];
+        _selectedSekcja = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _loadingSekcje = true;
+      _sekcjeError = null;
+    });
+
+    try {
+      final meta = ref.read(metaApiRepositoryProvider);
+      final fetchedSekcje = await meta.fetchSekcjeSimple(dzialId: _selectedDzial!.id);
+      setState(() {
+        _sekcjeLoaded = fetchedSekcje;
+        if (_selectedSekcja != null && !_sekcjeLoaded.any((s) => s.id == _selectedSekcja!.id)) {
+          _selectedSekcja = null;
+        }
+        _loadingSekcje = false;
+      });
+    } catch (e) {
+      _sekcjeError = 'Blad sekcji dla dzialu: $e';
+      if (mounted) {
+        setState(() {
+          _loadingSekcje = false;
+        });
       }
     }
   }

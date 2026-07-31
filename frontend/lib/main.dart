@@ -7,6 +7,7 @@ import 'core/theme/app_theme.dart';
 import 'routing/app_router.dart'; // plik z providerem routera (poniżej przykład)
 import 'core/utils/notification_router.dart';
 import 'core/models/notification.dart';
+import 'widgets/app_background.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -96,6 +97,11 @@ class _TPMAppState extends ConsumerState<TPMApp> {
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       routerConfig: router,
+      builder: (context, child) {
+        return AppBackground(
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }

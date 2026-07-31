@@ -25,6 +25,7 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
     final auth = ref.watch(authStateProvider);
     final username = auth?.username ?? '';
     final initials = username.isNotEmpty ? username.substring(0, 1).toUpperCase() : '';
+    final scheme = Theme.of(context).colorScheme;
 
     // Attempt to load package info asynchronously via a FutureBuilder
     final versionFuture = PackageInfo.fromPlatform();
@@ -89,12 +90,12 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
       flexibleSpace: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Colors.indigo.shade800, Colors.indigo.shade400],
+            colors: [scheme.primary, scheme.secondary],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.18), blurRadius: 10, offset: Offset(0, 4)),
+            BoxShadow(color: scheme.primary.withOpacity(0.32), blurRadius: 12, offset: const Offset(0, 4)),
           ],
         ),
       ),

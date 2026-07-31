@@ -30,6 +30,7 @@ class ZgloszeniaApiRepository {
     required String statusUi,
     DateTime? dataGodzina,
     int? dzialId,
+    int? sekcjaId,
     int? maszynaId,
   }) async {
     final token = await _readToken();
@@ -43,6 +44,7 @@ class ZgloszeniaApiRepository {
       'opis': opis,
       'dataGodzina': (dataGodzina ?? DateTime.now()).toIso8601String(),
       if (dzialId != null) 'dzialId': dzialId,
+      if (sekcjaId != null) 'sekcjaId': sekcjaId,
       if (maszynaId != null) 'maszynaId': maszynaId,
     };
 

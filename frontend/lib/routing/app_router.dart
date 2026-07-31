@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../core/providers/app_providers.dart';
@@ -16,6 +17,33 @@ import '../features/instrukcje/instrukcje_list_screen.dart' as instrukcje_list;
 import '../features/instrukcje/instrukcja_form_screen.dart' as instrukcja_form;
 import '../features/notifications/notifications_page.dart';
 
+CustomTransitionPage<void> _smoothPage({
+  required GoRouterState state,
+  required Widget child,
+}) {
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 260),
+    reverseTransitionDuration: const Duration(milliseconds: 200),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final fade = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+      final slide = Tween<Offset>(
+        begin: const Offset(0.02, 0),
+        end: Offset.zero,
+      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic));
+
+      return FadeTransition(
+        opacity: fade,
+        child: SlideTransition(
+          position: slide,
+          child: child,
+        ),
+      );
+    },
+  );
+}
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authStateProvider);
 
@@ -29,38 +57,71 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
-      GoRoute(name: 'dashboard', path: '/dashboard', builder: (_, __) => const DashboardScreen()),
-      GoRoute(path: '/raporty', builder: (_, __) => const RaportyListScreen()),
-      GoRoute(path: '/raport/nowy', builder: (_, __) => const RaportFormScreen()),
+      GoRoute(
+        path: '/login',
+        pageBuilder: (_, state) => _smoothPage(state: state, child: const LoginScreen()),
+      ),
+      GoRoute(
+        name: 'dashboard',
+        path: '/dashboard',
+        pageBuilder: (_, state) => _smoothPage(state: state, child: const DashboardScreen()),
+      ),
+      GoRoute(
+        path: '/raporty',
+        pageBuilder: (_, state) => _smoothPage(state: state, child: const RaportyListScreen()),
+      ),
+      GoRoute(
+        path: '/raport/nowy',
+        pageBuilder: (_, state) => _smoothPage(state: state, child: const RaportFormScreen()),
+      ),
       GoRoute(
         path: '/raport/edytuj/:id',
-        builder: (_, state) {
+        pageBuilder: (_, state) {
           final idStr = state.pathParameters['id'] ?? '';
           final id = int.tryParse(idStr);
-          // Zwracamy listę z automatycznym otwarciem dialogu edycji
-          return RaportyListScreen(editRaportId: id);
+          return _smoothPage(state: state, child: RaportyListScreen(editRaportId: id));
         },
       ),
-      GoRoute(path: '/czesci', builder: (_, __) => const CzesciListScreen()),
-      GoRoute(path: '/zgloszenia', builder: (_, __) => const ZgloszeniaScreenModern()),
+      GoRoute(
+        path: '/czesci',
+        pageBuilder: (_, state) => _smoothPage(state: state, child: const CzesciListScreen()),
+      ),
+      GoRoute(
+        path: '/zgloszenia',
+        pageBuilder: (_, state) => _smoothPage(state: state, child: const ZgloszeniaScreenModern()),
+      ),
       GoRoute(
         path: '/zgloszenia/:id',
-        builder: (_, state) {
+        pageBuilder: (_, state) {
           final idStr = state.pathParameters['id'] ?? '';
           final id = int.tryParse(idStr);
-          // Zwracamy ekran zgłoszeń z automatycznym pokazaniem detali zgłoszenia
-          return ZgloszeniaScreenModern(selectedZgloszenieId: id);
+          return _smoothPage(state: state, child: ZgloszeniaScreenModern(selectedZgloszenieId: id));
         },
       ),
-      GoRoute(path: '/harmonogramy', builder: (_, __) => const HarmonogramyScreen()),
-      GoRoute(path: '/przeglady', builder: (_, __) => const PrzegladyScreen()),
-      GoRoute(path: '/instrukcje', builder: (_, __) => const instrukcje_list.InstrukcjeListScreen()),
-      GoRoute(path: '/instrukcje/nowa', builder: (_, __) => const instrukcja_form.InstrukcjaFormScreen()),
-      // Notifications page
-      GoRoute(path: '/notifications', builder: (_, __) => const NotificationsPage()),
-      // Panel Admina
-      GoRoute(path: '/admin', builder: (_, __) => const AdminScreen()),
+      GoRoute(
+        path: '/harmonogramy',
+        pageBuilder: (_, state) => _smoothPage(state: state, child: const HarmonogramyScreen()),
+      ),
+      GoRoute(
+        path: '/przeglady',
+        pageBuilder: (_, state) => _smoothPage(state: state, child: const PrzegladyScreen()),
+      ),
+      GoRoute(
+        path: '/instrukcje',
+        pageBuilder: (_, state) => _smoothPage(state: state, child: const instrukcje_list.InstrukcjeListScreen()),
+      ),
+      GoRoute(
+        path: '/instrukcje/nowa',
+        pageBuilder: (_, state) => _smoothPage(state: state, child: const instrukcja_form.InstrukcjaFormScreen()),
+      ),
+      GoRoute(
+        path: '/notifications',
+        pageBuilder: (_, state) => _smoothPage(state: state, child: const NotificationsPage()),
+      ),
+      GoRoute(
+        path: '/admin',
+        pageBuilder: (_, state) => _smoothPage(state: state, child: const AdminScreen()),
+      ),
     ],
   );
 });
