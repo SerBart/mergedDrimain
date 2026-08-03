@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../core/providers/app_providers.dart';
+import 'navigation_transition_overlay.dart';
+import '../widgets/app_background.dart';
 
 // Ekrany
 import '../features/auth/login_screen.dart';
@@ -17,45 +19,43 @@ import '../features/instrukcje/instrukcje_list_screen.dart' as instrukcje_list;
 import '../features/instrukcje/instrukcja_form_screen.dart' as instrukcja_form;
 import '../features/notifications/notifications_page.dart';
 
+class _RouteBackground extends StatelessWidget {
+  final Widget child;
+
+  const _RouteBackground({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Theme.of(context).colorScheme.surface,
+      child: AppBackground(child: child),
+    );
+  }
+}
+
 CustomTransitionPage<void> _smoothPage({
   required GoRouterState state,
   required Widget child,
 }) {
   return CustomTransitionPage<void>(
     key: state.pageKey,
-    child: child,
+    child: _RouteBackground(child: child),
     opaque: true,
-    transitionDuration: const Duration(milliseconds: 280),
-    reverseTransitionDuration: const Duration(milliseconds: 220),
-    transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      if (animation.value < 0.94) {
-        final gearSpin = Tween<double>(begin: 0, end: 1.6).evaluate(animation);
-        return ColoredBox(
-          color: Theme.of(context).colorScheme.surface,
-          child: Center(
-            child: Transform.rotate(
-              angle: gearSpin * 6.283185307179586,
-              child: Icon(
-                Icons.settings_rounded,
-                size: 44,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-          ),
-        );
-      }
-
-      // Hard cut to the target page at the end of transition (no fade/no flash).
-      return child;
-    },
+    transitionDuration: Duration.zero,
+    reverseTransitionDuration: Duration.zero,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) => child,
   );
 }
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final isLoggedIn = ref.watch(authStateProvider.select((user) => user != null));
+  final overlayController = ref.read(navigationOverlayControllerProvider);
 
   return GoRouter(
     initialLocation: '/login',
+    observers: [
+      NavigationFlashObserver(onRouteTransition: () => overlayController.pulse()),
+    ],
     redirect: (context, state) {
       final loggedIn = isLoggedIn;
       final atLogin = state.fullPath == '/login';

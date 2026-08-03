@@ -5,9 +5,9 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'core/theme/app_theme.dart';
 import 'routing/app_router.dart'; // plik z providerem routera (poniżej przykład)
+import 'routing/navigation_transition_overlay.dart';
 import 'core/utils/notification_router.dart';
 import 'core/models/notification.dart';
-import 'widgets/app_background.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -98,7 +98,7 @@ class _TPMAppState extends ConsumerState<TPMApp> {
       darkTheme: AppTheme.dark(),
       routerConfig: router,
       builder: (context, child) {
-        return AppBackground(
+        return NavigationTransitionOverlay(
           child: child ?? const SizedBox.shrink(),
         );
       },
