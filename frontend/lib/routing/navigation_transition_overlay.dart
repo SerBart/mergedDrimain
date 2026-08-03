@@ -16,7 +16,7 @@ class NavigationOverlayController extends ChangeNotifier {
 
   bool get visible => _visible;
 
-  void pulse({Duration duration = const Duration(milliseconds: 320)}) {
+  void pulse({Duration duration = const Duration(milliseconds: 220)}) {
     _timer?.cancel();
     _visible = true;
     notifyListeners();
@@ -87,11 +87,11 @@ class NavigationTransitionOverlay extends ConsumerWidget {
           IgnorePointer(
             ignoring: true,
             child: ColoredBox(
-              color: Theme.of(context).colorScheme.surface,
+              color: Theme.of(context).colorScheme.surface.withOpacity(.96),
               child: Center(
                 child: TweenAnimationBuilder<double>(
                   tween: Tween<double>(begin: 0, end: 1.8),
-                  duration: const Duration(milliseconds: 320),
+                  duration: const Duration(milliseconds: 220),
                   builder: (context, turns, icon) {
                     return Transform.rotate(
                       angle: turns * 6.283185307179586,

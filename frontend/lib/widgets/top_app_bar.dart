@@ -4,10 +4,12 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../core/providers/app_providers.dart';
 import '../routing/app_router.dart';
+import 'quick_module_overlay.dart';
 import '../core/utils/web_nav.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../core/models/notification.dart';
 import '../core/utils/notification_router.dart';
+// ...existing code...
 
 /// Reusable, modern top app bar used across screens.
 /// Shows logo, app name and logout button. Implements PreferredSizeWidget
@@ -32,6 +34,17 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
 
     // Watch notifications provider (AsyncValue)
     final notifsAsync = ref.watch(notificationsListProvider);
+    final quickModulesExpanded = ref.watch(quickModuleOverlayExpandedProvider);
+
+    void goDashboard() {
+      try {
+        ref.read(appRouterProvider).go('/dashboard');
+      } catch (_) {
+        try {
+          GoRouter.of(context).go('/dashboard');
+        } catch (_) {}
+      }
+    }
 
     return AppBar(
       automaticallyImplyLeading: false,
@@ -103,22 +116,26 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
       title: Row(
         children: [
           // Brand logo container
-          Container(
-            width: 92,
-            height: 48,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              gradient: LinearGradient(
-                colors: [Colors.white.withOpacity(0.22), Colors.white.withOpacity(0.08)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+          InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: goDashboard,
+            child: Container(
+              width: 92,
+              height: 48,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                gradient: LinearGradient(
+                  colors: [Colors.white.withOpacity(0.22), Colors.white.withOpacity(0.08)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                border: Border.all(color: Colors.white.withOpacity(0.22)),
               ),
-              border: Border.all(color: Colors.white.withOpacity(0.22)),
-            ),
-            child: Image.asset(
-              'assets/images/logo.png',
-              fit: BoxFit.contain,
+              child: Image.asset(
+                'assets/images/logo.png',
+                fit: BoxFit.contain,
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -139,6 +156,16 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
             children: [
               // render any extra actions provided by screens (e.g. save button)
               if (extraActions != null) ...extraActions!,
+               IconButton(
+                 tooltip: quickModulesExpanded ? 'Ukryj szybkie kafelki' : 'Pokaz szybkie kafelki',
+                 icon: Icon(
+                   quickModulesExpanded ? Icons.grid_view_rounded : Icons.grid_view_outlined,
+                   color: Colors.white,
+                 ),
+                 onPressed: () {
+                   ref.read(quickModuleOverlayExpandedProvider.notifier).state = !quickModulesExpanded;
+                 },
+               ),
                // Notifications icon with badge
                Stack(
                  clipBehavior: Clip.none,
@@ -281,3 +308,5 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
     );
   }
 }
+
+

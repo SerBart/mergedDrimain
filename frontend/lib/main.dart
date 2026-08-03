@@ -8,6 +8,7 @@ import 'routing/app_router.dart'; // plik z providerem routera (poniżej przykł
 import 'routing/navigation_transition_overlay.dart';
 import 'core/utils/notification_router.dart';
 import 'core/models/notification.dart';
+import 'widgets/quick_module_overlay.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -98,8 +99,14 @@ class _TPMAppState extends ConsumerState<TPMApp> {
       darkTheme: AppTheme.dark(),
       routerConfig: router,
       builder: (context, child) {
-        return NavigationTransitionOverlay(
-          child: child ?? const SizedBox.shrink(),
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            NavigationTransitionOverlay(
+              child: child ?? const SizedBox.shrink(),
+            ),
+            const QuickModuleOverlay(),
+          ],
         );
       },
     );
