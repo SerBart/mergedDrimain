@@ -3,20 +3,18 @@ import '../models/zgloszenie.dart';
 import '../models/maszyna.dart';
 import '../models/dzial.dart';
 import '../models/sekcja.dart';
+import '../services/auth_service.dart';
 import '../services/secure_storage_service.dart';
 
 class ZgloszeniaApiRepository {
   final Dio _dio;
   final SecureStorageService _storage;
+  final AuthService _auth;
 
-  ZgloszeniaApiRepository(this._dio, this._storage);
+  ZgloszeniaApiRepository(this._dio, this._storage, this._auth);
 
   Future<List<Zgloszenie>> fetchAll() async {
-    final token = await _readToken();
-    final resp = await _dio.get(
-      '/api/zgloszenia',
-      options: Options(headers: {'Authorization': 'Bearer $token'}),
-    );
+    final resp = await _getWithRetry<List<dynamic>>('/api/zgloszenia');
     final list = (resp.data as List<dynamic>).cast<Map<String, dynamic>>();
     return list.map(_fromDto).toList();
   }
@@ -33,7 +31,6 @@ class ZgloszeniaApiRepository {
     int? sekcjaId,
     int? maszynaId,
   }) async {
-    final token = await _readToken();
     final dto = {
       'typ': _uiTypToDto(typUi),
       'imie': imie,
@@ -48,16 +45,11 @@ class ZgloszeniaApiRepository {
       if (maszynaId != null) 'maszynaId': maszynaId,
     };
 
-    final resp = await _dio.post(
-      '/api/zgloszenia',
-      data: dto,
-      options: Options(headers: {'Authorization': 'Bearer $token'}),
-    );
+    final resp = await _postWithRetry('/api/zgloszenia', dto);
     return _fromDto((resp.data as Map).cast<String, dynamic>());
   }
 
   Future<Zgloszenie> update(Zgloszenie z) async {
-    final token = await _readToken();
     final dto = {
       'id': z.id,
       'typ': _uiTypToDto(z.typ),
@@ -69,20 +61,12 @@ class ZgloszeniaApiRepository {
       'dataGodzina': z.dataGodzina.toIso8601String(),
     };
 
-    final resp = await _dio.put(
-      '/api/zgloszenia/${z.id}',
-      data: dto,
-      options: Options(headers: {'Authorization': 'Bearer $token'}),
-    );
+    final resp = await _putWithRetry('/api/zgloszenia/${z.id}', dto);
     return _fromDto((resp.data as Map).cast<String, dynamic>());
   }
 
   Future<void> delete(int id) async {
-    final token = await _readToken();
-    await _dio.delete(
-      '/api/zgloszenia/$id',
-      options: Options(headers: {'Authorization': 'Bearer $token'}),
-    );
+    await _deleteWithRetry('/api/zgloszenia/$id');
   }
 
   // ---- Mapowania ----
@@ -196,5 +180,94 @@ class ZgloszeniaApiRepository {
       throw Exception('Brak tokenu — zaloguj się ponownie.');
     }
     return token;
+  }
+
+  Future<Response<T>> _getWithRetry<T>(String path) async {
+    final token = await _readToken();
+    try {
+      return await _dio.get(
+        path,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        final refreshed = await _auth.refresh();
+        if (refreshed != null && refreshed.isNotEmpty) {
+          return await _dio.get(
+            path,
+            options: Options(headers: {'Authorization': 'Bearer $refreshed'}),
+          );
+        }
+      }
+      rethrow;
+    }
+  }
+
+  Future<Response<T>> _postWithRetry<T>(String path, Object? data) async {
+    final token = await _readToken();
+    try {
+      return await _dio.post(
+        path,
+        data: data,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        final refreshed = await _auth.refresh();
+        if (refreshed != null && refreshed.isNotEmpty) {
+          return await _dio.post(
+            path,
+            data: data,
+            options: Options(headers: {'Authorization': 'Bearer $refreshed'}),
+          );
+        }
+      }
+      rethrow;
+    }
+  }
+
+  Future<Response<T>> _putWithRetry<T>(String path, Object? data) async {
+    final token = await _readToken();
+    try {
+      return await _dio.put(
+        path,
+        data: data,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        final refreshed = await _auth.refresh();
+        if (refreshed != null && refreshed.isNotEmpty) {
+          return await _dio.put(
+            path,
+            data: data,
+            options: Options(headers: {'Authorization': 'Bearer $refreshed'}),
+          );
+        }
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> _deleteWithRetry(String path) async {
+    final token = await _readToken();
+    try {
+      await _dio.delete(
+        path,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        final refreshed = await _auth.refresh();
+        if (refreshed != null && refreshed.isNotEmpty) {
+          await _dio.delete(
+            path,
+            options: Options(headers: {'Authorization': 'Bearer $refreshed'}),
+          );
+          return;
+        }
+      }
+      rethrow;
+    }
   }
 }

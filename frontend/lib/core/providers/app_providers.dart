@@ -36,7 +36,8 @@ final zgloszeniaApiRepositoryProvider =
 Provider<ZgloszeniaApiRepository>((ref) {
   final api = ref.watch(apiClientProvider);
   final storage = ref.watch(secureStorageProvider);
-  return ZgloszeniaApiRepository(api.dio, storage);
+  final auth = ref.watch(authServiceProvider);
+  return ZgloszeniaApiRepository(api.dio, storage, auth);
 });
 
 // Repozytorium API dla harmonogramów

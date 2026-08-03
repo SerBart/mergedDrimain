@@ -18,7 +18,7 @@ class AppTheme {
     );
 
     return base.copyWith(
-      scaffoldBackgroundColor: Colors.transparent,
+      scaffoldBackgroundColor: scheme.surface,
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
         backgroundColor: scheme.primary,

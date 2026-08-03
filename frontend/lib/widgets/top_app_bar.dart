@@ -36,7 +36,8 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
     return AppBar(
       automaticallyImplyLeading: false,
       elevation: 6,
-      backgroundColor: Colors.transparent,
+      backgroundColor: scheme.primary,
+      surfaceTintColor: Colors.transparent,
       leading: showBack
           ? IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.white),

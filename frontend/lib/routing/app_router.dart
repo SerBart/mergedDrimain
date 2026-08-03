@@ -24,80 +24,40 @@ CustomTransitionPage<void> _smoothPage({
   return CustomTransitionPage<void>(
     key: state.pageKey,
     child: child,
-    transitionDuration: const Duration(milliseconds: 420),
-    reverseTransitionDuration: const Duration(milliseconds: 280),
+    opaque: true,
+    transitionDuration: const Duration(milliseconds: 280),
+    reverseTransitionDuration: const Duration(milliseconds: 220),
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      final overlayOpacity = TweenSequence<double>([
-        TweenSequenceItem(
-          tween: Tween<double>(begin: 0, end: 0.94)
-              .chain(CurveTween(curve: Curves.easeOutCubic)),
-          weight: 34,
-        ),
-        TweenSequenceItem(tween: ConstantTween<double>(0.94), weight: 26),
-        TweenSequenceItem(
-          tween: Tween<double>(begin: 0.94, end: 0)
-              .chain(CurveTween(curve: Curves.easeInCubic)),
-          weight: 40,
-        ),
-      ]).animate(animation);
-      final nextFade = CurvedAnimation(
-        parent: animation,
-        curve: const Interval(0.62, 1.0, curve: Curves.easeOutCubic),
-      );
-      final loaderOpacity = TweenSequence<double>([
-        TweenSequenceItem(
-          tween: Tween<double>(begin: 0, end: 1)
-              .chain(CurveTween(curve: Curves.easeOutCubic)),
-          weight: 40,
-        ),
-        TweenSequenceItem(tween: ConstantTween<double>(1), weight: 20),
-        TweenSequenceItem(
-          tween: Tween<double>(begin: 1, end: 0)
-              .chain(CurveTween(curve: Curves.easeInCubic)),
-          weight: 40,
-        ),
-      ]).animate(animation);
-      final gearSpin = Tween<double>(begin: 0, end: 1.2).animate(
-        CurvedAnimation(parent: animation, curve: Curves.linear),
-      );
-
-      return Stack(
-        fit: StackFit.expand,
-        children: [
-          Opacity(opacity: nextFade.value, child: child),
-          if (overlayOpacity.value > 0.01 || loaderOpacity.value > 0.01)
-            ColoredBox(
-              color: Theme.of(context)
-                  .colorScheme
-                  .surface
-                  .withOpacity(overlayOpacity.value.clamp(0.0, 0.96).toDouble()),
-              child: Center(
-                child: Opacity(
-                  opacity: loaderOpacity.value,
-                  child: RotationTransition(
-                    turns: gearSpin,
-                    child: Icon(
-                      Icons.settings_rounded,
-                      size: 40,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                ),
+      if (animation.value < 0.94) {
+        final gearSpin = Tween<double>(begin: 0, end: 1.6).evaluate(animation);
+        return ColoredBox(
+          color: Theme.of(context).colorScheme.surface,
+          child: Center(
+            child: Transform.rotate(
+              angle: gearSpin * 6.283185307179586,
+              child: Icon(
+                Icons.settings_rounded,
+                size: 44,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
-        ],
-      );
+          ),
+        );
+      }
+
+      // Hard cut to the target page at the end of transition (no fade/no flash).
+      return child;
     },
   );
 }
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final auth = ref.watch(authStateProvider);
+  final isLoggedIn = ref.watch(authStateProvider.select((user) => user != null));
 
   return GoRouter(
     initialLocation: '/login',
     redirect: (context, state) {
-      final loggedIn = auth != null;
+      final loggedIn = isLoggedIn;
       final atLogin = state.fullPath == '/login';
       if (!loggedIn && !atLogin) return '/login';
       if (loggedIn && atLogin) return '/dashboard';

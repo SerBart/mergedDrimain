@@ -200,52 +200,32 @@ class _DashboardItem extends StatefulWidget {
 
 class _DashboardItemState extends State<_DashboardItem> {
   bool _hovered = false;
-  bool _pressed = false;
-  bool _navigating = false;
 
   void _setHovered(bool v) => setState(() => _hovered = v);
-  void _setPressed(bool v) => setState(() => _pressed = v);
-
-  Future<void> _tapAndNavigate(VoidCallback action) async {
-    if (_navigating) return;
-    setState(() {
-      _navigating = true;
-      _pressed = true;
-    });
-    await Future.delayed(const Duration(milliseconds: 90));
-    if (mounted) {
-      setState(() => _pressed = false);
-    }
-    await Future.delayed(const Duration(milliseconds: 40));
-    action();
-    if (mounted) {
-      setState(() => _navigating = false);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     final disabled = widget.requiredModule != null && !widget.hasAccess;
-    final baseScale = _hovered ? 1.02 : (_pressed ? 0.985 : 1.0);
+    final baseScale = _hovered ? 1.015 : 1.0;
 
     return MouseRegion(
       onEnter: (_) => _setHovered(true),
       onExit: (_) => _setHovered(false),
       child: GestureDetector(
-        onTapDown: (_) => _setPressed(true),
-        onTapUp: (_) => _setPressed(false),
-        onTapCancel: () => _setPressed(false),
         child: AnimatedScale(
           scale: baseScale,
-          duration: const Duration(milliseconds: 150),
-          curve: Curves.easeOut,
+          duration: const Duration(milliseconds: 90),
+          curve: Curves.easeOutCubic,
           child: InkWell(
             borderRadius: BorderRadius.circular(24),
+            splashFactory: NoSplash.splashFactory,
+            overlayColor: WidgetStatePropertyAll(Colors.transparent),
+            enableFeedback: false,
             onTap: disabled
                 ? () => ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('Brak uprawnien do modulu: ${widget.requiredModule ?? widget.label}')),
                     )
-                : () => _tapAndNavigate(widget.onTap),
+                : widget.onTap,
             child: Ink(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(24),

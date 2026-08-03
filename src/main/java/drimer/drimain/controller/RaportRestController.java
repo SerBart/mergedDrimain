@@ -302,15 +302,21 @@ public class RaportRestController {
         Raport raport = raportRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Raport not found"));
 
+        String normalizedFilename = java.net.URLDecoder.decode(filename, java.nio.charset.StandardCharsets.UTF_8);
+
         // Security: verify the file is actually associated with this raport
         boolean fileExists = raport.getZdjecia().stream()
-                .anyMatch(path -> path.endsWith(filename) || path.contains(filename));
-        
+                .anyMatch(path -> {
+                    String normalizedPath = path == null ? "" : path.replace('\\', '/');
+                    String stored = normalizedPath.substring(normalizedPath.lastIndexOf('/') + 1);
+                    return stored.equals(normalizedFilename) || normalizedPath.endsWith("/" + normalizedFilename) || normalizedPath.contains(normalizedFilename);
+                });
+
         if (!fileExists) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Photo not found for this raport");
         }
 
-        Path filePath = Paths.get(attachmentsBasePath, filename);
+        Path filePath = Paths.get(attachmentsBasePath, normalizedFilename).normalize();
         if (!Files.exists(filePath)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Photo file not found on disk");
         }
@@ -324,9 +330,11 @@ public class RaportRestController {
             return ResponseEntity.ok()
                     .header("Content-Type", contentType)
                     .body(resource);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Invalid photo path");
         } catch (IOException e) {
             log.error("Failed to read photo file: {}", filePath, e);
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to read photo");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Photo not available on disk");
         }
     }
 

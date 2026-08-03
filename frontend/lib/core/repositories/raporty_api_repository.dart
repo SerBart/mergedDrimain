@@ -292,7 +292,7 @@ class RaportyApiRepository {
     );
     final List raw = resp.data as List;
     return raw
-        .map((filename) => _toPhotoUrl(id, filename.toString()))
+        .map((filename) => _normalizePhotoUrl(id, filename.toString()))
         .where((u) => u.isNotEmpty)
         .toList();
   }
@@ -328,6 +328,22 @@ class RaportyApiRepository {
     final bare = normalized.split('/').last;
     final encoded = Uri.encodeComponent(bare);
     return '$_apiRoot/api/raporty/$raportId/zdjecia/$encoded';
+  }
+
+  String _normalizePhotoUrl(int raportId, String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) return '';
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      return value;
+    }
+    if (value.startsWith('/api/')) {
+      return '$_apiRoot$value';
+    }
+    if (value.contains('/api/raporty/')) {
+      final idx = value.indexOf('/api/');
+      if (idx >= 0) return '$_apiRoot${value.substring(idx)}';
+    }
+    return _toPhotoUrl(raportId, value);
   }
 
   String _normalizeApiRoot(String rawBaseUrl) {
