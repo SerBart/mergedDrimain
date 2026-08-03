@@ -9,16 +9,20 @@ class AppBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final top = Color.alphaBlend(scheme.primary.withOpacity(.14), scheme.surface);
+    final mid = Color.alphaBlend(scheme.secondary.withOpacity(.22), scheme.surface);
 
     return Stack(
       children: [
+        // Opaque base eliminates route flash-through between page transitions.
+        ColoredBox(color: scheme.surface),
         Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                scheme.primary.withOpacity(.14),
-                scheme.secondary.withOpacity(.22),
-                Colors.white,
+                top,
+                mid,
+                scheme.surface,
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
