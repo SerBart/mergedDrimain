@@ -15,7 +15,6 @@ import org.springframework.stereotype.Component;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
@@ -118,7 +117,26 @@ public class RaportMapper {
         }
 
         try {
-            dto.setZdjecia(r.getZdjecia() != null ? new ArrayList<>(r.getZdjecia()) : Collections.emptyList());
+            if (r.getZdjecia() == null) {
+                dto.setZdjecia(Collections.emptyList());
+            } else {
+                var normalized = r.getZdjecia().stream()
+                        .map(path -> {
+                            if (path == null) return null;
+                            String value = path.trim();
+                            if (value.startsWith("inline:")) {
+                                int first = value.indexOf(':');
+                                int second = value.indexOf(':', first + 1);
+                                if (second > first + 1) {
+                                    return value.substring(first + 1, second);
+                                }
+                            }
+                            return value;
+                        })
+                        .filter(v -> v != null && !v.isBlank())
+                        .collect(Collectors.toList());
+                dto.setZdjecia(normalized);
+            }
         } catch (Exception e) {
             log.warn("Failed to map raport.zdjecia", e);
             dto.setZdjecia(Collections.emptyList());

@@ -316,6 +316,19 @@ class RaportyApiRepository {
   String _toPhotoUrl(int raportId, String raw) {
     final value = raw.trim();
     if (value.isEmpty) return '';
+
+    // New backend format for persistent storage metadata.
+    if (value.startsWith('inline:')) {
+      final first = value.indexOf(':');
+      final second = value.indexOf(':', first + 1);
+      if (second > first + 1) {
+        final filename = value.substring(first + 1, second);
+        final encoded = Uri.encodeComponent(filename);
+        return '$_apiRoot/api/raporty/$raportId/zdjecia/$encoded';
+      }
+      return '';
+    }
+
     if (value.startsWith('http://') || value.startsWith('https://')) {
       return value;
     }
