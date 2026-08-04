@@ -46,7 +46,7 @@ public class Raport {
 
     @ElementCollection
     @CollectionTable(name = "raport_zdjecia", joinColumns = @JoinColumn(name = "raport_id"))
-    @Column(name = "sciezka_zdjecia")
+    @Column(name = "sciezka_zdjecia", columnDefinition = "TEXT")
     private Set<String> zdjecia = new LinkedHashSet<>();
 
     // Gettery / settery (jak poprzednio) + dla statusu

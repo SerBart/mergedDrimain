@@ -361,7 +361,7 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
         throw Exception('Sesja wygasła. Zaloguj się ponownie i odśwież podgląd zdjęcia.');
       }
       if (status == 404) {
-        throw Exception('Zdjęcie nie istnieje już na serwerze. Na Railway pliki zapisane w tymczasowym storage mogą zniknąć po restarcie lub deployu.');
+        throw Exception('Zdjęcie nie istnieje już na serwerze. Odśwież raport; jeśli problem wraca, zdjęcie zostało wcześniej usunięte.');
       }
       throw Exception('Błąd pobierania zdjęcia (HTTP ${status ?? 'brak statusu'}).');
     }

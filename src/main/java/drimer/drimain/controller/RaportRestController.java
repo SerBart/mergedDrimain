@@ -16,7 +16,6 @@ import drimer.drimain.repository.RaportRepository;
 import drimer.drimain.repository.UserRepository;
 import drimer.drimain.repository.ZgloszenieRepository;
 import drimer.drimain.repository.spec.RaportSpecifications;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -36,15 +35,16 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
+import java.util.Base64;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+import org.springframework.core.io.ByteArrayResource;
 
 @RestController
 @RequestMapping("/api/raporty")
@@ -269,22 +269,14 @@ public class RaportRestController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Raport not found"));
 
         List<String> uploadedPaths = new java.util.ArrayList<>();
-        // Ensure storage directory exists
-        Path storageDir = Paths.get(attachmentsBasePath);
-        try {
-            Files.createDirectories(storageDir);
-        } catch (IOException e) {
-            log.error("Failed to create storage directory: {}", attachmentsBasePath, e);
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to create storage directory");
-        }
 
         for (MultipartFile file : zdjecia) {
             try {
                 if (!file.isEmpty()) {
-                    String filePath = saveFile(file);
-                    raport.getZdjecia().add(filePath);
-                    uploadedPaths.add(filePath);
-                    log.info("Uploaded photo for raport {}: {}", id, filePath);
+                    StoredPhoto storedPhoto = saveFile(file);
+                    raport.getZdjecia().add(storedPhoto.inlineValue());
+                    uploadedPaths.add(storedPhoto.filename());
+                    log.info("Uploaded photo for raport {}: {}", id, storedPhoto.filename());
                 }
             } catch (Exception e) {
                 log.error("Failed to upload photo for raport {}: {}", id, e.getMessage(), e);
@@ -317,25 +309,48 @@ public class RaportRestController {
         }
 
         Path filePath = Paths.get(attachmentsBasePath, normalizedFilename).normalize();
-        if (!Files.exists(filePath)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Photo file not found on disk");
+
+        // New persistent mode: inline photo content stored in DB row raport_zdjecia.
+        String inlinePrefix = "inline:" + normalizedFilename + ":";
+        var inline = raport.getZdjecia().stream()
+                .filter(path -> path != null && path.startsWith(inlinePrefix))
+                .findFirst();
+
+        if (inline.isPresent()) {
+            String inlinePayload = inline.get().substring(inlinePrefix.length());
+            int marker = inlinePayload.indexOf(";base64,");
+            String contentType = marker > 0 ? inlinePayload.substring(0, marker) : "image/jpeg";
+            String encoded = marker > 0 ? inlinePayload.substring(marker + 8) : inlinePayload;
+            try {
+                byte[] decoded = Base64.getDecoder().decode(encoded);
+                Resource resource = new ByteArrayResource(decoded);
+                return ResponseEntity.ok()
+                        .header("Content-Type", contentType)
+                        .body(resource);
+            } catch (IllegalArgumentException e) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Invalid inline photo data");
+            }
         }
 
-        try {
-            Resource resource = new FileSystemResource(filePath);
-            String contentType = Files.probeContentType(filePath);
-            if (contentType == null) {
-                contentType = "image/jpeg"; // default
+        // Backward compatibility: old entries are still disk-based.
+        if (Files.exists(filePath)) {
+            try {
+                Resource resource = new FileSystemResource(filePath);
+                String contentType = Files.probeContentType(filePath);
+                if (contentType == null) {
+                    contentType = "image/jpeg"; // default
+                }
+                return ResponseEntity.ok()
+                        .header("Content-Type", contentType)
+                        .body(resource);
+            } catch (IllegalArgumentException e) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Invalid photo path");
+            } catch (IOException e) {
+                log.warn("Failed to read photo from disk, trying DB fallback. Path={}", filePath, e);
             }
-            return ResponseEntity.ok()
-                    .header("Content-Type", contentType)
-                    .body(resource);
-        } catch (IllegalArgumentException e) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Invalid photo path");
-        } catch (IOException e) {
-            log.error("Failed to read photo file: {}", filePath, e);
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Photo not available on disk");
         }
+
+        throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Photo not found");
     }
 
     @DeleteMapping("/{id}/zdjecia/{filename}")
@@ -360,7 +375,7 @@ public class RaportRestController {
         }
     }
 
-    private String saveFile(MultipartFile file) {
+    private StoredPhoto saveFile(MultipartFile file) {
         if (file.isEmpty()) {
             throw new IllegalArgumentException("File is empty");
         }
@@ -374,16 +389,22 @@ public class RaportRestController {
         String fileExtension = getFileExtension(originalFilename);
         String storedFilename = UUID.randomUUID() + fileExtension;
 
-        Path filePath = Paths.get(attachmentsBasePath, storedFilename);
-
         try {
-            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-            return storedFilename;
+            byte[] bytes = file.getBytes();
+            String contentType = file.getContentType();
+            if (contentType == null || contentType.isBlank()) {
+                contentType = "image/jpeg";
+            }
+            String encoded = Base64.getEncoder().encodeToString(bytes);
+            String inlineValue = "inline:" + storedFilename + ":" + contentType + ";base64," + encoded;
+            return new StoredPhoto(storedFilename, contentType, inlineValue);
         } catch (IOException e) {
             log.error("Failed to save file: {}", originalFilename, e);
             throw new RuntimeException("Failed to save photo: " + e.getMessage(), e);
         }
     }
+
+    private record StoredPhoto(String filename, String contentType, String inlineValue) {}
 
     private String getFileExtension(String filename) {
         if (filename == null || filename.isEmpty()) {
