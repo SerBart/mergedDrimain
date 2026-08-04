@@ -24,9 +24,8 @@ public class RaportZdjecieBlob {
     @Column(name = "file_size")
     private Long fileSize;
 
-    @Lob
     @Basic(fetch = FetchType.LAZY)
-    @Column(name = "data", nullable = false)
+    @Column(name = "data", nullable = false, columnDefinition = "bytea")
     private byte[] data;
 
     public Long getId() {
