@@ -6,6 +6,8 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.util.List;
+
 /**
  * Request DTO for creating new Maszyna (Machine).
  * Validates machine information and department assignment.
@@ -23,4 +25,6 @@ public class MaszynaCreateRequest {
     
     @Positive(message = "ID sekcji musi być dodatnie")
     private Long sekcjaId;
+
+    private List<@Positive(message = "ID sekcji musi być dodatnie") Long> sekcjaIds;
 }

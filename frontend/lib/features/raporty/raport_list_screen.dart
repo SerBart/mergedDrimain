@@ -139,7 +139,12 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
         if (m != null && m.dzial == null) {
           final known = mock.maszyny.firstWhereOrNull((km) => km.id == m.id);
           if (known != null && known.dzial != null) {
-            final enrichedMaszyna = Maszyna(id: m.id, nazwa: m.nazwa, dzial: known.dzial, sekcja: known.sekcja);
+            final enrichedMaszyna = Maszyna(
+              id: m.id,
+              nazwa: m.nazwa,
+              dzial: known.dzial,
+              sekcje: known.sekcje,
+            );
             rr = rr.copyWith(maszyna: enrichedMaszyna);
           }
         }

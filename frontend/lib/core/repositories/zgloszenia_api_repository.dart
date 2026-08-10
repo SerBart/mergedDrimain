@@ -105,7 +105,12 @@ class ZgloszeniaApiRepository {
       final sekcja = (mSekcjaName.isNotEmpty || (mSekcjaId != null && mSekcjaId > 0))
           ? Sekcja(id: mSekcjaId ?? 0, nazwa: mSekcjaName, dzial: dzial)
           : null;
-      maszyna = Maszyna(id: mId, nazwa: mName, dzial: dzial, sekcja: sekcja);
+      maszyna = Maszyna(
+        id: mId,
+        nazwa: mName,
+        dzial: dzial,
+        sekcje: sekcja != null ? [sekcja] : const [],
+      );
     }
 
     return Zgloszenie(

@@ -178,28 +178,34 @@ class AdminApiRepository {
     return list.map(Maszyna.fromJson).toList();
   }
 
-  Future<Maszyna> addMaszyna(String nazwa, int dzialId, {int? sekcjaId}) async {
+  Future<Maszyna> addMaszyna(String nazwa, int dzialId, {List<int> sekcjaIds = const []}) async {
     final token = await _token();
+    final normalizedSekcjaIds = sekcjaIds.where((id) => id > 0).toSet().toList();
     final resp = await _dio.post(
       '/api/admin/maszyny',
       data: {
         'nazwa': nazwa,
         'dzialId': dzialId,
-        if (sekcjaId != null) 'sekcjaId': sekcjaId,
+        if (normalizedSekcjaIds.isNotEmpty) ...{
+          'sekcjaIds': normalizedSekcjaIds,
+          'sekcjaId': normalizedSekcjaIds.first,
+        },
       },
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
     return Maszyna.fromJson((resp.data as Map).cast<String, dynamic>());
   }
 
-  Future<Maszyna> updateMaszyna({required int id, required String nazwa, int? dzialId, int? sekcjaId}) async {
+  Future<Maszyna> updateMaszyna({required int id, required String nazwa, int? dzialId, List<int> sekcjaIds = const []}) async {
     final token = await _token();
+    final normalizedSekcjaIds = sekcjaIds.where((id) => id > 0).toSet().toList();
     final resp = await _dio.put(
       '/api/admin/maszyny/$id',
       data: {
         'nazwa': nazwa,
         'dzialId': dzialId,
-        'sekcjaId': sekcjaId,
+        'sekcjaIds': normalizedSekcjaIds,
+        'sekcjaId': normalizedSekcjaIds.isNotEmpty ? normalizedSekcjaIds.first : null,
       },
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );

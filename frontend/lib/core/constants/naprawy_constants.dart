@@ -5,6 +5,7 @@ class NaprawyConstants {
     'Awaria',
     'Przezbrojenie',
     'Modernizacja',
+    'Przegląd',
   ];
 }
 

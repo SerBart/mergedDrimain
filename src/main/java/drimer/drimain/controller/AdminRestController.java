@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -105,7 +106,7 @@ public class AdminRestController {
             maszyna.setDzial(dzial);
         }
 
-        applySekcja(maszyna, req.getSekcjaId());
+        applySekcje(maszyna, req.getSekcjaIds(), req.getSekcjaId());
         
         maszynaRepository.save(maszyna);
         return toMaszynaDto(maszyna);
@@ -126,7 +127,7 @@ public class AdminRestController {
             maszyna.setDzial(null);
         }
 
-        applySekcja(maszyna, req.getSekcjaId());
+        applySekcje(maszyna, req.getSekcjaIds(), req.getSekcjaId());
         
         maszynaRepository.save(maszyna);
         return toMaszynaDto(maszyna);
@@ -178,9 +179,14 @@ public class AdminRestController {
         Sekcja sekcja = sekcjaRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Sekcja not found"));
         List<Maszyna> machines = maszynaRepository.findBySekcja_Id(id);
+        List<Maszyna> machinesMulti = maszynaRepository.findBySekcje_Id(id);
         machines.forEach(m -> m.setSekcja(null));
+        machinesMulti.forEach(m -> m.getSekcje().removeIf(s -> id.equals(s.getId())));
         if (!machines.isEmpty()) {
             maszynaRepository.saveAll(machines);
+        }
+        if (!machinesMulti.isEmpty()) {
+            maszynaRepository.saveAll(machinesMulti);
         }
         sekcjaRepository.delete(sekcja);
     }
@@ -373,6 +379,7 @@ public class AdminRestController {
         if (maszyna.getSekcja() != null) {
             dto.setSekcja(toSekcjaDto(maszyna.getSekcja()));
         }
+        dto.setSekcje(maszyna.getSekcje().stream().map(this::toSekcjaDto).collect(Collectors.toList()));
         
         return dto;
     }
@@ -387,21 +394,40 @@ public class AdminRestController {
         return dto;
     }
 
-    private void applySekcja(Maszyna maszyna, Long sekcjaId) {
-        if (sekcjaId == null) {
+    private void applySekcje(Maszyna maszyna, List<Long> sekcjaIds, Long sekcjaIdLegacy) {
+        Set<Long> resolvedIds = new LinkedHashSet<>();
+        if (sekcjaIds != null) {
+            sekcjaIds.stream()
+                    .filter(id -> id != null && id > 0)
+                    .forEach(resolvedIds::add);
+        }
+        if (sekcjaIdLegacy != null && sekcjaIdLegacy > 0) {
+            resolvedIds.add(sekcjaIdLegacy);
+        }
+        if (resolvedIds.isEmpty()) {
             maszyna.setSekcja(null);
+            maszyna.getSekcje().clear();
             return;
         }
-        Sekcja sekcja = sekcjaRepository.findById(sekcjaId)
-                .orElseThrow(() -> new IllegalArgumentException("Sekcja not found"));
-        if (maszyna.getDzial() != null && sekcja.getDzial() != null
-                && !maszyna.getDzial().getId().equals(sekcja.getDzial().getId())) {
-            throw new IllegalArgumentException("Sekcja musi należeć do wybranego działu maszyny");
+
+        Set<Sekcja> selectedSekcje = new LinkedHashSet<>();
+        for (Long id : resolvedIds) {
+            Sekcja sekcja = sekcjaRepository.findById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("Sekcja not found"));
+            if (maszyna.getDzial() != null && sekcja.getDzial() != null
+                    && !maszyna.getDzial().getId().equals(sekcja.getDzial().getId())) {
+                throw new IllegalArgumentException("Sekcja musi należeć do wybranego działu maszyny");
+            }
+            if (maszyna.getDzial() == null) {
+                maszyna.setDzial(sekcja.getDzial());
+            }
+            selectedSekcje.add(sekcja);
         }
-        if (maszyna.getDzial() == null) {
-            maszyna.setDzial(sekcja.getDzial());
-        }
-        maszyna.setSekcja(sekcja);
+
+        maszyna.getSekcje().clear();
+        maszyna.getSekcje().addAll(selectedSekcje);
+        // Sekcja główna = pierwsza z listy (kompatybilność ze starszym API/UI).
+        maszyna.setSekcja(selectedSekcje.iterator().next());
     }
 
     private OsobaDTO toOsobaDto(Osoba osoba) {

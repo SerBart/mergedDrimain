@@ -29,7 +29,10 @@ public class MaszynaRestController {
         return maszynaRepository.findAll().stream()
                 .filter(m -> q.map(s -> m.getNazwa() != null && m.getNazwa().toLowerCase().contains(s.toLowerCase())).orElse(true))
                 .filter(m -> dzialId.map(id -> m.getDzial() != null && id.equals(m.getDzial().getId())).orElse(true))
-                .filter(m -> sekcjaId.map(id -> m.getSekcja() != null && id.equals(m.getSekcja().getId())).orElse(true))
+                .filter(m -> sekcjaId.map(id ->
+                        m.getSekcje().stream().anyMatch(s -> id.equals(s.getId()))
+                                || (m.getSekcja() != null && id.equals(m.getSekcja().getId()))
+                ).orElse(true))
                 .map(m -> {
                     SimpleMaszynaDTO dto = new SimpleMaszynaDTO();
                     dto.setId(m.getId());
@@ -59,13 +62,20 @@ public class MaszynaRestController {
         return maszynaRepository.findAll().stream()
                 .filter(m -> q.map(s -> m.getNazwa() != null && m.getNazwa().toLowerCase().contains(s.toLowerCase())).orElse(true))
                 .filter(m -> dzialId.map(id -> m.getDzial() != null && id.equals(m.getDzial().getId())).orElse(true))
-                .filter(m -> sekcjaId.map(id -> m.getSekcja() != null && id.equals(m.getSekcja().getId())).orElse(true))
+                .filter(m -> sekcjaId.map(id ->
+                        m.getSekcje().stream().anyMatch(s -> id.equals(s.getId()))
+                                || (m.getSekcja() != null && id.equals(m.getSekcja().getId()))
+                ).orElse(true))
                 .map(m -> {
                     MaszynaSelectDTO dto = new MaszynaSelectDTO();
                     dto.setId(m.getId());
                     dto.setNazwa(m.getNazwa());
                     dto.setName(m.getNazwa());
-                    dto.setLabel(m.getSekcja() != null ? m.getNazwa() + " [" + m.getSekcja().getNazwa() + "]" : m.getNazwa());
+                    String sekcjeLabel = m.getSekcje().stream().map(s -> s.getNazwa()).collect(Collectors.joining(", "));
+                    if (sekcjeLabel.isBlank() && m.getSekcja() != null) {
+                        sekcjeLabel = m.getSekcja().getNazwa();
+                    }
+                    dto.setLabel(sekcjeLabel.isBlank() ? m.getNazwa() : m.getNazwa() + " [" + sekcjeLabel + "]");
                     return dto;
                 })
                 .collect(java.util.stream.Collectors.toList());

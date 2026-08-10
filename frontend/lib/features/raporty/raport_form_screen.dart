@@ -208,36 +208,6 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
     }
   }
 
-  Future<void> _pickTime(bool from) async {
-    final initial = from ? _czasOd : _czasDo;
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: initial ?? TimeOfDay.now(),
-    );
-    if (picked != null) {
-      setState(() {
-        if (from) {
-          _czasOd = picked;
-        } else {
-          _czasDo = picked;
-        }
-      });
-    }
-  }
-
-  String? _validateTimes() {
-    if (_czasOd == null || _czasDo == null) return null;
-    final date = _dataNaprawy ?? DateTime.now();
-    final start = DateTime(
-        date.year, date.month, date.day, _czasOd!.hour, _czasOd!.minute);
-    final end = DateTime(
-        date.year, date.month, date.day, _czasDo!.hour, _czasDo!.minute);
-    if (end.isBefore(start)) {
-      return 'Czas "Do" nie może być wcześniejszy niż "Od"';
-    }
-    return null;
-  }
-
   // NOWE: listener dla pola Autocomplete (maszyna)
   void _maszynaSearchListener(TextEditingController c) {
     final text = c.text;
@@ -253,20 +223,10 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
 
   void _save() async {
     if (_saving) return;
-    final timesError = _validateTimes();
-    if (timesError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(timesError)),
-      );
-      return;
-    }
     if (!_formKey.currentState!.validate()) return;
-    if (_maszyna == null ||
-        _dataNaprawy == null ||
-        _czasOd == null ||
-        _czasDo == null) {
+    if (_maszyna == null || _dataNaprawy == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Uzupełnij maszynę, datę oraz godziny')),
+        const SnackBar(content: Text('Uzupełnij maszynę oraz datę')),
       );
       return;
     }
@@ -275,19 +235,21 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
     try {
       final api = ref.read(raportyApiRepositoryProvider);
       final mock = ref.read(mockRepoProvider);
+      final czasOd = _czasOd ?? const TimeOfDay(hour: 0, minute: 0);
+      final czasDo = _czasDo ?? const TimeOfDay(hour: 0, minute: 0);
       final dtOd = DateTime(
         _dataNaprawy!.year,
         _dataNaprawy!.month,
         _dataNaprawy!.day,
-        _czasOd!.hour,
-        _czasOd!.minute,
+        czasOd.hour,
+        czasOd.minute,
       );
       final dtDo = DateTime(
         _dataNaprawy!.year,
         _dataNaprawy!.month,
         _dataNaprawy!.day,
-        _czasDo!.hour,
-        _czasDo!.minute,
+        czasDo.hour,
+        czasDo.minute,
       );
       final partUsages = _loaded?.partUsages ?? widget.existing?.partUsages ?? [];
       Raport saved;
@@ -651,22 +613,8 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
             icon: Icons.calendar_month_outlined,
             onTap: _pickDate,
           ),
-          _PickerButton(
-            label: _czasOd == null ? 'Czas od' : 'Od: ${_czasOd!.format(context)}',
-            icon: Icons.schedule_outlined,
-            onTap: () => _pickTime(true),
-          ),
-          _PickerButton(
-            label: _czasDo == null ? 'Czas do' : 'Do: ${_czasDo!.format(context)}',
-            icon: Icons.schedule,
-            onTap: () => _pickTime(false),
-          ),
         ],
       ),
-      if (_validateTimes() != null) ...[
-        const SizedBox(height: 8),
-        Text(_validateTimes()!, style: const TextStyle(color: Colors.red, fontSize: 12)),
-      ],
        const SizedBox(height: 20),
        // TODO: Upload zdjęć będzie dostępny po utworzeniu raportu na osobnym endpoincie
        Card(

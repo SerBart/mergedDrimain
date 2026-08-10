@@ -24,7 +24,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
   int? _sekcjaDzialId;
   final _maszynaCtrl = TextEditingController();
   int? _maszynaDzialId;
-  int? _maszynaSekcjaId;
+  Set<int> _maszynaSekcjaIds = <int>{};
   final _osobaCtrl = TextEditingController(); // imie i nazwisko
   int? _osobaDzialId; // nowy: dział dla osoby
   final _userLoginCtrl = TextEditingController();
@@ -94,17 +94,9 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
       // sanity: wyczyść nieistniejące wybory działu
       if (_maszynaDzialId != null && !_dzialy.any((d) => d.id == _maszynaDzialId)) _maszynaDzialId = null;
       if (_sekcjaDzialId != null && !_dzialy.any((d) => d.id == _sekcjaDzialId)) _sekcjaDzialId = null;
-      if (_maszynaSekcjaId != null && !_sekcje.any((s) => s.id == _maszynaSekcjaId)) _maszynaSekcjaId = null;
-      if (_maszynaDzialId != null && _maszynaSekcjaId != null) {
-        Sekcja? sec;
-        for (final s in _sekcje) {
-          if (s.id == _maszynaSekcjaId) {
-            sec = s;
-            break;
-          }
-        }
-        if (sec == null || sec.dzial?.id != _maszynaDzialId) _maszynaSekcjaId = null;
-      }
+      _maszynaSekcjaIds = _maszynaSekcjaIds
+          .where((id) => _sekcje.any((s) => s.id == id && (_maszynaDzialId == null || s.dzial?.id == _maszynaDzialId)))
+          .toSet();
       if (_apiUserDzialId != null && !_dzialy.any((d) => d.id == _apiUserDzialId)) _apiUserDzialId = null;
       if (_osobaDzialId != null && !_dzialy.any((d) => d.id == _osobaDzialId)) _osobaDzialId = null;
     } catch (e) {
@@ -194,11 +186,12 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
   Future<void> _addMaszyna() async {
     final nazwa = _maszynaCtrl.text.trim();
     final dzialId = _maszynaDzialId;
-    final sekcjaId = _maszynaSekcjaId;
-    if (nazwa.isEmpty || dzialId == null || sekcjaId == null) return;
+    final sekcjaIds = _maszynaSekcjaIds.toList();
+    if (nazwa.isEmpty || dzialId == null || sekcjaIds.isEmpty) return;
     try {
-      await ref.read(adminApiRepositoryProvider).addMaszyna(nazwa, dzialId, sekcjaId: sekcjaId);
+      await ref.read(adminApiRepositoryProvider).addMaszyna(nazwa, dzialId, sekcjaIds: sekcjaIds);
       _maszynaCtrl.clear();
+      _maszynaSekcjaIds = <int>{};
       await _loadAll();
     } catch (e) {
       _showError('Błąd dodawania maszyny: $e');
@@ -222,7 +215,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
             id: m.id,
             nazwa: result.nazwa,
             dzialId: result.dzialId,
-            sekcjaId: result.sekcjaId,
+            sekcjaIds: result.sekcjaIds,
           );
       await _loadAll();
     } catch (e) {
@@ -405,7 +398,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
   Future<_MaszynaEditData?> _showMaszynaEditDialog(Maszyna m) {
     final nameCtrl = TextEditingController(text: m.nazwa);
     int? selectedDzialId = m.dzial?.id;
-    int? selectedSekcjaId = m.sekcja?.id;
+    Set<int> selectedSekcjaIds = m.sekcje.map((s) => s.id).toSet();
     return showDialog<_MaszynaEditData>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -420,18 +413,39 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                 items: _dzialy.map((d) => DropdownMenuItem(value: d.id, child: Text(d.nazwa))).toList(),
                 onChanged: (v) => setLocal(() {
                   selectedDzialId = v;
-                  selectedSekcjaId = null;
+                  selectedSekcjaIds = selectedSekcjaIds
+                      .where((id) => _sekcje.any((s) => s.id == id && (v == null || s.dzial?.id == v)))
+                      .toSet();
                 }),
               ),
               const SizedBox(height: 8),
-              DropdownButtonFormField<int>(
-                value: selectedSekcjaId,
-                decoration: const InputDecoration(labelText: 'Sekcja'),
-                items: _sekcje
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Sekcje',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: _sekcje
                     .where((s) => selectedDzialId == null || s.dzial?.id == selectedDzialId)
-                    .map((s) => DropdownMenuItem(value: s.id, child: Text(s.nazwa)))
-                    .toList(),
-                onChanged: (v) => setLocal(() => selectedSekcjaId = v),
+                    .map((s) {
+                  final selected = selectedSekcjaIds.contains(s.id);
+                  return FilterChip(
+                    label: Text(s.nazwa),
+                    selected: selected,
+                    onSelected: (_) => setLocal(() {
+                      if (selected) {
+                        selectedSekcjaIds = {...selectedSekcjaIds}..remove(s.id);
+                      } else {
+                        selectedSekcjaIds = {...selectedSekcjaIds, s.id};
+                      }
+                    }),
+                  );
+                }).toList(),
               ),
               const SizedBox(height: 8),
               TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Nazwa maszyny')),
@@ -442,8 +456,8 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
             ElevatedButton(
               onPressed: () {
                 final name = nameCtrl.text.trim();
-                if (name.isEmpty || selectedDzialId == null || selectedSekcjaId == null) return;
-                Navigator.pop(ctx, _MaszynaEditData(name, selectedDzialId!, selectedSekcjaId!));
+                if (name.isEmpty || selectedDzialId == null || selectedSekcjaIds.isEmpty) return;
+                Navigator.pop(ctx, _MaszynaEditData(name, selectedDzialId!, selectedSekcjaIds.toList()));
               },
               child: const Text('Zapisz'),
             ),
@@ -638,7 +652,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
     }).toList();
     final filteredMaszyny = _maszyny.where((m) {
       final dzialName = m.dzial?.nazwa.toLowerCase() ?? '';
-      final sekcjaName = m.sekcja?.nazwa.toLowerCase() ?? '';
+      final sekcjaName = m.sekcje.map((s) => s.nazwa.toLowerCase()).join(' ');
       return m.nazwa.toLowerCase().contains(maszynaQuery) ||
           dzialName.contains(maszynaQuery) ||
           sekcjaName.contains(maszynaQuery);
@@ -800,18 +814,39 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                               .toList(),
                           onChanged: (v) => setState(() {
                             _maszynaDzialId = v;
-                            _maszynaSekcjaId = null;
+                            _maszynaSekcjaIds = _maszynaSekcjaIds
+                                .where((id) => _sekcje.any((s) => s.id == id && (v == null || s.dzial?.id == v)))
+                                .toSet();
                           }),
                         ),
                         const SizedBox(height: 8),
-                        DropdownButtonFormField<int>(
-                          value: _maszynaSekcjaId,
-                          decoration: const InputDecoration(labelText: 'Sekcja'),
-                          items: _sekcje
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Sekcje (możesz wybrać wiele)',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: _sekcje
                               .where((s) => _maszynaDzialId == null || s.dzial?.id == _maszynaDzialId)
-                              .map((s) => DropdownMenuItem(value: s.id, child: Text(s.nazwa)))
-                              .toList(),
-                          onChanged: (v) => setState(() => _maszynaSekcjaId = v),
+                              .map((s) {
+                            final selected = _maszynaSekcjaIds.contains(s.id);
+                            return FilterChip(
+                              label: Text(s.nazwa),
+                              selected: selected,
+                              onSelected: (_) => setState(() {
+                                if (selected) {
+                                  _maszynaSekcjaIds = {..._maszynaSekcjaIds}..remove(s.id);
+                                } else {
+                                  _maszynaSekcjaIds = {..._maszynaSekcjaIds, s.id};
+                                }
+                              }),
+                            );
+                          }).toList(),
                         ),
                         const SizedBox(height: 8),
                         Row(
@@ -840,7 +875,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                         const SizedBox(height: 8),
                         ...filteredMaszyny.map((m) => ListTile(
                               title: Text(m.nazwa),
-                              subtitle: Text('${m.dzial?.nazwa ?? '-'} / ${m.sekcja?.nazwa ?? '-'}'),
+                              subtitle: Text('${m.dzial?.nazwa ?? '-'} / ${m.sekcje.isEmpty ? '-' : m.sekcje.map((s) => s.nazwa).join(', ')}'),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -1143,8 +1178,8 @@ class _SekcjaEditData {
 class _MaszynaEditData {
   final String nazwa;
   final int dzialId;
-  final int sekcjaId;
-  _MaszynaEditData(this.nazwa, this.dzialId, this.sekcjaId);
+  final List<int> sekcjaIds;
+  _MaszynaEditData(this.nazwa, this.dzialId, this.sekcjaIds);
 }
 
 class _OsobaEditData {

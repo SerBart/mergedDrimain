@@ -271,7 +271,12 @@ class RaportyApiRepository {
     }
 
     if (id <= 0 && nazwa.trim().isEmpty) return null;
-    return Maszyna(id: id, nazwa: nazwa, dzial: dzial, sekcja: sekcja);
+    return Maszyna(
+      id: id,
+      nazwa: nazwa,
+      dzial: dzial,
+      sekcje: sekcja != null ? [sekcja] : const [],
+    );
   }
 
   /// Wgrywa zdjęcia do raportu. Zwraca listę nowych pełnych URL-i.
