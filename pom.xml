@@ -157,6 +157,16 @@
 	</dependencies>
 
 	<build>
+		<resources>
+			<resource>
+				<directory>src/main/resources</directory>
+				<excludes>
+					<!-- Conflicts with V28__move_sekcje_under_maszyny.sql (same version number) -->
+					<exclude>db/migration/V28__create_maszyny_sekcje_join_table.sql</exclude>
+				</excludes>
+				<filtering>false</filtering>
+			</resource>
+		</resources>
 		<plugins>
 			<!-- Ensure Lombok annotation processing during compile -->
 			<plugin>
