@@ -24,7 +24,11 @@ class RaportyApiRepository {
     final token = await _token();
     final resp = await _dio.get(
       '/api/raporty',
-      queryParameters: {'page': page, 'size': size},
+      queryParameters: {
+        'page': page,
+        'size': size,
+        'sort': 'dataNaprawy:desc', // Sortuj po dacie malejąco: najnowsze najpierw
+      },
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
     final data = resp.data;

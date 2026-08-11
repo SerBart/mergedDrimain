@@ -28,10 +28,10 @@ class RaportyListScreen extends ConsumerStatefulWidget {
   ConsumerState<RaportyListScreen> createState() => _RaportyListScreenState();
 }
 
-class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
+class _RaportyListScreenState extends ConsumerStatefulWidget {
   String _query = '';
-  int _sortColumnIndex = 0;
-  bool _sortAsc = true;
+  int _sortColumnIndex = 3; // Sortuj po dacie (dataNaprawy)
+  bool _sortAsc = false; // Malejąco: najnowsze najpierw
   bool _busy = false;
   static const List<String> _typyNapraw = NaprawyConstants.typyNapraw;
   final Set<int> _expandedOpis = <int>{};
