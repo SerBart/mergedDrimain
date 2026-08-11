@@ -28,7 +28,7 @@ class RaportyListScreen extends ConsumerStatefulWidget {
   ConsumerState<RaportyListScreen> createState() => _RaportyListScreenState();
 }
 
-class _RaportyListScreenState extends ConsumerStatefulWidget {
+class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
   String _query = '';
   int _sortColumnIndex = 3; // Sortuj po dacie (dataNaprawy)
   bool _sortAsc = false; // Malejąco: najnowsze najpierw
