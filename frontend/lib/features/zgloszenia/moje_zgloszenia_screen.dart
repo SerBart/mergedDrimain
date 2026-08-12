@@ -1,0 +1,312 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+
+import '../../core/providers/app_providers.dart';
+import '../../core/models/zgloszenie.dart';
+import '../../widgets/top_app_bar.dart';
+
+class MojeZgloszeniaScreen extends ConsumerStatefulWidget {
+  const MojeZgloszeniaScreen({super.key});
+
+  @override
+  ConsumerState<MojeZgloszeniaScreen> createState() =>
+      _MojeZgloszeniaScreenState();
+}
+
+class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
+  // Filtrowanie
+  final _search = TextEditingController();
+  String _query = '';
+  String _statusFilter = 'WSZYSTKIE';
+
+  // Sortowanie
+  int _sortCol = 0; // 0: Data, 1: Typ, 2: Status, 3: Maszyna
+  bool _sortAsc = false;
+
+  // Stan ładowania
+  bool _loading = false;
+  String? _error;
+  List<Zgloszenie> _zgloszenia = [];
+
+  static const statusy = ['WSZYSTKIE', 'NOWE', 'W TOKU', 'WERYFIKACJA', 'ZAMKNIĘTE'];
+  static const types = ['WSZYSTKIE', 'Usterka', 'Awaria', 'Przezbrojenie', 'Modernizacja'];
+  final _dtf = DateFormat('yyyy-MM-dd HH:mm');
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadData() async {
+    if (!mounted) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final repo = ref.read(zgloszeniaApiRepositoryProvider);
+      final data = await repo.fetchMoje(
+        status: _statusFilter != 'WSZYSTKIE' ? _statusFilter : null,
+        query: _query.isNotEmpty ? _query : null,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _zgloszenia = data;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  void _applyFilters() {
+    _loadData();
+  }
+
+  void _sort(int col) {
+    setState(() {
+      if (_sortCol == col) {
+        _sortAsc = !_sortAsc;
+      } else {
+        _sortCol = col;
+        _sortAsc = true;
+      }
+    });
+  }
+
+  List<Zgloszenie> _getSortedData() {
+    List<Zgloszenie> sorted = [..._zgloszenia];
+
+    switch (_sortCol) {
+      case 0: // Data
+        sorted.sort((a, b) =>
+            a.dataGodzina.compareTo(b.dataGodzina));
+        break;
+      case 1: // Typ
+        sorted.sort((a, b) => a.typ.compareTo(b.typ));
+        break;
+      case 2: // Status
+        sorted.sort((a, b) => a.status.compareTo(b.status));
+        break;
+      case 3: // Maszyna
+        sorted.sort((a, b) =>
+            (a.maszyna?.nazwa ?? '').compareTo(b.maszyna?.nazwa ?? ''));
+        break;
+    }
+
+    if (!_sortAsc) sorted = sorted.reversed.toList();
+    return sorted;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final sorted = _getSortedData();
+
+    return Scaffold(
+      appBar: const TopAppBar(title: 'Moje Zgłoszenia', showBack: true),
+      body: RefreshIndicator(
+        onRefresh: _loadData,
+        child: Column(
+          children: [
+            // Filtry
+            Container(
+              color: scheme.surface,
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                spacing: 8,
+                children: [
+                  // Wyszukiwanie
+                  TextField(
+                    controller: _search,
+                    onChanged: (v) {
+                      setState(() => _query = v);
+                      _applyFilters();
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Szukaj po temacie, opisie, typie...',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                  ),
+                  // Status filter
+                  DropdownButton<String>(
+                    value: _statusFilter,
+                    isExpanded: true,
+                    items: statusy
+                        .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                        .toList(),
+                    onChanged: (v) {
+                      setState(() => _statusFilter = v ?? 'WSZYSTKIE');
+                      _applyFilters();
+                    },
+                  ),
+                ],
+              ),
+            ),
+            // Dane
+            Expanded(
+              child: _loading && _zgloszenia.isEmpty
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text('Błąd: $_error',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(color: Colors.red)),
+                              const SizedBox(height: 16),
+                              ElevatedButton(
+                                onPressed: _loadData,
+                                child: const Text('Spróbuj ponownie'),
+                              ),
+                            ],
+                          ),
+                        )
+                      : sorted.isEmpty
+                          ? const Center(child: Text('Brak zgłoszeń'))
+                          : _buildTable(sorted, scheme),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTable(List<Zgloszenie> data, ColorScheme scheme) {
+    return SingleChildScrollView(
+      child: DataTable(
+        sortColumnIndex: _sortCol,
+        sortAscending: _sortAsc,
+        columns: [
+          DataColumn(
+            label: const Text('Data'),
+            onSort: (i, asc) => _sort(0),
+          ),
+          DataColumn(
+            label: const Text('Typ'),
+            onSort: (i, asc) => _sort(1),
+          ),
+          DataColumn(
+            label: const Text('Status'),
+            onSort: (i, asc) => _sort(2),
+          ),
+          DataColumn(
+            label: const Text('Maszyna'),
+            onSort: (i, asc) => _sort(3),
+          ),
+          DataColumn(
+            label: const Text('Temat'),
+          ),
+        ],
+        rows: data
+            .map((z) => DataRow(
+                  onSelectChanged: (_) => _showDetails(z),
+                  cells: [
+                    DataCell(Text(_dtf.format(z.dataGodzina))),
+                    DataCell(Text(z.typ)),
+                    DataCell(_statusChip(z.status, scheme)),
+                    DataCell(Text(z.maszyna?.nazwa ?? '-')),
+                    DataCell(
+                      Text(
+                        z.temat,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ))
+            .toList(),
+      ),
+    );
+  }
+
+  Widget _statusChip(String status, ColorScheme scheme) {
+    final color = _getStatusColor(status);
+    return Chip(
+      label: Text(status, style: const TextStyle(fontSize: 12, color: Colors.white)),
+      backgroundColor: color,
+      padding: EdgeInsets.zero,
+    );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toUpperCase()) {
+      case 'NOWE':
+        return Colors.blue;
+      case 'W TOKU':
+        return Colors.orange;
+      case 'WERYFIKACJA':
+        return Colors.purple;
+      case 'ZAMKNIĘTE':
+        return Colors.green;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  void _showDetails(Zgloszenie z) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Zgłoszenie #${z.id}'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _detail('Typ', z.typ),
+              _detail('Temat', z.temat),
+              _detail('Status', z.status),
+              _detail('Data', _dtf.format(z.dataGodzina)),
+              _detail('Maszyna', z.maszyna?.nazwa ?? '-'),
+              _detail('Autor', '${z.imie} ${z.nazwisko}'),
+              const SizedBox(height: 12),
+              const Text('Opis:', style: TextStyle(fontWeight: FontWeight.bold)),
+              Text(z.opis),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => ctx.pop(),
+            child: const Text('Zamknij'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detail(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 80, child: Text('$label:', style: const TextStyle(fontWeight: FontWeight.bold))),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
+  }
+}
+
