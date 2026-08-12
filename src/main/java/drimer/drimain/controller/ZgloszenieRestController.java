@@ -127,6 +127,50 @@ public class ZgloszenieRestController {
     }
 
     /**
+     * List user's own issues (created by current user).
+     * Filters by autor.username == current user's username.
+     * Supports same filters: status, typ, q (search).
+     */
+    @GetMapping("/moje")
+    @Transactional(readOnly = true)
+    @PreAuthorize("@moduleGuard.has('Zgloszenia')")
+    public List<ZgloszenieDTO> listMoje(@RequestParam Optional<String> status,
+                                        @RequestParam Optional<String> typ,
+                                        @RequestParam Optional<String> q,
+                                        Authentication authentication) {
+
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return List.of();
+        }
+
+        String currentUsername = authentication.getName();
+        List<Zgloszenie> all = zgloszenieRepository.findAll().stream()
+                .filter(z -> z.getAutor() != null && currentUsername.equals(z.getAutor().getUsername()))
+                .collect(Collectors.toList());
+
+        return all.stream()
+                .filter(z -> status
+                        .map(s -> {
+                            ZgloszenieStatus ms = ZgloszenieStatusMapper.map(s);
+                            return ms != null && ms == z.getStatus();
+                        })
+                        .orElse(true))
+                .filter(z -> typ
+                        .map(t -> z.getTyp() != null && z.getTyp().equalsIgnoreCase(t))
+                        .orElse(true))
+                .filter(z -> q
+                        .map(query -> {
+                            String qq = query.toLowerCase();
+                            return (z.getOpis() != null && z.getOpis().toLowerCase().contains(qq)) ||
+                                    (z.getTyp() != null && z.getTyp().toLowerCase().contains(qq)) ||
+                                    (z.getTytul() != null && z.getTytul().toLowerCase().contains(qq));
+                        })
+                        .orElse(true))
+                .map(ZgloszenieMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Get by id.
      * Trzyma transakcję, a repo fetchuje relacje autor/dzial.
      */
@@ -317,3 +361,4 @@ public class ZgloszenieRestController {
         public ErrorResponse(String message) { this.message = message; }
     }
 }
+

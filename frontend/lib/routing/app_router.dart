@@ -12,12 +12,15 @@ import '../features/raporty/raport_list_screen.dart';
 import '../features/raporty/raport_form_screen.dart';
 import '../features/czesci/czesci_list_screen.dart';
 import '../features/zgloszenia/zgloszenia_screen_modern.dart';
+import '../features/zgloszenia/moje_zgloszenia_screen.dart';
 import '../features/harmonogramy/harmonogramy_screen.dart';
 import '../features/przeglady/przeglady_screen.dart';
 import '../features/admin/admin_screen.dart';
 import '../features/instrukcje/instrukcje_list_screen.dart' as instrukcje_list;
 import '../features/instrukcje/instrukcja_form_screen.dart' as instrukcja_form;
 import '../features/notifications/notifications_page.dart';
+import '../features/profile/profile_screen.dart';
+import '../features/modules/modules_screen.dart';
 
 class _RouteBackground extends StatelessWidget {
   final Widget child;
@@ -93,12 +96,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/czesci',
         pageBuilder: (_, state) => _smoothPage(state: state, child: const CzesciListScreen()),
       ),
-      GoRoute(
-        path: '/zgloszenia',
-        pageBuilder: (_, state) => _smoothPage(state: state, child: const ZgloszeniaScreenModern()),
-      ),
-      GoRoute(
-        path: '/zgloszenia/:id',
+       GoRoute(
+         path: '/zgloszenia',
+         pageBuilder: (_, state) => _smoothPage(state: state, child: const ZgloszeniaScreenModern()),
+       ),
+       GoRoute(
+         path: '/moje-zgloszenia',
+         pageBuilder: (_, state) => _smoothPage(state: state, child: const MojeZgloszeniaScreen()),
+       ),
+       GoRoute(
+         path: '/zgloszenia/:id',
         pageBuilder: (_, state) {
           final idStr = state.pathParameters['id'] ?? '';
           final id = int.tryParse(idStr);
@@ -124,6 +131,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/notifications',
         pageBuilder: (_, state) => _smoothPage(state: state, child: const NotificationsPage()),
+      ),
+      GoRoute(
+        path: '/profil',
+        pageBuilder: (_, state) => _smoothPage(state: state, child: const ProfileScreen()),
+      ),
+      GoRoute(
+        path: '/moduly',
+        pageBuilder: (_, state) => _smoothPage(state: state, child: const ModulesScreen()),
       ),
       GoRoute(
         path: '/admin',

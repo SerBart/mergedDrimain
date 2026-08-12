@@ -19,6 +19,25 @@ class ZgloszeniaApiRepository {
     return list.map(_fromDto).toList();
   }
 
+  /// Fetch user's own issues (created by current user)
+  Future<List<Zgloszenie>> fetchMoje({
+    String? status,
+    String? typ,
+    String? query,
+  }) async {
+    final params = <String, dynamic>{};
+    if (status != null && status.isNotEmpty) params['status'] = status;
+    if (typ != null && typ.isNotEmpty) params['typ'] = typ;
+    if (query != null && query.isNotEmpty) params['q'] = query;
+
+    final resp = await _getWithRetry<List<dynamic>>(
+      '/api/zgloszenia/moje',
+      queryParameters: params.isNotEmpty ? params : null,
+    );
+    final list = (resp.data as List<dynamic>).cast<Map<String, dynamic>>();
+    return list.map(_fromDto).toList();
+  }
+
   Future<Zgloszenie> create({
     required String imie,
     required String nazwisko,
@@ -187,11 +206,12 @@ class ZgloszeniaApiRepository {
     return token;
   }
 
-  Future<Response<T>> _getWithRetry<T>(String path) async {
+  Future<Response<T>> _getWithRetry<T>(String path, {Map<String, dynamic>? queryParameters}) async {
     final token = await _readToken();
     try {
       return await _dio.get(
         path,
+        queryParameters: queryParameters,
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
     } on DioException catch (e) {
@@ -200,6 +220,7 @@ class ZgloszeniaApiRepository {
         if (refreshed != null && refreshed.isNotEmpty) {
           return await _dio.get(
             path,
+            queryParameters: queryParameters,
             options: Options(headers: {'Authorization': 'Bearer $refreshed'}),
           );
         }

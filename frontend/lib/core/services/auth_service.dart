@@ -37,15 +37,9 @@ class AuthService {
     final me = meResp.data as Map<String, dynamic>;
     final roles = (me['roles'] as List<dynamic>? ?? const []).cast<String>();
     final role = roles.contains('ROLE_ADMIN') ? 'ADMIN' : 'USER';
-    final modules = ((me['modules'] as List<dynamic>? ?? const [])).map((e) => e.toString()).toSet();
+    final meWithToken = <String, dynamic>{...me, 'token': token, 'role': role};
 
-    return User(
-      id: 0,
-      username: (me['username'] as String?) ?? username,
-      role: role,
-      token: token,
-      modules: modules,
-    );
+    return User.fromJson(meWithToken);
   }
 
   /// Próba odświeżenia access tokenu: używa lokalnego refreshToken (mobile)
@@ -79,6 +73,22 @@ class AuthService {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<void> changePassword({required String currentPassword, required String newPassword}) async {
+    final token = await _storage.readToken();
+    if (token == null || token.isEmpty) {
+      throw Exception('Brak tokenu – zaloguj się.');
+    }
+    await _dio.post(
+      '/api/users/me/password',
+      data: {
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+        'confirmNewPassword': newPassword,
+      },
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
   }
 
   Future<void> logout() async {

@@ -26,6 +26,20 @@ import drimer.drimain.model.Maszyna;
 import drimer.drimain.repository.SekcjaRepository;
 import org.springframework.transaction.annotation.Transactional;
 
+import drimer.drimain.api.dto.DashboardKpiDTO;
+import drimer.drimain.model.Raport;
+import drimer.drimain.model.Zgloszenie;
+import drimer.drimain.repository.RaportRepository;
+import drimer.drimain.repository.ZgloszenieRepository;
+
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.stream.Collectors;
+
 @RestController
 @RequestMapping("/api/meta")
 @RequiredArgsConstructor
@@ -36,6 +50,8 @@ public class MetaController {
     private final DzialRepository dzialRepository;
     private final SekcjaRepository sekcjaRepository;
     private final UserRepository userRepository;
+    private final RaportRepository raportRepository;
+    private final ZgloszenieRepository zgloszenieRepository;
 
     @GetMapping("/statusy/raporty")
     public List<String> raportStatuses() {
@@ -169,5 +185,93 @@ public class MetaController {
             dto.setLabel(m.getSekcja() != null ? (m.getNazwa() + " [" + m.getSekcja().getNazwa() + "]") : m.getNazwa());
             return dto;
         }).toList();
+    }
+
+    @GetMapping("/dashboard-kpi")
+    @Transactional(readOnly = true)
+    public DashboardKpiDTO dashboardKpi() {
+        LocalDate today = LocalDate.now();
+        LocalDate sevenDaysAgo = today.minusDays(6);
+
+        var raporty = raportRepository.findAll();
+        var zgloszenia = zgloszenieRepository.findAll();
+
+        DashboardKpiDTO dto = new DashboardKpiDTO();
+
+        dto.setRaportyDzis(raporty.stream()
+                .map(Raport::getDataNaprawy)
+                .filter(d -> d != null && d.equals(today))
+                .count());
+
+        dto.setRaporty7Dni(raporty.stream()
+                .map(Raport::getDataNaprawy)
+                .filter(d -> d != null && !d.isBefore(sevenDaysAgo))
+                .count());
+
+        dto.setZgloszeniaDzisNowe(countTodayByStatus(zgloszenia, today, ZgloszenieStatus.OPEN));
+        dto.setZgloszeniaDzisWToku(countTodayByStatus(zgloszenia, today, ZgloszenieStatus.IN_PROGRESS));
+        dto.setZgloszeniaDzisZamkniete(countTodayByStatus(zgloszenia, today, ZgloszenieStatus.DONE));
+
+        double avgHours = zgloszenia.stream()
+                .filter(z -> z.getStatus() == ZgloszenieStatus.DONE)
+                .filter(z -> z.getAcceptedAt() != null && z.getCompletedAt() != null)
+                .mapToLong(z -> Duration.between(z.getAcceptedAt(), z.getCompletedAt()).toMinutes())
+                .average()
+                .orElse(0.0) / 60.0;
+        dto.setSredniCzasRozwiazaniaGodziny(Math.round(avgHours * 10.0) / 10.0);
+
+        long maszynyRazem = maszynaRepository.count();
+        long maszynyWPrzestoju = zgloszenia.stream()
+                .filter(z -> z.getMaszyna() != null && z.getMaszyna().getId() != null)
+                .filter(z -> z.getStatus() != ZgloszenieStatus.DONE && z.getStatus() != ZgloszenieStatus.REJECTED)
+                .map(z -> z.getMaszyna().getId())
+                .distinct()
+                .count();
+        dto.setMaszynyRazem(maszynyRazem);
+        dto.setMaszynyWPrzestoju(maszynyWPrzestoju);
+        dto.setMaszynyWPracy(Math.max(0, maszynyRazem - maszynyWPrzestoju));
+
+        Map<String, Long> topTypy = zgloszenia.stream()
+                .map(Zgloszenie::getTyp)
+                .filter(t -> t != null && !t.isBlank())
+                .collect(Collectors.groupingBy(t -> t, Collectors.counting()))
+                .entrySet()
+                .stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder()))
+                .limit(3)
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (a, b) -> a,
+                        LinkedHashMap::new
+                ));
+        dto.setTopTypyZgloszen(topTypy);
+
+        Map<String, Long> zglByStatus = new LinkedHashMap<>();
+        for (ZgloszenieStatus status : ZgloszenieStatus.values()) {
+            long count = zgloszenia.stream().filter(z -> z.getStatus() == status).count();
+            zglByStatus.put(status.name(), count);
+        }
+        dto.setZgloszeniaByStatus(zglByStatus);
+
+        Map<String, Long> raportyByStatus = new LinkedHashMap<>();
+        for (RaportStatus status : RaportStatus.values()) {
+            long count = raporty.stream().filter(r -> r.getStatus() == status).count();
+            raportyByStatus.put(status.name(), count);
+        }
+        dto.setRaportyByStatus(raportyByStatus);
+
+        dto.setLastUpdated(LocalDateTime.now());
+        return dto;
+    }
+
+    private long countTodayByStatus(List<Zgloszenie> zgloszenia, LocalDate today, ZgloszenieStatus targetStatus) {
+        return zgloszenia.stream()
+                .filter(z -> z.getStatus() == targetStatus)
+                .filter(z -> {
+                    LocalDateTime ts = z.getDataGodzina() != null ? z.getDataGodzina() : z.getCreatedAt();
+                    return ts != null && ts.toLocalDate().equals(today);
+                })
+                .count();
     }
 }

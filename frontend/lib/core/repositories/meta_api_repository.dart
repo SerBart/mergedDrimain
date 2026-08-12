@@ -3,6 +3,7 @@ import '../models/maszyna.dart';
 import '../models/osoba.dart';
 import '../models/dzial.dart';
 import '../models/sekcja.dart';
+import '../models/dashboard_kpi.dart';
 import '../services/secure_storage_service.dart';
 
 class MetaApiRepository {
@@ -59,6 +60,15 @@ class MetaApiRepository {
     );
     final list = (resp.data as List).cast<Map<String, dynamic>>();
     return list.map(Sekcja.fromJson).toList();
+  }
+
+  Future<DashboardKpi> fetchDashboardKpi() async {
+    final token = await _readToken();
+    final resp = await _dio.get(
+      '/api/meta/dashboard-kpi',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    return DashboardKpi.fromJson((resp.data as Map).cast<String, dynamic>());
   }
 
   Future<String> _readToken() async {

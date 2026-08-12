@@ -153,9 +153,28 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8.0),
           child: Row(
-            children: [
-              // render any extra actions provided by screens (e.g. save button)
-              if (extraActions != null) ...extraActions!,
+              children: [
+                // render any extra actions provided by screens (e.g. save button)
+                if (extraActions != null) ...extraActions!,
+               Builder(builder: (ctx) {
+                 final wide = MediaQuery.of(ctx).size.width > 640;
+                 if (wide) {
+                   return TextButton.icon(
+                     style: TextButton.styleFrom(
+                       foregroundColor: Colors.white,
+                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                     ),
+                     onPressed: () => context.go('/moduly'),
+                     icon: const Icon(Icons.apps_rounded, size: 18),
+                     label: const Text('Moduły'),
+                   );
+                 }
+                 return IconButton(
+                   tooltip: 'Moduły',
+                   icon: const Icon(Icons.apps_rounded, color: Colors.white),
+                   onPressed: () => context.go('/moduly'),
+                 );
+               }),
                IconButton(
                  tooltip: quickModulesExpanded ? 'Ukryj szybkie kafelki' : 'Pokaz szybkie kafelki',
                  icon: Icon(
@@ -269,38 +288,54 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
                        ),
                      ),
                    ),
-                 ],
-               ),
-               // show small user avatar
-               CircleAvatar(
-                 radius: 16,
-                 backgroundColor: Colors.white24,
-                 child: Text(initials, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-               ),
-               const SizedBox(width: 8),
-               // Profile menu with version and logout
-               PopupMenuButton<int>(
-                 color: Colors.white,
-                 icon: const Icon(Icons.more_vert, color: Colors.white),
-                 onSelected: (v) async {
-                   if (v == 1) {
-                     // logout
-                     await ref.read(authStateProvider.notifier).logout();
-                     if (context.mounted) context.go('/login');
-                   }
-                 },
-                 itemBuilder: (ctx) => [
-                   PopupMenuItem(value: 0, child: FutureBuilder<PackageInfo>(
-                     future: versionFuture,
-                     builder: (ctx, snap) {
-                       final ver = snap.hasData ? snap.data!.version : '...';
-                       return Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Wersja'), Text(ver, style: TextStyle(fontWeight: FontWeight.w700))]);
-                     },
-                   )),
-                   const PopupMenuDivider(),
-                   const PopupMenuItem(value: 1, child: Text('Wyloguj')),
-                 ],
-               ),
+                ],
+                ),
+                // Profile dropdown menu (clicking avatar shows profile and logout)
+                PopupMenuButton<int>(
+                  color: Colors.white,
+                  offset: const Offset(0, 50),
+                  child: CircleAvatar(
+                    radius: 18,
+                    backgroundColor: Colors.white24,
+                    child: Text(initials, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                  ),
+                  onSelected: (v) async {
+                    if (v == 1) {
+                      try {
+                        context.go('/profil');
+                      } catch (_) {
+                        try {
+                          ref.read(appRouterProvider).go('/profil');
+                        } catch (_) {}
+                      }
+                    } else if (v == 2) {
+                      // logout
+                      await ref.read(authStateProvider.notifier).logout();
+                      if (context.mounted) context.go('/login');
+                    }
+                  },
+                  itemBuilder: (ctx) => [
+                    const PopupMenuItem(value: 1, child: Text('Mój profil')),
+                    const PopupMenuDivider(),
+                    const PopupMenuItem(value: 2, child: Text('Wyloguj')),
+                  ],
+                ),
+                const SizedBox(width: 8),
+                // Version info menu (three dots)
+                PopupMenuButton<int>(
+                  color: Colors.white,
+                  icon: const Icon(Icons.more_vert, color: Colors.white),
+                  onSelected: (v) {},
+                  itemBuilder: (ctx) => [
+                    PopupMenuItem(value: 0, child: FutureBuilder<PackageInfo>(
+                      future: versionFuture,
+                      builder: (ctx, snap) {
+                        final ver = snap.hasData ? snap.data!.version : '...';
+                        return Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Wersja'), Text(ver, style: TextStyle(fontWeight: FontWeight.w700))]);
+                      },
+                    )),
+                  ],
+                ),
              ],
            ),
          )
