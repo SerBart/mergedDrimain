@@ -559,30 +559,6 @@ class _DashboardItemState extends State<_DashboardItem> {
                 ),
                 child: Stack(
                   children: [
-                    Positioned(
-                      top: widget.isHero ? 10 : 8,
-                      left: widget.isHero ? 14 : 12,
-                      child: Container(
-                        width: widget.isHero ? 56 : 42,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(999),
-                          color: disabled ? Colors.grey.shade300 : widget.accent.withOpacity(.60),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      left: widget.isHero ? -24 : -18,
-                      bottom: widget.isHero ? -36 : -26,
-                      child: Container(
-                        width: widget.isHero ? (compactMobile ? 100 : 120) : (compactMobile ? 76 : 92),
-                        height: widget.isHero ? (compactMobile ? 100 : 120) : (compactMobile ? 76 : 92),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: disabled ? Colors.grey.shade200 : widget.accent.withOpacity(.06),
-                        ),
-                      ),
-                    ),
                     Padding(
                       padding: cardPadding,
                       child: Column(
