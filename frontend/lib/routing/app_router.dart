@@ -21,6 +21,8 @@ import '../features/instrukcje/instrukcja_form_screen.dart' as instrukcja_form;
 import '../features/notifications/notifications_page.dart';
 import '../features/profile/profile_screen.dart';
 import '../features/modules/modules_screen.dart';
+import '../features/statystyki/statystyki_screen.dart';
+import '../features/aktualnosci/aktualnosci_screen.dart';
 
 class _RouteBackground extends StatelessWidget {
   final Widget child;
@@ -77,6 +79,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (_, state) => _smoothPage(state: state, child: const DashboardScreen()),
       ),
       GoRoute(
+        path: '/statystyki',
+        pageBuilder: (_, state) => _smoothPage(state: state, child: const StatystykiScreen()),
+      ),
+      GoRoute(
+        path: '/aktualnosci',
+        pageBuilder: (_, state) => _smoothPage(state: state, child: const AktualnosciScreen()),
+      ),
+      GoRoute(
         path: '/raporty',
         pageBuilder: (_, state) => _smoothPage(state: state, child: const RaportyListScreen()),
       ),
@@ -103,6 +113,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
        GoRoute(
          path: '/moje-zgloszenia',
          pageBuilder: (_, state) => _smoothPage(state: state, child: const MojeZgloszeniaScreen()),
+       ),
+       GoRoute(
+         path: '/moje-zadania',
+         pageBuilder: (_, state) => _smoothPage(
+           state: state,
+           child: const MojeZgloszeniaScreen(showTasksInitially: true),
+         ),
        ),
        GoRoute(
          path: '/zgloszenia/:id',

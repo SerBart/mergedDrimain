@@ -8,7 +8,12 @@ import '../../core/models/zgloszenie.dart';
 import '../../widgets/top_app_bar.dart';
 
 class MojeZgloszeniaScreen extends ConsumerStatefulWidget {
-  const MojeZgloszeniaScreen({super.key});
+  final bool showTasksInitially;
+
+  const MojeZgloszeniaScreen({
+    super.key,
+    this.showTasksInitially = false,
+  });
 
   @override
   ConsumerState<MojeZgloszeniaScreen> createState() =>
@@ -16,6 +21,7 @@ class MojeZgloszeniaScreen extends ConsumerStatefulWidget {
 }
 
 class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
+  bool _showTasks = false;
   // Filtrowanie
   final _search = TextEditingController();
   String _query = '';
@@ -37,6 +43,7 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
   @override
   void initState() {
     super.initState();
+    _showTasks = widget.showTasksInitially;
     _loadData();
   }
 
@@ -55,10 +62,15 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
 
     try {
       final repo = ref.read(zgloszeniaApiRepositoryProvider);
-      final data = await repo.fetchMoje(
-        status: _statusFilter != 'WSZYSTKIE' ? _statusFilter : null,
-        query: _query.isNotEmpty ? _query : null,
-      );
+      final data = _showTasks
+          ? await repo.fetchMojeZadania(
+              status: _statusFilter != 'WSZYSTKIE' ? _statusFilter : null,
+              query: _query.isNotEmpty ? _query : null,
+            )
+          : await repo.fetchMoje(
+              status: _statusFilter != 'WSZYSTKIE' ? _statusFilter : null,
+              query: _query.isNotEmpty ? _query : null,
+            );
 
       if (!mounted) return;
       setState(() {
@@ -119,7 +131,10 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
     final sorted = _getSortedData();
 
     return Scaffold(
-      appBar: const TopAppBar(title: 'Moje Zgłoszenia', showBack: true),
+      appBar: TopAppBar(
+        title: _showTasks ? 'Moje Zadania' : 'Moje Zgłoszenia',
+        showBack: true,
+      ),
       body: RefreshIndicator(
         onRefresh: _loadData,
         child: Column(
@@ -131,6 +146,28 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
               child: Column(
                 spacing: 8,
                 children: [
+                  SegmentedButton<bool>(
+                    showSelectedIcon: false,
+                    segments: const [
+                      ButtonSegment<bool>(
+                        value: false,
+                        icon: Icon(Icons.person_outline),
+                        label: Text('Moje zgłoszenia'),
+                      ),
+                      ButtonSegment<bool>(
+                        value: true,
+                        icon: Icon(Icons.assignment_turned_in_outlined),
+                        label: Text('Moje zadania'),
+                      ),
+                    ],
+                    selected: {_showTasks},
+                    onSelectionChanged: (value) {
+                      final selectedTasks = value.first;
+                      if (selectedTasks == _showTasks) return;
+                      setState(() => _showTasks = selectedTasks);
+                      _loadData();
+                    },
+                  ),
                   // Wyszukiwanie
                   TextField(
                     controller: _search,
@@ -183,7 +220,11 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
                           ),
                         )
                       : sorted.isEmpty
-                          ? const Center(child: Text('Brak zgłoszeń'))
+                          ? Center(
+                              child: Text(
+                                _showTasks ? 'Brak zadań do obsługi' : 'Brak zgłoszeń',
+                              ),
+                            )
                           : _buildTable(sorted, scheme),
             ),
           ],

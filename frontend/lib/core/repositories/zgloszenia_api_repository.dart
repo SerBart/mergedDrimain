@@ -38,6 +38,24 @@ class ZgloszeniaApiRepository {
     return list.map(_fromDto).toList();
   }
 
+  Future<List<Zgloszenie>> fetchMojeZadania({
+    String? status,
+    String? typ,
+    String? query,
+  }) async {
+    final params = <String, dynamic>{};
+    if (status != null && status.isNotEmpty) params['status'] = status;
+    if (typ != null && typ.isNotEmpty) params['typ'] = typ;
+    if (query != null && query.isNotEmpty) params['q'] = query;
+
+    final resp = await _getWithRetry<List<dynamic>>(
+      '/api/zgloszenia/moje-zadania',
+      queryParameters: params.isNotEmpty ? params : null,
+    );
+    final list = (resp.data as List<dynamic>).cast<Map<String, dynamic>>();
+    return list.map(_fromDto).toList();
+  }
+
   Future<Zgloszenie> create({
     required String imie,
     required String nazwisko,

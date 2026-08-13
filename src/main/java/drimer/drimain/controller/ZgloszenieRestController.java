@@ -171,6 +171,60 @@ public class ZgloszenieRestController {
     }
 
     /**
+     * List user's department tasks that still require action.
+     * "Moje zadania" = zgłoszenia z działu użytkownika w statusach roboczych.
+     */
+    @GetMapping("/moje-zadania")
+    @Transactional(readOnly = true)
+    @PreAuthorize("@moduleGuard.has('Zgloszenia')")
+    public List<ZgloszenieDTO> listMojeZadania(@RequestParam Optional<String> status,
+                                               @RequestParam Optional<String> typ,
+                                               @RequestParam Optional<String> q,
+                                               Authentication authentication) {
+
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return List.of();
+        }
+
+        User u = userRepository.findByUsernameFetchDzial(authentication.getName()).orElse(null);
+        if (u == null || u.getDzial() == null) {
+            return List.of();
+        }
+
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        Long dzialId = u.getDzial().getId();
+        List<Zgloszenie> all = zgloszenieRepository.findAll().stream()
+                .filter(z -> isAdmin || (z.getDzial() != null && dzialId.equals(z.getDzial().getId())))
+                .filter(z -> z.getStatus() == ZgloszenieStatus.OPEN
+                        || z.getStatus() == ZgloszenieStatus.IN_PROGRESS
+                        || z.getStatus() == ZgloszenieStatus.ON_HOLD)
+                .collect(Collectors.toList());
+
+        return all.stream()
+                .filter(z -> status
+                        .map(s -> {
+                            ZgloszenieStatus ms = ZgloszenieStatusMapper.map(s);
+                            return ms != null && ms == z.getStatus();
+                        })
+                        .orElse(true))
+                .filter(z -> typ
+                        .map(t -> z.getTyp() != null && z.getTyp().equalsIgnoreCase(t))
+                        .orElse(true))
+                .filter(z -> q
+                        .map(query -> {
+                            String qq = query.toLowerCase();
+                            return (z.getOpis() != null && z.getOpis().toLowerCase().contains(qq)) ||
+                                    (z.getTyp() != null && z.getTyp().toLowerCase().contains(qq)) ||
+                                    (z.getTytul() != null && z.getTytul().toLowerCase().contains(qq));
+                        })
+                        .orElse(true))
+                .map(ZgloszenieMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Get by id.
      * Trzyma transakcję, a repo fetchuje relacje autor/dzial.
      */

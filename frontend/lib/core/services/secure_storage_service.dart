@@ -17,5 +17,9 @@ class SecureStorageService {
   Future<void> saveRememberMe(bool value) => _storage.write(key: _rememberKey, value: value ? '1' : '0');
   Future<bool> readRememberMe() async => (await _storage.read(key: _rememberKey)) == '1';
 
+  Future<void> writeString(String key, String value) => _storage.write(key: key, value: value);
+  Future<String?> readString(String key) => _storage.read(key: key);
+  Future<void> deleteByKey(String key) => _storage.delete(key: key);
+
   Future<void> clear() => _storage.deleteAll();
 }

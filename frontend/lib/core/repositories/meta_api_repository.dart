@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'dart:typed_data';
 import '../models/maszyna.dart';
 import '../models/osoba.dart';
 import '../models/dzial.dart';
@@ -62,13 +63,40 @@ class MetaApiRepository {
     return list.map(Sekcja.fromJson).toList();
   }
 
-  Future<DashboardKpi> fetchDashboardKpi() async {
+  Future<DashboardKpi> fetchDashboardKpi({int days = 7}) async {
     final token = await _readToken();
     final resp = await _dio.get(
       '/api/meta/dashboard-kpi',
+      queryParameters: {'days': days},
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
     return DashboardKpi.fromJson((resp.data as Map).cast<String, dynamic>());
+  }
+
+  Future<String> fetchDashboardKpiCsv({int days = 7}) async {
+    final token = await _readToken();
+    final resp = await _dio.get<String>(
+      '/api/meta/dashboard-kpi/export',
+      queryParameters: {'days': days},
+      options: Options(
+        headers: {'Authorization': 'Bearer $token'},
+        responseType: ResponseType.plain,
+      ),
+    );
+    return resp.data ?? '';
+  }
+
+  Future<Uint8List> fetchDashboardKpiPdf({int days = 7}) async {
+    final token = await _readToken();
+    final resp = await _dio.get<List<int>>(
+      '/api/meta/dashboard-kpi/export.pdf',
+      queryParameters: {'days': days},
+      options: Options(
+        headers: {'Authorization': 'Bearer $token'},
+        responseType: ResponseType.bytes,
+      ),
+    );
+    return Uint8List.fromList(resp.data ?? const <int>[]);
   }
 
   Future<String> _readToken() async {
