@@ -156,25 +156,6 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
               children: [
                 // render any extra actions provided by screens (e.g. save button)
                 if (extraActions != null) ...extraActions!,
-               Builder(builder: (ctx) {
-                 final wide = MediaQuery.of(ctx).size.width > 640;
-                 if (wide) {
-                   return TextButton.icon(
-                     style: TextButton.styleFrom(
-                       foregroundColor: Colors.white,
-                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                     ),
-                     onPressed: () => context.go('/moduly'),
-                     icon: const Icon(Icons.apps_rounded, size: 18),
-                     label: const Text('Moduły'),
-                   );
-                 }
-                 return IconButton(
-                   tooltip: 'Moduły',
-                   icon: const Icon(Icons.apps_rounded, color: Colors.white),
-                   onPressed: () => context.go('/moduly'),
-                 );
-               }),
                IconButton(
                  tooltip: quickModulesExpanded ? 'Ukryj szybkie kafelki' : 'Pokaz szybkie kafelki',
                  icon: Icon(
