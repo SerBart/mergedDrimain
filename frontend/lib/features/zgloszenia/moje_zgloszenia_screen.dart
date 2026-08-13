@@ -311,7 +311,7 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
   Widget _buildTable(List<Zgloszenie> data, ColorScheme scheme) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final minWidth = constraints.maxWidth < 1320 ? 1320.0 : constraints.maxWidth;
+        final minWidth = constraints.maxWidth < 1480 ? 1480.0 : constraints.maxWidth;
 
         return Padding(
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
@@ -394,18 +394,19 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
                             child: ConstrainedBox(
                               constraints: BoxConstraints(minWidth: minWidth),
                               child: DataTable(
-                                sortColumnIndex: _sortCol,
-                                sortAscending: _sortAsc,
-                                columnSpacing: 24,
+                                    sortColumnIndex: _sortCol,
+                                    sortAscending: _sortAsc,
+                                    showCheckboxColumn: false,
+                                    columnSpacing: 20,
                                 headingRowColor: WidgetStatePropertyAll(
                                   scheme.primary.withOpacity(.04),
                                 ),
                                 dataRowMinHeight: 56,
-                                dataRowMaxHeight: 76,
+                                    dataRowMaxHeight: 86,
                                 columns: [
-                                  const DataColumn(
-                                    label: Text('Nr'),
-                                  ),
+                                      const DataColumn(
+                                        label: Text('Zgłoszenie'),
+                                      ),
                                   DataColumn(
                                     label: const Text('Data'),
                                     onSort: (i, asc) => _sort(0),
@@ -423,26 +424,46 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
                                     onSort: (i, asc) => _sort(3),
                                   ),
                                   const DataColumn(
-                                    label: Text('Nazwa zgłoszenia'),
-                                  ),
-                                  const DataColumn(
                                     label: Text('Zgłaszający'),
-                                  ),
-                                  const DataColumn(
-                                    label: Text('Opis skrócony'),
                                   ),
                                 ],
                                 rows: data
                                     .map((z) => DataRow(
                                           onSelectChanged: (_) => _showDetails(z),
                                           cells: [
-                                            DataCell(Text('#${z.id}')),
+                                                DataCell(
+                                                  SizedBox(
+                                                    width: 430,
+                                                    child: Column(
+                                                      mainAxisAlignment: MainAxisAlignment.center,
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        Text(
+                                                          '#${z.id} • ${z.temat.isEmpty ? 'Bez nazwy zgłoszenia' : z.temat}',
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow.ellipsis,
+                                                          style: const TextStyle(fontWeight: FontWeight.w700),
+                                                        ),
+                                                        const SizedBox(height: 4),
+                                                        Text(
+                                                          z.opis.isEmpty ? 'Brak opisu zgłoszenia.' : z.opis,
+                                                          maxLines: 2,
+                                                          overflow: TextOverflow.ellipsis,
+                                                          style: const TextStyle(
+                                                            color: Color(0xFF6B7280),
+                                                            height: 1.3,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
                                             DataCell(Text(_dtf.format(z.dataGodzina))),
                                             DataCell(Text(z.typ)),
                                             DataCell(_statusChip(z.status, scheme)),
                                             DataCell(
                                               SizedBox(
-                                                width: 150,
+                                                    width: 220,
                                                 child: Text(
                                                   z.maszyna?.nazwa ?? '-',
                                                   maxLines: 2,
@@ -452,35 +473,13 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
                                             ),
                                             DataCell(
                                               SizedBox(
-                                                width: 280,
-                                                child: Text(
-                                                  z.temat.isEmpty ? '-' : z.temat,
-                                                  maxLines: 2,
-                                                  overflow: TextOverflow.ellipsis,
-                                                  style: const TextStyle(fontWeight: FontWeight.w600),
-                                                ),
-                                              ),
-                                            ),
-                                            DataCell(
-                                              SizedBox(
-                                                width: 150,
+                                                    width: 180,
                                                 child: Text(
                                                   '${z.imie} ${z.nazwisko}'.trim().isEmpty
                                                       ? '-'
                                                       : '${z.imie} ${z.nazwisko}',
-                                                  maxLines: 1,
+                                                      maxLines: 2,
                                                   overflow: TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                            ),
-                                            DataCell(
-                                              SizedBox(
-                                                width: 320,
-                                                child: Text(
-                                                  z.opis.isEmpty ? '-' : z.opis,
-                                                  maxLines: 2,
-                                                  overflow: TextOverflow.ellipsis,
-                                                  style: const TextStyle(color: Color(0xFF4B5563)),
                                                 ),
                                               ),
                                             ),
