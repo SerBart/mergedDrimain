@@ -129,6 +129,8 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final sorted = _getSortedData();
+    final width = MediaQuery.of(context).size.width;
+    final compact = width < 720;
 
     return Scaffold(
       appBar: TopAppBar(
@@ -140,63 +142,136 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
         child: Column(
           children: [
             // Filtry
-            Container(
-              color: scheme.surface,
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                spacing: 8,
-                children: [
-                  SegmentedButton<bool>(
-                    showSelectedIcon: false,
-                    segments: const [
-                      ButtonSegment<bool>(
-                        value: false,
-                        icon: Icon(Icons.person_outline),
-                        label: Text('Moje zgłoszenia'),
-                      ),
-                      ButtonSegment<bool>(
-                        value: true,
-                        icon: Icon(Icons.assignment_turned_in_outlined),
-                        label: Text('Moje zadania'),
-                      ),
-                    ],
-                    selected: {_showTasks},
-                    onSelectionChanged: (value) {
-                      final selectedTasks = value.first;
-                      if (selectedTasks == _showTasks) return;
-                      setState(() => _showTasks = selectedTasks);
-                      _loadData();
-                    },
-                  ),
-                  // Wyszukiwanie
-                  TextField(
-                    controller: _search,
-                    onChanged: (v) {
-                      setState(() => _query = v);
-                      _applyFilters();
-                    },
-                    decoration: InputDecoration(
-                      hintText: 'Szukaj po temacie, opisie, typie...',
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1120),
+                  child: Container(
+                    padding: EdgeInsets.all(compact ? 12 : 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(.78),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: scheme.primary.withOpacity(.08)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: scheme.primary.withOpacity(.06),
+                          blurRadius: 16,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Align(
+                          alignment: compact ? Alignment.centerLeft : Alignment.center,
+                          child: SegmentedButton<bool>(
+                            showSelectedIcon: false,
+                            segments: const [
+                              ButtonSegment<bool>(
+                                value: false,
+                                icon: Icon(Icons.person_outline),
+                                label: Text('Moje zgłoszenia'),
+                              ),
+                              ButtonSegment<bool>(
+                                value: true,
+                                icon: Icon(Icons.assignment_turned_in_outlined),
+                                label: Text('Moje zadania'),
+                              ),
+                            ],
+                            selected: {_showTasks},
+                            onSelectionChanged: (value) {
+                              final selectedTasks = value.first;
+                              if (selectedTasks == _showTasks) return;
+                              setState(() => _showTasks = selectedTasks);
+                              _loadData();
+                            },
+                          ),
+                        ),
+                        SizedBox(height: compact ? 12 : 14),
+                        if (compact) ...[
+                          TextField(
+                            controller: _search,
+                            onChanged: (v) {
+                              setState(() => _query = v);
+                              _applyFilters();
+                            },
+                            decoration: InputDecoration(
+                              hintText: 'Szukaj po temacie, opisie, typie...',
+                              prefixIcon: const Icon(Icons.search),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          DropdownButtonFormField<String>(
+                            value: _statusFilter,
+                            decoration: InputDecoration(
+                              labelText: 'Status',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            ),
+                            items: statusy
+                                .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                                .toList(),
+                            onChanged: (v) {
+                              setState(() => _statusFilter = v ?? 'WSZYSTKIE');
+                              _applyFilters();
+                            },
+                          ),
+                        ] else
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _search,
+                                  onChanged: (v) {
+                                    setState(() => _query = v);
+                                    _applyFilters();
+                                  },
+                                  decoration: InputDecoration(
+                                    hintText: 'Szukaj po temacie, opisie, typie...',
+                                    prefixIcon: const Icon(Icons.search),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              SizedBox(
+                                width: 240,
+                                child: DropdownButtonFormField<String>(
+                                  value: _statusFilter,
+                                  decoration: InputDecoration(
+                                    labelText: 'Status',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                  ),
+                                  items: statusy
+                                      .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                                      .toList(),
+                                  onChanged: (v) {
+                                    setState(() => _statusFilter = v ?? 'WSZYSTKIE');
+                                    _applyFilters();
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
                     ),
                   ),
-                  // Status filter
-                  DropdownButton<String>(
-                    value: _statusFilter,
-                    isExpanded: true,
-                    items: statusy
-                        .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                        .toList(),
-                    onChanged: (v) {
-                      setState(() => _statusFilter = v ?? 'WSZYSTKIE');
-                      _applyFilters();
-                    },
-                  ),
-                ],
+                ),
               ),
             ),
             // Dane
