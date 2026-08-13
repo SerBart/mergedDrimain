@@ -143,7 +143,7 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
           children: [
             // Filtry
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 1120),
@@ -311,10 +311,10 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
   Widget _buildTable(List<Zgloszenie> data, ColorScheme scheme) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final minWidth = constraints.maxWidth < 980 ? 980.0 : constraints.maxWidth;
+        final minWidth = constraints.maxWidth < 1320 ? 1320.0 : constraints.maxWidth;
 
         return Padding(
-          padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1400),
@@ -333,69 +333,166 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(22),
-                  child: Scrollbar(
-                    thumbVisibility: true,
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(12),
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(minWidth: minWidth),
-                          child: DataTable(
-                            sortColumnIndex: _sortCol,
-                            sortAscending: _sortAsc,
-                            columnSpacing: 24,
-                            headingRowColor: WidgetStatePropertyAll(
-                              scheme.primary.withOpacity(.04),
-                            ),
-                            dataRowMinHeight: 52,
-                            dataRowMaxHeight: 72,
-                            columns: [
-                              DataColumn(
-                                label: const Text('Data'),
-                                onSort: (i, asc) => _sort(0),
-                              ),
-                              DataColumn(
-                                label: const Text('Typ'),
-                                onSort: (i, asc) => _sort(1),
-                              ),
-                              DataColumn(
-                                label: const Text('Status'),
-                                onSort: (i, asc) => _sort(2),
-                              ),
-                              DataColumn(
-                                label: const Text('Maszyna'),
-                                onSort: (i, asc) => _sort(3),
-                              ),
-                              const DataColumn(
-                                label: Text('Temat'),
-                              ),
-                            ],
-                            rows: data
-                                .map((z) => DataRow(
-                                      onSelectChanged: (_) => _showDetails(z),
-                                      cells: [
-                                        DataCell(Text(_dtf.format(z.dataGodzina))),
-                                        DataCell(Text(z.typ)),
-                                        DataCell(_statusChip(z.status, scheme)),
-                                        DataCell(Text(z.maszyna?.nazwa ?? '-')),
-                                        DataCell(
-                                          SizedBox(
-                                            width: 320,
-                                            child: Text(
-                                              z.temat,
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+                        decoration: BoxDecoration(
+                          color: scheme.primary.withOpacity(.05),
+                          border: Border(
+                            bottom: BorderSide(color: scheme.primary.withOpacity(.08)),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _showTasks ? 'Lista moich zadań' : 'Lista moich zgłoszeń',
+                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.w800,
+                                          color: const Color(0xFF111827),
                                         ),
-                                      ],
-                                    ))
-                                .toList(),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Kliknij wiersz, aby zobaczyć szczegóły. Łącznie: ${data.length} wpisów.',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: const Color(0xFF6B7280),
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: scheme.primary.withOpacity(.10),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                '${data.length}',
+                                style: TextStyle(
+                                  color: scheme.primary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Scrollbar(
+                        thumbVisibility: true,
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(12),
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(minWidth: minWidth),
+                              child: DataTable(
+                                sortColumnIndex: _sortCol,
+                                sortAscending: _sortAsc,
+                                columnSpacing: 24,
+                                headingRowColor: WidgetStatePropertyAll(
+                                  scheme.primary.withOpacity(.04),
+                                ),
+                                dataRowMinHeight: 56,
+                                dataRowMaxHeight: 76,
+                                columns: [
+                                  const DataColumn(
+                                    label: Text('Nr'),
+                                  ),
+                                  DataColumn(
+                                    label: const Text('Data'),
+                                    onSort: (i, asc) => _sort(0),
+                                  ),
+                                  DataColumn(
+                                    label: const Text('Typ'),
+                                    onSort: (i, asc) => _sort(1),
+                                  ),
+                                  DataColumn(
+                                    label: const Text('Status'),
+                                    onSort: (i, asc) => _sort(2),
+                                  ),
+                                  DataColumn(
+                                    label: const Text('Maszyna'),
+                                    onSort: (i, asc) => _sort(3),
+                                  ),
+                                  const DataColumn(
+                                    label: Text('Nazwa zgłoszenia'),
+                                  ),
+                                  const DataColumn(
+                                    label: Text('Zgłaszający'),
+                                  ),
+                                  const DataColumn(
+                                    label: Text('Opis skrócony'),
+                                  ),
+                                ],
+                                rows: data
+                                    .map((z) => DataRow(
+                                          onSelectChanged: (_) => _showDetails(z),
+                                          cells: [
+                                            DataCell(Text('#${z.id}')),
+                                            DataCell(Text(_dtf.format(z.dataGodzina))),
+                                            DataCell(Text(z.typ)),
+                                            DataCell(_statusChip(z.status, scheme)),
+                                            DataCell(
+                                              SizedBox(
+                                                width: 150,
+                                                child: Text(
+                                                  z.maszyna?.nazwa ?? '-',
+                                                  maxLines: 2,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ),
+                                            DataCell(
+                                              SizedBox(
+                                                width: 280,
+                                                child: Text(
+                                                  z.temat.isEmpty ? '-' : z.temat,
+                                                  maxLines: 2,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: const TextStyle(fontWeight: FontWeight.w600),
+                                                ),
+                                              ),
+                                            ),
+                                            DataCell(
+                                              SizedBox(
+                                                width: 150,
+                                                child: Text(
+                                                  '${z.imie} ${z.nazwisko}'.trim().isEmpty
+                                                      ? '-'
+                                                      : '${z.imie} ${z.nazwisko}',
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ),
+                                            DataCell(
+                                              SizedBox(
+                                                width: 320,
+                                                child: Text(
+                                                  z.opis.isEmpty ? '-' : z.opis,
+                                                  maxLines: 2,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: const TextStyle(color: Color(0xFF4B5563)),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ))
+                                    .toList(),
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
               ),
