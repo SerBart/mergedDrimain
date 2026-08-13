@@ -234,50 +234,70 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
   }
 
   Widget _buildTable(List<Zgloszenie> data, ColorScheme scheme) {
-    return SingleChildScrollView(
-      child: DataTable(
-        sortColumnIndex: _sortCol,
-        sortAscending: _sortAsc,
-        columns: [
-          DataColumn(
-            label: const Text('Data'),
-            onSort: (i, asc) => _sort(0),
-          ),
-          DataColumn(
-            label: const Text('Typ'),
-            onSort: (i, asc) => _sort(1),
-          ),
-          DataColumn(
-            label: const Text('Status'),
-            onSort: (i, asc) => _sort(2),
-          ),
-          DataColumn(
-            label: const Text('Maszyna'),
-            onSort: (i, asc) => _sort(3),
-          ),
-          DataColumn(
-            label: const Text('Temat'),
-          ),
-        ],
-        rows: data
-            .map((z) => DataRow(
-                  onSelectChanged: (_) => _showDetails(z),
-                  cells: [
-                    DataCell(Text(_dtf.format(z.dataGodzina))),
-                    DataCell(Text(z.typ)),
-                    DataCell(_statusChip(z.status, scheme)),
-                    DataCell(Text(z.maszyna?.nazwa ?? '-')),
-                    DataCell(
-                      Text(
-                        z.temat,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final minWidth = constraints.maxWidth < 980 ? 980.0 : constraints.maxWidth;
+
+        return Scrollbar(
+          thumbVisibility: true,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(12),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: minWidth),
+                child: DataTable(
+                  sortColumnIndex: _sortCol,
+                  sortAscending: _sortAsc,
+                  columnSpacing: 24,
+                  columns: [
+                    DataColumn(
+                      label: const Text('Data'),
+                      onSort: (i, asc) => _sort(0),
+                    ),
+                    DataColumn(
+                      label: const Text('Typ'),
+                      onSort: (i, asc) => _sort(1),
+                    ),
+                    DataColumn(
+                      label: const Text('Status'),
+                      onSort: (i, asc) => _sort(2),
+                    ),
+                    DataColumn(
+                      label: const Text('Maszyna'),
+                      onSort: (i, asc) => _sort(3),
+                    ),
+                    const DataColumn(
+                      label: Text('Temat'),
                     ),
                   ],
-                ))
-            .toList(),
-      ),
+                  rows: data
+                      .map((z) => DataRow(
+                            onSelectChanged: (_) => _showDetails(z),
+                            cells: [
+                              DataCell(Text(_dtf.format(z.dataGodzina))),
+                              DataCell(Text(z.typ)),
+                              DataCell(_statusChip(z.status, scheme)),
+                              DataCell(Text(z.maszyna?.nazwa ?? '-')),
+                              DataCell(
+                                SizedBox(
+                                  width: 320,
+                                  child: Text(
+                                    z.temat,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ))
+                      .toList(),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
