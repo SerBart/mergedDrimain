@@ -6,6 +6,7 @@ import '../../core/models/harmonogram.dart';
 import '../../core/models/maszyna.dart';
 import '../../core/models/dzial.dart';
 import '../../core/models/osoba.dart';
+import '../raporty/raport_form_screen.dart';
 import '../../widgets/top_app_bar.dart';
 
 // Dodane: enum musi być na poziomie top-level w Dart
@@ -171,6 +172,7 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
   Future<void> _openAddDialog() async {
     DateTime selectedDate = DateTime.now();
     String? frequency = 'MIESIECZNY';
+    DateTime planEndDate = DateTime(2027, 12, 31);
     String opis = '';
     int? maszynaId;
     int? dzialId;
@@ -222,6 +224,31 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
                     decoration: const InputDecoration(labelText: 'Częstotliwość', border: OutlineInputBorder()),
                     items: _freqValues.map((f) => DropdownMenuItem(value: f, child: Text(f))).toList(),
                     onChanged: (v) => setLocal(() => frequency = v),
+                  ),
+                  const SizedBox(height: 12),
+                  InputDecorator(
+                    decoration: const InputDecoration(labelText: 'Plan do', border: OutlineInputBorder()),
+                    child: InkWell(
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: ctx,
+                          initialDate: planEndDate,
+                          firstDate: selectedDate,
+                          lastDate: DateTime(2035, 12, 31),
+                        );
+                        if (picked != null) setLocal(() => planEndDate = picked);
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.event_repeat, size: 18),
+                            const SizedBox(width: 8),
+                            Text('${planEndDate.year}-${planEndDate.month.toString().padLeft(2,'0')}-${planEndDate.day.toString().padLeft(2,'0')}'),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   // Typ powiązania
@@ -292,6 +319,7 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
                     dzialId: useMaszyna ? null : dzialId,
                     osobaId: osobaId,
                     frequency: frequency,
+                    planEndDate: planEndDate,
                     opis: opis.isNotEmpty ? opis : null,
                   );
                   if (mounted) {
@@ -313,6 +341,208 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
     );
   }
 
+  Future<void> _openEditDialog(Harmonogram item) async {
+    DateTime selectedDate = item.data ?? DateTime.now();
+    String? frequency = item.frequency ?? 'MIESIECZNY';
+    DateTime planEndDate = item.planEndDate ?? DateTime(2027, 12, 31);
+    String opis = item.opis;
+    int? maszynaId = item.maszyna?.id;
+    int? dzialId = item.dzial?.id;
+    int? osobaId = item.osoba?.id;
+    bool applyToFuture = true;
+    bool useMaszyna = item.maszyna != null;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('Edytuj przegląd'),
+          content: SizedBox(
+            width: 500,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  InputDecorator(
+                    decoration: const InputDecoration(labelText: 'Data', border: OutlineInputBorder()),
+                    child: InkWell(
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: ctx,
+                          initialDate: selectedDate,
+                          firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                          lastDate: DateTime(2035, 12, 31),
+                        );
+                        if (picked != null) setLocal(() => selectedDate = picked);
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text('${selectedDate.year}-${selectedDate.month.toString().padLeft(2,'0')}-${selectedDate.day.toString().padLeft(2,'0')}'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: frequency,
+                    decoration: const InputDecoration(labelText: 'Częstotliwość', border: OutlineInputBorder()),
+                    items: _freqValues.map((f) => DropdownMenuItem(value: f, child: Text(f))).toList(),
+                    onChanged: (v) => setLocal(() => frequency = v),
+                  ),
+                  const SizedBox(height: 12),
+                  InputDecorator(
+                    decoration: const InputDecoration(labelText: 'Plan do', border: OutlineInputBorder()),
+                    child: InkWell(
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: ctx,
+                          initialDate: planEndDate,
+                          firstDate: selectedDate,
+                          lastDate: DateTime(2035, 12, 31),
+                        );
+                        if (picked != null) setLocal(() => planEndDate = picked);
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text('${planEndDate.year}-${planEndDate.month.toString().padLeft(2,'0')}-${planEndDate.day.toString().padLeft(2,'0')}'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SegmentedButton<bool>(
+                          segments: const [
+                            ButtonSegment(value: true, label: Text('Maszyna'), icon: Icon(Icons.precision_manufacturing_outlined)),
+                            ButtonSegment(value: false, label: Text('Dział'), icon: Icon(Icons.apartment_outlined)),
+                          ],
+                          selected: {useMaszyna},
+                          onSelectionChanged: (s) => setLocal(() {
+                            useMaszyna = s.first;
+                            if (useMaszyna) {
+                              dzialId = null;
+                            } else {
+                              maszynaId = null;
+                            }
+                          }),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (useMaszyna)
+                    DropdownButtonFormField<int>(
+                      value: maszynaId,
+                      decoration: const InputDecoration(labelText: 'Maszyna', border: OutlineInputBorder()),
+                      items: _maszyny.map((m) => DropdownMenuItem(value: m.id, child: Text(m.nazwa))).toList(),
+                      onChanged: (v) => setLocal(() => maszynaId = v),
+                    )
+                  else
+                    DropdownButtonFormField<int>(
+                      value: dzialId,
+                      decoration: const InputDecoration(labelText: 'Dział', border: OutlineInputBorder()),
+                      items: _dzialy.map((d) => DropdownMenuItem(value: d.id, child: Text(d.nazwa))).toList(),
+                      onChanged: (v) => setLocal(() => dzialId = v),
+                    ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<int>(
+                    value: osobaId,
+                    decoration: const InputDecoration(labelText: 'Osoba (opcjonalnie)', border: OutlineInputBorder()),
+                    items: [
+                      const DropdownMenuItem<int>(value: null, child: Text('Brak')),
+                      ..._osoby.map((o) => DropdownMenuItem(value: o.id, child: Text(o.imieNazwisko))),
+                    ],
+                    onChanged: (v) => setLocal(() => osobaId = v),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    initialValue: opis,
+                    maxLines: 2,
+                    decoration: const InputDecoration(labelText: 'Zakres prac / opis', border: OutlineInputBorder()),
+                    onChanged: (v) => opis = v,
+                  ),
+                  const SizedBox(height: 8),
+                  CheckboxListTile(
+                    value: applyToFuture,
+                    onChanged: (v) => setLocal(() => applyToFuture = v ?? true),
+                    title: const Text('Zastosuj do przyszłych przeglądów z tej serii'),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Anuluj')),
+            FilledButton(
+              onPressed: () async {
+                try {
+                  await ref.read(harmonogramyApiRepositoryProvider).update(
+                    id: item.id,
+                    data: selectedDate,
+                    maszynaId: useMaszyna ? maszynaId : null,
+                    dzialId: useMaszyna ? null : dzialId,
+                    osobaId: osobaId,
+                    frequency: frequency,
+                    planEndDate: planEndDate,
+                    opis: opis,
+                    applyToSeriesFuture: applyToFuture,
+                  );
+                  if (!mounted) return;
+                  Navigator.of(ctx).pop();
+                  await _loadMonth();
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Zapisano zmiany przeglądu')));
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Błąd edycji: $e')));
+                }
+              },
+              child: const Text('Zapisz'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openRaportFromPrzeglad(Harmonogram item) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: RaportFormScreen(
+          embedInDialog: true,
+          prefillMaszyna: item.maszyna,
+          prefillDzial: item.dzial ?? item.maszyna?.dzial,
+          prefillOsoba: item.osoba,
+          prefillDataNaprawy: item.data,
+          prefillTypNaprawy: item.frequency != null ? 'Przegląd okresowy' : null,
+          prefillOpis: item.opis,
+        ),
+      ),
+    );
+
+    if (ok == true) {
+      try {
+        final result = await ref.read(harmonogramyApiRepositoryProvider).complete(item.id);
+        if (!mounted) return;
+        await _loadMonth();
+        final planFinished = result['planFinished'] == true;
+        final message = planFinished
+            ? (result['message']?.toString() ?? 'Plan przeglądów zakończony')
+            : 'Przegląd oznaczono jako wykonany i utworzono raport';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Raport dodany, ale nie udało się oznaczyć przeglądu jako wykonanego: $e')));
+      }
+    }
+  }
+
   void _openDayDetails(DateTime day) {
     final events = _eventsOn(day);
     showModalBottomSheet(
@@ -329,25 +559,56 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
               ...events.map((e) => ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: CircleAvatar(radius: 10, backgroundColor: _colorFor(e.frequency)),
-                title: Text(e.opis.isNotEmpty ? e.opis : (e.maszyna?.nazwa ?? e.dzial?.nazwa ?? 'Przegląd')),
-                subtitle: Text('${e.frequency ?? '-'} • ${e.status}' + (e.osoba != null ? ' • ${e.osoba!.imieNazwisko}' : '')),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                  onPressed: () async {
-                    final repo = ref.read(harmonogramyApiRepositoryProvider);
-                    try {
-                      await repo.delete(e.id);
-                      if (mounted) {
+                title: Text(
+                  e.opis.isNotEmpty ? e.opis : (e.maszyna?.nazwa ?? e.dzial?.nazwa ?? 'Przegląd'),
+                  style: TextStyle(
+                    color: e.status.toUpperCase() == 'ZAKONCZONE' ? Colors.black87 : Colors.red.shade700,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: Text(
+                  '${e.frequency ?? '-'} • ${e.status.toUpperCase() == 'ZAKONCZONE' ? 'wykonane' : 'zaplanowane'}'
+                  '${e.osoba != null ? ' • ${e.osoba!.imieNazwisko}' : ''}',
+                ),
+                trailing: Wrap(
+                  spacing: 4,
+                  children: [
+                    IconButton(
+                      tooltip: 'Nowy raport',
+                      icon: const Icon(Icons.note_add_outlined, color: Colors.indigo),
+                      onPressed: () async {
                         Navigator.of(ctx).pop();
-                        await _loadMonth();
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Usunięto')));
-                      }
-                    } catch (err) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Błąd usuwania: $err')));
-                      }
-                    }
-                  },
+                        await _openRaportFromPrzeglad(e);
+                      },
+                    ),
+                    IconButton(
+                      tooltip: 'Edytuj',
+                      icon: const Icon(Icons.edit_outlined, color: Colors.blueAccent),
+                      onPressed: () async {
+                        Navigator.of(ctx).pop();
+                        await _openEditDialog(e);
+                      },
+                    ),
+                    IconButton(
+                      tooltip: 'Usuń',
+                      icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                      onPressed: () async {
+                        final repo = ref.read(harmonogramyApiRepositoryProvider);
+                        try {
+                          await repo.delete(e.id);
+                          if (mounted) {
+                            Navigator.of(ctx).pop();
+                            await _loadMonth();
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Usunięto')));
+                          }
+                        } catch (err) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Błąd usuwania: $err')));
+                          }
+                        }
+                      },
+                    ),
+                  ],
                 ),
               )),
             ],
@@ -401,6 +662,7 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
             final decoration = _dayDecoration(dayEvents, isCurrent);
             final firstEvent = dayEvents.isNotEmpty ? dayEvents.first : null;
             final shortLabel = firstEvent == null ? null : _shortDesc(firstEvent);
+            final bool firstDone = firstEvent?.status.toUpperCase() == 'ZAKONCZONE';
             return InkWell(
               onTap: () => _openDayDetails(d),
               child: Container(
@@ -431,7 +693,13 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
                           shortLabel,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 11, height: 1.1, color: isCurrent ? Colors.black87 : Colors.grey),
+                          style: TextStyle(
+                            fontSize: 11,
+                            height: 1.1,
+                            color: firstDone
+                                ? (isCurrent ? Colors.black87 : Colors.grey)
+                                : Colors.red.shade700,
+                          ),
                         ),
                       ),
                     ] else const SizedBox(height: 4),

@@ -17,4 +17,6 @@ public class HarmonogramDTO {
     private Integer durationMinutes;
     private HarmonogramOkres frequency;
     private SimpleDzialDTO dzial;
+    private String seriesId;
+    private LocalDate planEndDate;
 }

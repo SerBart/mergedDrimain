@@ -37,4 +37,9 @@ public class HarmonogramUpdateRequest {
     private Long dzialId;
     
     private HarmonogramOkres frequency;
+
+    @FutureOrPresent(message = "Data końca planu nie może być w przeszłości")
+    private LocalDate planEndDate;
+
+    private Boolean applyToSeriesFuture;
 }

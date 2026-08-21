@@ -1,6 +1,7 @@
 package drimer.drimain.repository;
 
 import drimer.drimain.model.Harmonogram;
+import drimer.drimain.model.enums.StatusHarmonogramu;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -20,6 +21,12 @@ public interface HarmonogramRepository extends JpaRepository<Harmonogram, Long> 
     // Filtrowanie po dacie z join fetchami
     @Query("select distinct h from Harmonogram h left join fetch h.dzial left join fetch h.maszyna left join fetch h.osoba where h.data between :start and :end")
     List<Harmonogram> findByDataBetweenWithJoins(@Param("start") LocalDate start, @Param("end") LocalDate end);
+
+    List<Harmonogram> findBySeriesIdAndDataAfterOrderByDataAsc(String seriesId, LocalDate date);
+
+    List<Harmonogram> findBySeriesIdAndDataGreaterThanEqualAndStatus(String seriesId, LocalDate date, StatusHarmonogramu status);
+
+    long countBySeriesIdAndDataAfter(String seriesId, LocalDate date);
 
     // Liczba harmonogramów powiązanych z maszyną
     long countByMaszyna_Id(Long maszynaId);

@@ -40,6 +40,12 @@ public class Harmonogram {
     @Column(name = "frequency", length = 20)
     private HarmonogramOkres frequency;
 
+    @Column(name = "series_id", length = 64)
+    private String seriesId;
+
+    @Column(name = "plan_end_date")
+    private LocalDate planEndDate;
+
     // Gettery / settery
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -64,4 +70,8 @@ public class Harmonogram {
     public void setDurationMinutes(Integer durationMinutes) { this.durationMinutes = durationMinutes; }
     public HarmonogramOkres getFrequency() { return frequency; }
     public void setFrequency(HarmonogramOkres frequency) { this.frequency = frequency; }
+    public String getSeriesId() { return seriesId; }
+    public void setSeriesId(String seriesId) { this.seriesId = seriesId; }
+    public LocalDate getPlanEndDate() { return planEndDate; }
+    public void setPlanEndDate(LocalDate planEndDate) { this.planEndDate = planEndDate; }
 }

@@ -28,6 +28,7 @@ class HarmonogramyApiRepository {
     int? osobaId,
     int? dzialId,
     String? frequency,
+    DateTime? planEndDate,
     String? opis,
     int? durationMinutes,
   }) async {
@@ -38,6 +39,7 @@ class HarmonogramyApiRepository {
       if (osobaId != null) 'osobaId': osobaId,
       if (dzialId != null) 'dzialId': dzialId,
       if (frequency != null) 'frequency': frequency,
+      if (planEndDate != null) 'planEndDate': _formatDateOnly(planEndDate),
       if (opis != null) 'opis': opis,
       if (durationMinutes != null) 'durationMinutes': durationMinutes,
     };
@@ -59,6 +61,8 @@ class HarmonogramyApiRepository {
     int? durationMinutes,
     String? status,
     String? frequency,
+    DateTime? planEndDate,
+    bool? applyToSeriesFuture,
   }) async {
     final token = await _readToken();
     final Map<String, dynamic> dto = {};
@@ -70,6 +74,8 @@ class HarmonogramyApiRepository {
     if (durationMinutes != null) dto['durationMinutes'] = durationMinutes;
     if (status != null) dto['status'] = status;
     if (frequency != null) dto['frequency'] = frequency;
+    if (planEndDate != null) dto['planEndDate'] = _formatDateOnly(planEndDate);
+    if (applyToSeriesFuture != null) dto['applyToSeriesFuture'] = applyToSeriesFuture;
 
     final resp = await _dio.put(
       '/api/harmonogramy/$id',
@@ -85,6 +91,15 @@ class HarmonogramyApiRepository {
       '/api/harmonogramy/$id',
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
+  }
+
+  Future<Map<String, dynamic>> complete(int id) async {
+    final token = await _readToken();
+    final resp = await _dio.post(
+      '/api/harmonogramy/$id/complete',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    return (resp.data as Map).cast<String, dynamic>();
   }
 
   String _formatDateOnly(DateTime d) {

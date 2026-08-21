@@ -12,6 +12,8 @@ class Harmonogram {
   final int? durationMinutes;
   final String? frequency; // TYGODNIOWY / MIESIECZNY / KWARTALNY / POLROCZNY / ROCZNY
   final Dzial? dzial;
+  final String? seriesId;
+  final DateTime? planEndDate;
 
   Harmonogram({
     required this.id,
@@ -23,6 +25,8 @@ class Harmonogram {
     required this.durationMinutes,
     required this.frequency,
     required this.dzial,
+    required this.seriesId,
+    required this.planEndDate,
   });
 
   factory Harmonogram.fromJson(Map<String, dynamic> j) {
@@ -31,6 +35,11 @@ class Harmonogram {
     if (dataStr != null && dataStr.isNotEmpty) {
       // LocalDate -> "YYYY-MM-DD"
       d = DateTime.tryParse(dataStr);
+    }
+    final String? planEndDateStr = j['planEndDate'] as String?;
+    DateTime? planEndDate;
+    if (planEndDateStr != null && planEndDateStr.isNotEmpty) {
+      planEndDate = DateTime.tryParse(planEndDateStr);
     }
     return Harmonogram(
       id: (j['id'] as num?)?.toInt() ?? 0,
@@ -42,6 +51,8 @@ class Harmonogram {
       durationMinutes: (j['durationMinutes'] as num?)?.toInt(),
       frequency: (j['frequency'] ?? j['freq'])?.toString(),
       dzial: j['dzial'] != null ? Dzial.fromJson(j['dzial']) : null,
+      seriesId: j['seriesId']?.toString(),
+      planEndDate: planEndDate,
     );
   }
 }

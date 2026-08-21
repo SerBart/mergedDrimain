@@ -23,6 +23,12 @@ class RaportFormScreen extends ConsumerStatefulWidget {
   // NOWE: tryb osadzenia w dialogu oraz callback po zapisie
   final bool embedInDialog;
   final void Function(Raport)? onSaved;
+  final Maszyna? prefillMaszyna;
+  final Dzial? prefillDzial;
+  final Osoba? prefillOsoba;
+  final DateTime? prefillDataNaprawy;
+  final String? prefillTypNaprawy;
+  final String? prefillOpis;
 
   const RaportFormScreen({
     super.key,
@@ -30,6 +36,12 @@ class RaportFormScreen extends ConsumerStatefulWidget {
     this.raportId,
     this.embedInDialog = false,
     this.onSaved,
+    this.prefillMaszyna,
+    this.prefillDzial,
+    this.prefillOsoba,
+    this.prefillDataNaprawy,
+    this.prefillTypNaprawy,
+    this.prefillOpis,
   });
 
   @override
@@ -181,7 +193,17 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
       // Wartości domyślne nowego
       _status = 'NOWY';
       // Domyślny typ naprawy jak w zgłoszeniach
-      _typNaprawyCtrl.text = _typyNapraw.first;
+      _typNaprawyCtrl.text = widget.prefillTypNaprawy?.trim().isNotEmpty == true
+          ? widget.prefillTypNaprawy!.trim()
+          : _typyNapraw.first;
+      _dataNaprawy = widget.prefillDataNaprawy;
+      _maszyna = widget.prefillMaszyna;
+      _dzial = widget.prefillDzial ?? widget.prefillMaszyna?.dzial;
+      _sekcja = widget.prefillMaszyna?.sekcja;
+      _osoba = widget.prefillOsoba;
+      if (widget.prefillOpis != null && widget.prefillOpis!.trim().isNotEmpty) {
+        _opisCtrl.text = widget.prefillOpis!.trim();
+      }
     }
     // Ustaw widoczny tekst wyszukiwania maszyny dla Autocomplete
     _maszynaSearchText = _maszyna?.nazwa ?? '';
