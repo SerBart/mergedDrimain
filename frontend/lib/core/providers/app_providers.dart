@@ -120,21 +120,25 @@ class AuthController extends StateNotifier<User?> {
   Future<void> _restore() async {
     final storage = _ref.read(secureStorageProvider);
     final auth = _ref.read(authServiceProvider);
-    final remember = await storage.readRememberMe();
-    if (!remember) return;
-
     String? token = await storage.readToken();
     Map<String, dynamic>? me;
+
+    if (token == null || token.isEmpty) {
+      token = await auth.refresh();
+    }
 
     if (token != null && token.isNotEmpty) {
       me = await auth.me(token);
     }
+
     if (me == null) {
-      token = await auth.refresh();
-      if (token != null) {
-        me = await auth.me(token);
+      final refreshed = await auth.refresh();
+      if (refreshed != null && refreshed.isNotEmpty) {
+        token = refreshed;
+        me = await auth.me(refreshed);
       }
     }
+
     if (me != null && token != null) {
       final roles = (me['roles'] as List<dynamic>? ?? const []).cast<String>();
       final role = roles.contains('ROLE_ADMIN') ? 'ADMIN' : 'USER';

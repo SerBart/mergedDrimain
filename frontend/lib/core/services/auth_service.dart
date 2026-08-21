@@ -25,9 +25,13 @@ class AuthService {
 
     await _storage.saveToken(token);
     await _storage.saveRememberMe(rememberMe);
-    // Na mobile przechowujemy refresh token lokalnie; na web polegamy na ciasteczku HttpOnly
-    if (!kIsWeb && rememberMe && refreshToken != null && refreshToken.isNotEmpty) {
-      await _storage.saveRefreshToken(refreshToken);
+    // Na mobile przechowujemy refresh token lokalnie; na web polegamy na ciasteczku HttpOnly.
+    if (!kIsWeb) {
+      if (refreshToken != null && refreshToken.isNotEmpty) {
+        await _storage.saveRefreshToken(refreshToken);
+      } else {
+        await _storage.clearRefreshToken();
+      }
     }
 
     final meResp = await _dio.get(

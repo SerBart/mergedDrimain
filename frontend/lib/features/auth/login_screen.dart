@@ -17,7 +17,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _passCtrl = TextEditingController();
   bool _loading = false;
   String? _error;
-  bool _rememberMe = false;
+  bool _rememberMe = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRememberPreference();
+  }
+
+  Future<void> _loadRememberPreference() async {
+    final remember = await ref.read(secureStorageProvider).readRememberMe();
+    if (!mounted) return;
+    setState(() => _rememberMe = remember);
+  }
 
   @override
   void dispose() {
