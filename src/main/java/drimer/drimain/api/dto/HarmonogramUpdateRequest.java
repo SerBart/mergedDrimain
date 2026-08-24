@@ -36,10 +36,9 @@ public class HarmonogramUpdateRequest {
     @Positive(message = "ID działu musi być dodatnie")
     private Long dzialId;
     
-    private HarmonogramOkres frequency;
+     private HarmonogramOkres frequency;
 
-    @FutureOrPresent(message = "Data końca planu nie może być w przeszłości")
-    private LocalDate planEndDate;
+     private LocalDate planEndDate;
 
-    private Boolean applyToSeriesFuture;
+     private Boolean applyToSeriesFuture;
 }

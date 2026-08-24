@@ -33,7 +33,6 @@ public class HarmonogramCreateRequest {
 
     private HarmonogramOkres frequency;
 
-    @FutureOrPresent(message = "Data końca planu nie może być w przeszłości")
     private LocalDate planEndDate;
 
     private StatusHarmonogramu status;

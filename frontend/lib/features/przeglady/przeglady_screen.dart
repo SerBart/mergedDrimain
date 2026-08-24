@@ -68,43 +68,61 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
     ]);
   }
 
-  Future<void> _loadMonth() async {
-    setState(() => _loading = true);
-    try {
-      final repo = ref.read(harmonogramyApiRepositoryProvider);
-      final list = await repo.fetchAll(year: _currentMonth.year, month: _currentMonth.month);
-      setState(() => _items = list);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Błąd pobierania harmonogramów: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
+   Future<void> _loadMonth() async {
+     setState(() => _loading = true);
+     try {
+       final repo = ref.read(harmonogramyApiRepositoryProvider);
+       final list = await repo.fetchAll(year: _currentMonth.year, month: _currentMonth.month);
+       setState(() => _items = list);
+     } catch (e) {
+       if (mounted) {
+         String errorMsg = 'Błąd pobierania harmonogramów';
+         if (e.toString().contains('401') || e.toString().contains('Sesja wygasła')) {
+           errorMsg = 'Sesja wygasła - zaloguj się ponownie';
+         }
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(
+             content: Text('⚠️ $errorMsg'),
+             duration: const Duration(seconds: 5),
+             action: SnackBarAction(
+               label: 'Ponów',
+               onPressed: _loadMonth,
+             ),
+           ),
+         );
+       }
+     } finally {
+       if (mounted) setState(() => _loading = false);
+     }
+   }
 
-  Future<void> _loadMeta() async {
-    setState(() => _loadingMeta = true);
-    try {
-      final adminRepo = ref.read(adminApiRepositoryProvider);
-      final metaRepo = ref.read(metaApiRepositoryProvider);
-      final maszyny = await adminRepo.getMaszyny();
-      final dzialy = await adminRepo.getDzialy();
-      // pobierz osoby tylko z UR; fallback do wszystkich jeśli brak
-      const urName = 'Utrzymanie Ruchu';
-      var osoby = await metaRepo.fetchOsobySimple(dzialNazwa: urName);
-      if (osoby.isEmpty) {
-        osoby = await metaRepo.fetchOsobySimple();
-      }
-      setState(() { _maszyny = maszyny; _dzialy = dzialy; _osoby = osoby; });
-    } catch (_) {
-      // ciche – meta nie blokuje krytycznie
-    } finally {
-      if (mounted) setState(() => _loadingMeta = false);
-    }
-  }
+   Future<void> _loadMeta() async {
+     setState(() => _loadingMeta = true);
+     try {
+       final adminRepo = ref.read(adminApiRepositoryProvider);
+       final metaRepo = ref.read(metaApiRepositoryProvider);
+       final maszyny = await adminRepo.getMaszyny();
+       final dzialy = await adminRepo.getDzialy();
+       // pobierz osoby tylko z UR; fallback do wszystkich jeśli brak
+       const urName = 'Utrzymanie Ruchu';
+       var osoby = await metaRepo.fetchOsobySimple(dzialNazwa: urName);
+       if (osoby.isEmpty) {
+         osoby = await metaRepo.fetchOsobySimple();
+       }
+       setState(() { _maszyny = maszyny; _dzialy = dzialy; _osoby = osoby; });
+     } catch (e) {
+       // Cicha obsługa - meta nie blokuje krytycznie, ale loguj błąd
+       if (e.toString().contains('401')) {
+         if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(
+             const SnackBar(content: Text('⚠️ Nie udało się pobrać opcji - sesja wygasła'))
+           );
+         }
+       }
+     } finally {
+       if (mounted) setState(() => _loadingMeta = false);
+     }
+   }
 
   void _prevMonth() {
     setState(() {
@@ -169,182 +187,290 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
     return base.substring(0, 37) + '...';
   }
 
-  Future<void> _openAddDialog() async {
-    DateTime selectedDate = DateTime.now();
-    String? frequency = 'MIESIECZNY';
-    DateTime planEndDate = DateTime(2027, 12, 31);
-    String opis = '';
-    int? maszynaId;
-    int? dzialId;
-    int? osobaId; // wykonujący przegląd
-    bool useMaszyna = true; // toggle między maszyna / dzial
+  static const Map<int, String> _weekdayLabels = {
+    DateTime.monday: 'Poniedziałek',
+    DateTime.tuesday: 'Wtorek',
+    DateTime.wednesday: 'Środa',
+    DateTime.thursday: 'Czwartek',
+    DateTime.friday: 'Piątek',
+    DateTime.saturday: 'Sobota',
+    DateTime.sunday: 'Niedziela',
+  };
 
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          title: const Text('Nowy przegląd'),
-          content: SizedBox(
-            width: 480,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Data
-                  InputDecorator(
-                    decoration: const InputDecoration(labelText: 'Data', border: OutlineInputBorder()),
-                    child: InkWell(
-                      onTap: () async {
-                        final now = DateTime.now();
-                        final picked = await showDatePicker(
-                          context: ctx,
-                          initialDate: selectedDate,
-                          firstDate: DateTime(now.year - 1),
-                          lastDate: DateTime(now.year + 2),
-                        );
-                        if (picked != null) setLocal(() => selectedDate = picked);
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.calendar_today, size: 18),
-                            const SizedBox(width: 8),
-                            Text('${selectedDate.year}-${selectedDate.month.toString().padLeft(2,'0')}-${selectedDate.day.toString().padLeft(2,'0')}'),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  // Częstotliwość
-                  DropdownButtonFormField<String>(
-                    value: frequency,
-                    decoration: const InputDecoration(labelText: 'Częstotliwość', border: OutlineInputBorder()),
-                    items: _freqValues.map((f) => DropdownMenuItem(value: f, child: Text(f))).toList(),
-                    onChanged: (v) => setLocal(() => frequency = v),
-                  ),
-                  const SizedBox(height: 12),
-                  InputDecorator(
-                    decoration: const InputDecoration(labelText: 'Plan do', border: OutlineInputBorder()),
-                    child: InkWell(
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: ctx,
-                          initialDate: planEndDate,
-                          firstDate: selectedDate,
-                          lastDate: DateTime(2035, 12, 31),
-                        );
-                        if (picked != null) setLocal(() => planEndDate = picked);
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.event_repeat, size: 18),
-                            const SizedBox(width: 8),
-                            Text('${planEndDate.year}-${planEndDate.month.toString().padLeft(2,'0')}-${planEndDate.day.toString().padLeft(2,'0')}'),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  // Typ powiązania
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SegmentedButton<bool>(
-                          segments: const [
-                            ButtonSegment(value: true, label: Text('Maszyna'), icon: Icon(Icons.precision_manufacturing_outlined)),
-                            ButtonSegment(value: false, label: Text('Dział'), icon: Icon(Icons.apartment_outlined)),
-                          ],
-                          selected: {useMaszyna},
-                          onSelectionChanged: (s) => setLocal(() { useMaszyna = s.first; maszynaId = null; dzialId = null; }),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  if (useMaszyna)
-                    DropdownButtonFormField<int>(
-                      value: maszynaId,
-                      decoration: const InputDecoration(labelText: 'Maszyna (opcjonalnie)', border: OutlineInputBorder()),
-                      items: _maszyny.map((m) => DropdownMenuItem(value: m.id, child: Text(m.nazwa))).toList(),
-                      onChanged: (v) => setLocal(() => maszynaId = v),
-                    )
-                  else
-                    DropdownButtonFormField<int>(
-                      value: dzialId,
-                      decoration: const InputDecoration(labelText: 'Dział (opcjonalnie)', border: OutlineInputBorder()),
-                      items: _dzialy.map((d) => DropdownMenuItem(value: d.id, child: Text(d.nazwa))).toList(),
-                      onChanged: (v) => setLocal(() => dzialId = v),
-                    ),
-                  const SizedBox(height: 12),
-                  // Wybór osoby (opcjonalnie)
-                  if (_osoby.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<int>(
-                      value: osobaId,
-                      decoration: const InputDecoration(labelText: 'Osoba (opcjonalnie)', border: OutlineInputBorder()),
-                      items: [const DropdownMenuItem<int>(value: null, child: Text('Brak')),
-                        ..._osoby.map((o) => DropdownMenuItem(value: o.id, child: Text(o.imieNazwisko)))
-                      ],
-                      onChanged: (v) => setLocal(() => osobaId = v),
-                    ),
-                  ],
-                  TextFormField(
-                    maxLines: 2,
-                    decoration: const InputDecoration(labelText: 'Opis (opcjonalnie)', border: OutlineInputBorder()),
-                    onChanged: (v) => opis = v,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Anuluj')),
-            FilledButton(
-              onPressed: () async {
-                if (frequency == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Wybierz częstotliwość')));
-                  return;
-                }
-                try {
-                  final repo = ref.read(harmonogramyApiRepositoryProvider);
-                  await repo.create(
-                    data: selectedDate,
-                    maszynaId: useMaszyna ? maszynaId : null,
-                    dzialId: useMaszyna ? null : dzialId,
-                    osobaId: osobaId,
-                    frequency: frequency,
-                    planEndDate: planEndDate,
-                    opis: opis.isNotEmpty ? opis : null,
-                  );
-                  if (mounted) {
-                    Navigator.of(ctx).pop();
-                    await _loadMonth();
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Dodano przegląd')));
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Błąd dodawania: $e')));
-                  }
-                }
-              },
-              child: const Text('Zapisz'),
-            ),
-          ],
-        ),
-      ),
-    );
+  DateTime _nextOrSameWeekday(DateTime from, int weekday) {
+    final delta = (weekday - from.weekday + 7) % 7;
+    return DateTime(from.year, from.month, from.day + delta);
   }
+
+   Future<void> _openAddDialog() async {
+     DateTime selectedDate = DateTime.now();
+     String? frequency = 'MIESIECZNY';
+     int weeklyWeekday = DateTime.friday;
+     DateTime planEndDate = DateTime(DateTime.now().year, 12, 31);
+     String opis = '';
+     int? maszynaId;
+     int? dzialId;
+     int? osobaId; // wykonujący przegląd
+     bool useMaszyna = true; // toggle między maszyna / dzial
+
+     await showDialog(
+       context: context,
+       barrierDismissible: false,
+       builder: (ctx) => StatefulBuilder(
+         builder: (ctx, setLocal) => AlertDialog(
+           title: const Text('Nowy przegląd'),
+           content: SizedBox(
+             width: 480,
+             child: SingleChildScrollView(
+               child: Column(
+                 mainAxisSize: MainAxisSize.min,
+                 children: [
+                   // UPROSZCZONE: Data
+                   InputDecorator(
+                     decoration: const InputDecoration(
+                       labelText: 'Data pierwszego przeglądu',
+                       border: OutlineInputBorder(),
+                       helperText: 'Wybierz datę rozpoczęcia'
+                     ),
+                     child: InkWell(
+                       onTap: () async {
+                         final now = DateTime.now();
+                         final picked = await showDatePicker(
+                           context: ctx,
+                           initialDate: selectedDate,
+                           firstDate: DateTime(now.year, now.month, now.day),
+                           lastDate: DateTime(now.year + 2),
+                         );
+                         if (picked != null) {
+                           setLocal(() {
+                             selectedDate = picked;
+                             if (planEndDate.isBefore(selectedDate)) {
+                               planEndDate = DateTime(selectedDate.year, 12, 31);
+                             }
+                           });
+                         }
+                       },
+                       child: Padding(
+                         padding: const EdgeInsets.symmetric(vertical: 12),
+                         child: Row(
+                           children: [
+                             const Icon(Icons.calendar_today, size: 20, color: Colors.indigo),
+                             const SizedBox(width: 12),
+                             Text(
+                               '${selectedDate.year}-${selectedDate.month.toString().padLeft(2,'0')}-${selectedDate.day.toString().padLeft(2,'0')}',
+                               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                             ),
+                           ],
+                         ),
+                       ),
+                     ),
+                   ),
+                   const SizedBox(height: 16),
+                   // UPROSZCZONE: Częstotliwość
+                   DropdownButtonFormField<String>(
+                     value: frequency,
+                     decoration: const InputDecoration(
+                       labelText: 'Jak często?',
+                       border: OutlineInputBorder(),
+                       helperText: 'Wybierz częstotliwość powtarzania'
+                     ),
+                     isExpanded: true,
+                     items: _freqValues.map((f) {
+                       final labels = {
+                         'TYGODNIOWY': 'Co tydzień',
+                         'MIESIECZNY': 'Co miesiąc',
+                         'KWARTALNY': 'Co kwartał',
+                         'POLROCZNY': 'Co pół roku',
+                         'ROCZNY': 'Co rok',
+                       };
+                       return DropdownMenuItem(value: f, child: Text(labels[f] ?? f));
+                     }).toList(),
+                     onChanged: (v) => setLocal(() {
+                       frequency = v;
+                       if (v == 'TYGODNIOWY') {
+                         weeklyWeekday = selectedDate.weekday;
+                       }
+                     }),
+                   ),
+                   const SizedBox(height: 16),
+                   // Jeśli tygodniowy, pozwól wybrać dzień
+                   if (frequency == 'TYGODNIOWY') ...[
+                     DropdownButtonFormField<int>(
+                       value: weeklyWeekday,
+                       decoration: const InputDecoration(
+                         labelText: 'Który dzień tygodnia?',
+                         border: OutlineInputBorder(),
+                       ),
+                       isExpanded: true,
+                       items: _weekdayLabels.entries
+                           .map((e) => DropdownMenuItem<int>(value: e.key, child: Text(e.value)))
+                           .toList(),
+                       onChanged: (v) => setLocal(() => weeklyWeekday = v ?? DateTime.friday),
+                     ),
+                     const SizedBox(height: 16),
+                   ],
+                   // UPROSZCZONE: Plan do
+                   InputDecorator(
+                     decoration: const InputDecoration(
+                       labelText: 'Plan do (kiedy skończyć powtarzanie)',
+                       border: OutlineInputBorder(),
+                       helperText: 'Domyślnie koniec roku'
+                     ),
+                     child: InkWell(
+                       onTap: () async {
+                         final picked = await showDatePicker(
+                           context: ctx,
+                           initialDate: planEndDate,
+                           firstDate: selectedDate,
+                           lastDate: DateTime(2035, 12, 31),
+                         );
+                         if (picked != null) setLocal(() => planEndDate = picked);
+                       },
+                       child: Padding(
+                         padding: const EdgeInsets.symmetric(vertical: 12),
+                         child: Row(
+                           children: [
+                             const Icon(Icons.event_repeat, size: 20, color: Colors.indigo),
+                             const SizedBox(width: 12),
+                             Text(
+                               '${planEndDate.year}-${planEndDate.month.toString().padLeft(2,'0')}-${planEndDate.day.toString().padLeft(2,'0')}',
+                               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                             ),
+                           ],
+                         ),
+                       ),
+                     ),
+                   ),
+                   const SizedBox(height: 16),
+                   // UPROSZCZONE: Opis (główne pole)
+                   TextField(
+                     decoration: const InputDecoration(
+                       labelText: 'Czego dotyczy przegląd?',
+                       hintText: 'np. Smarowanie łożysk',
+                       border: OutlineInputBorder(),
+                       prefixIcon: Icon(Icons.description_outlined),
+                     ),
+                     maxLines: 2,
+                     onChanged: (v) => opis = v,
+                   ),
+                   const SizedBox(height: 16),
+                   // OPCJONALNIE: Maszyna/Dział
+                   const Divider(height: 2),
+                   const SizedBox(height: 12),
+                   const Text('Dodatkowe (opcjonalnie):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey)),
+                   const SizedBox(height: 12),
+                   Row(
+                     children: [
+                       Expanded(
+                         child: SegmentedButton<bool>(
+                           segments: const [
+                             ButtonSegment(value: true, label: Text('Maszyna'), icon: Icon(Icons.precision_manufacturing_outlined)),
+                             ButtonSegment(value: false, label: Text('Dział'), icon: Icon(Icons.apartment_outlined)),
+                           ],
+                           selected: {useMaszyna},
+                           onSelectionChanged: (s) => setLocal(() { useMaszyna = s.first; maszynaId = null; dzialId = null; }),
+                         ),
+                       ),
+                     ],
+                   ),
+                   const SizedBox(height: 12),
+                   if (useMaszyna && _maszyny.isNotEmpty)
+                     DropdownButtonFormField<int>(
+                       value: maszynaId,
+                       decoration: const InputDecoration(labelText: 'Maszyna', border: OutlineInputBorder()),
+                       isExpanded: true,
+                       items: [
+                         const DropdownMenuItem<int>(value: null, child: Text('Brak')),
+                         ..._maszyny.map((m) => DropdownMenuItem(value: m.id, child: Text(m.nazwa)))
+                       ],
+                       onChanged: (v) => setLocal(() => maszynaId = v),
+                     )
+                   else if (!useMaszyna && _dzialy.isNotEmpty)
+                     DropdownButtonFormField<int>(
+                       value: dzialId,
+                       decoration: const InputDecoration(labelText: 'Dział', border: OutlineInputBorder()),
+                       isExpanded: true,
+                       items: [
+                         const DropdownMenuItem<int>(value: null, child: Text('Brak')),
+                         ..._dzialy.map((d) => DropdownMenuItem(value: d.id, child: Text(d.nazwa)))
+                       ],
+                       onChanged: (v) => setLocal(() => dzialId = v),
+                     ),
+                   if (_osoby.isNotEmpty) ...[
+                     const SizedBox(height: 12),
+                     DropdownButtonFormField<int>(
+                       value: osobaId,
+                       decoration: const InputDecoration(labelText: 'Osoba', border: OutlineInputBorder()),
+                       isExpanded: true,
+                       items: [
+                         const DropdownMenuItem<int>(value: null, child: Text('Brak')),
+                         ..._osoby.map((o) => DropdownMenuItem(value: o.id, child: Text(o.imieNazwisko)))
+                       ],
+                       onChanged: (v) => setLocal(() => osobaId = v),
+                     ),
+                   ],
+                 ],
+               ),
+             ),
+           ),
+           actions: [
+             TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Anuluj')),
+             FilledButton(
+               onPressed: () async {
+                 if (frequency == null) {
+                   ScaffoldMessenger.of(context).showSnackBar(
+                     const SnackBar(content: Text('⚠️ Wybierz częstotliwość powtarzania'))
+                   );
+                   return;
+                 }
+                 if (opis.trim().isEmpty) {
+                   ScaffoldMessenger.of(context).showSnackBar(
+                     const SnackBar(content: Text('⚠️ Opisz co to za przegląd'))
+                   );
+                   return;
+                 }
+                 try {
+                   final repo = ref.read(harmonogramyApiRepositoryProvider);
+                   await repo.create(
+                     data: frequency == 'TYGODNIOWY'
+                         ? _nextOrSameWeekday(selectedDate, weeklyWeekday)
+                         : selectedDate,
+                     maszynaId: useMaszyna ? maszynaId : null,
+                     dzialId: useMaszyna ? null : dzialId,
+                     osobaId: osobaId,
+                     frequency: frequency,
+                     planEndDate: planEndDate,
+                     opis: opis.trim(),
+                   );
+                   if (!mounted) return;
+                   Navigator.of(ctx).pop();
+                   await _loadMonth();
+                   ScaffoldMessenger.of(context).showSnackBar(
+                     SnackBar(
+                       content: Text('✓ Dodano przegląd: "${opis.trim()}"'),
+                       duration: const Duration(seconds: 3),
+                     )
+                   );
+                 } catch (e) {
+                   if (!mounted) return;
+                   ScaffoldMessenger.of(context).showSnackBar(
+                     SnackBar(content: Text('❌ Błąd: $e'))
+                   );
+                 }
+               },
+               child: const Text('Dodaj przegląd'),
+             ),
+           ],
+         ),
+       ),
+     );
+   }
 
   Future<void> _openEditDialog(Harmonogram item) async {
     DateTime selectedDate = item.data ?? DateTime.now();
     String? frequency = item.frequency ?? 'MIESIECZNY';
-    DateTime planEndDate = item.planEndDate ?? DateTime(2027, 12, 31);
+    int weeklyWeekday = selectedDate.weekday;
+    DateTime planEndDate = item.planEndDate ?? DateTime(selectedDate.year, 12, 31);
     String opis = item.opis;
     int? maszynaId = item.maszyna?.id;
     int? dzialId = item.dzial?.id;
@@ -387,9 +513,25 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
                     value: frequency,
                     decoration: const InputDecoration(labelText: 'Częstotliwość', border: OutlineInputBorder()),
                     items: _freqValues.map((f) => DropdownMenuItem(value: f, child: Text(f))).toList(),
-                    onChanged: (v) => setLocal(() => frequency = v),
+                    onChanged: (v) => setLocal(() {
+                      frequency = v;
+                      if (v == 'TYGODNIOWY') {
+                        weeklyWeekday = selectedDate.weekday;
+                      }
+                    }),
                   ),
                   const SizedBox(height: 12),
+                  if (frequency == 'TYGODNIOWY') ...[
+                    DropdownButtonFormField<int>(
+                      value: weeklyWeekday,
+                      decoration: const InputDecoration(labelText: 'Dzień tygodnia', border: OutlineInputBorder()),
+                      items: _weekdayLabels.entries
+                          .map((e) => DropdownMenuItem<int>(value: e.key, child: Text(e.value)))
+                          .toList(),
+                      onChanged: (v) => setLocal(() => weeklyWeekday = v ?? DateTime.friday),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   InputDecorator(
                     decoration: const InputDecoration(labelText: 'Plan do', border: OutlineInputBorder()),
                     child: InkWell(
@@ -430,46 +572,62 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  if (useMaszyna)
-                    DropdownButtonFormField<int>(
-                      value: maszynaId,
-                      decoration: const InputDecoration(labelText: 'Maszyna', border: OutlineInputBorder()),
-                      items: _maszyny.map((m) => DropdownMenuItem(value: m.id, child: Text(m.nazwa))).toList(),
-                      onChanged: (v) => setLocal(() => maszynaId = v),
-                    )
-                  else
-                    DropdownButtonFormField<int>(
-                      value: dzialId,
-                      decoration: const InputDecoration(labelText: 'Dział', border: OutlineInputBorder()),
-                      items: _dzialy.map((d) => DropdownMenuItem(value: d.id, child: Text(d.nazwa))).toList(),
-                      onChanged: (v) => setLocal(() => dzialId = v),
-                    ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<int>(
-                    value: osobaId,
-                    decoration: const InputDecoration(labelText: 'Osoba (opcjonalnie)', border: OutlineInputBorder()),
-                    items: [
-                      const DropdownMenuItem<int>(value: null, child: Text('Brak')),
-                      ..._osoby.map((o) => DropdownMenuItem(value: o.id, child: Text(o.imieNazwisko))),
-                    ],
-                    onChanged: (v) => setLocal(() => osobaId = v),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    initialValue: opis,
-                    maxLines: 2,
-                    decoration: const InputDecoration(labelText: 'Zakres prac / opis', border: OutlineInputBorder()),
-                    onChanged: (v) => opis = v,
-                  ),
-                  const SizedBox(height: 8),
-                  CheckboxListTile(
-                    value: applyToFuture,
-                    onChanged: (v) => setLocal(() => applyToFuture = v ?? true),
-                    title: const Text('Zastosuj do przyszłych przeglądów z tej serii'),
-                    controlAffinity: ListTileControlAffinity.leading,
-                    contentPadding: EdgeInsets.zero,
-                  ),
+                   const SizedBox(height: 12),
+                   if (useMaszyna && _maszyny.isNotEmpty)
+                     DropdownButtonFormField<int>(
+                       value: maszynaId,
+                       decoration: const InputDecoration(labelText: 'Maszyna', border: OutlineInputBorder()),
+                       isExpanded: true,
+                       items: [
+                         const DropdownMenuItem<int>(value: null, child: Text('Brak')),
+                         ..._maszyny.map((m) => DropdownMenuItem(value: m.id, child: Text(m.nazwa)))
+                       ],
+                       onChanged: (v) => setLocal(() => maszynaId = v),
+                     )
+                   else if (!useMaszyna && _dzialy.isNotEmpty)
+                     DropdownButtonFormField<int>(
+                       value: dzialId,
+                       decoration: const InputDecoration(labelText: 'Dział', border: OutlineInputBorder()),
+                       isExpanded: true,
+                       items: [
+                         const DropdownMenuItem<int>(value: null, child: Text('Brak')),
+                         ..._dzialy.map((d) => DropdownMenuItem(value: d.id, child: Text(d.nazwa)))
+                       ],
+                       onChanged: (v) => setLocal(() => dzialId = v),
+                     ),
+                   if (_osoby.isNotEmpty) ...[
+                     const SizedBox(height: 12),
+                     DropdownButtonFormField<int>(
+                       value: osobaId,
+                       decoration: const InputDecoration(labelText: 'Osoba', border: OutlineInputBorder()),
+                       isExpanded: true,
+                       items: [
+                         const DropdownMenuItem<int>(value: null, child: Text('Brak')),
+                         ..._osoby.map((o) => DropdownMenuItem(value: o.id, child: Text(o.imieNazwisko)))
+                       ],
+                       onChanged: (v) => setLocal(() => osobaId = v),
+                     ),
+                   ],
+                   const SizedBox(height: 12),
+                   TextField(
+                     initialValue: opis,
+                     maxLines: 2,
+                     decoration: const InputDecoration(
+                       labelText: 'Opis przeglądu',
+                       border: OutlineInputBorder(),
+                       prefixIcon: Icon(Icons.description_outlined),
+                     ),
+                     onChanged: (v) => opis = v,
+                   ),
+                   const SizedBox(height: 16),
+                   CheckboxListTile(
+                     value: applyToFuture,
+                     onChanged: (v) => setLocal(() => applyToFuture = v ?? true),
+                     title: const Text('Zastosuj do przyszłych przeglądów z tej serii'),
+                     controlAffinity: ListTileControlAffinity.leading,
+                     contentPadding: EdgeInsets.zero,
+                     subtitle: const Text('Jeśli nie zaznaczysz, zmieni się tylko ten przegląd', style: TextStyle(fontSize: 11)),
+                   ),
                 ],
               ),
             ),
@@ -481,7 +639,9 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
                 try {
                   await ref.read(harmonogramyApiRepositoryProvider).update(
                     id: item.id,
-                    data: selectedDate,
+                    data: frequency == 'TYGODNIOWY'
+                        ? _nextOrSameWeekday(selectedDate, weeklyWeekday)
+                        : selectedDate,
                     maszynaId: useMaszyna ? maszynaId : null,
                     dzialId: useMaszyna ? null : dzialId,
                     osobaId: osobaId,
@@ -507,41 +667,49 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
     );
   }
 
-  Future<void> _openRaportFromPrzeglad(Harmonogram item) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => Dialog(
-        insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: RaportFormScreen(
-          embedInDialog: true,
-          prefillMaszyna: item.maszyna,
-          prefillDzial: item.dzial ?? item.maszyna?.dzial,
-          prefillOsoba: item.osoba,
-          prefillDataNaprawy: item.data,
-          prefillTypNaprawy: item.frequency != null ? 'Przegląd okresowy' : null,
-          prefillOpis: item.opis,
-        ),
-      ),
-    );
+   Future<void> _openRaportFromPrzeglad(Harmonogram item) async {
+     try {
+       final ok = await showDialog<bool>(
+         context: context,
+         barrierDismissible: false,
+         builder: (ctx) => Dialog(
+           insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+           child: RaportFormScreen(
+             embedInDialog: true,
+             prefillMaszyna: item.maszyna,
+             prefillDzial: item.dzial ?? item.maszyna?.dzial,
+             prefillOsoba: item.osoba,
+             prefillDataNaprawy: item.data,
+             prefillTypNaprawy: item.frequency != null ? 'Przegląd okresowy' : null,
+             prefillOpis: item.opis,
+           ),
+         ),
+       );
 
-    if (ok == true) {
-      try {
-        final result = await ref.read(harmonogramyApiRepositoryProvider).complete(item.id);
-        if (!mounted) return;
-        await _loadMonth();
-        final planFinished = result['planFinished'] == true;
-        final message = planFinished
-            ? (result['message']?.toString() ?? 'Plan przeglądów zakończony')
-            : 'Przegląd oznaczono jako wykonany i utworzono raport';
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Raport dodany, ale nie udało się oznaczyć przeglądu jako wykonanego: $e')));
-      }
-    }
-  }
+       if (ok == true) {
+         try {
+           final result = await ref.read(harmonogramyApiRepositoryProvider).complete(item.id);
+           if (!mounted) return;
+           await _loadMonth();
+           final planFinished = result['planFinished'] == true;
+           final message = planFinished
+               ? (result['message']?.toString() ?? 'Plan przeglądów zakończony')
+               : 'Przegląd oznaczono jako wykonany i utworzono raport';
+           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+         } catch (e) {
+           if (!mounted) return;
+           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+             content: Text('Raport dodany, ale błąd przy oznaczyniu przeglądu: $e')
+           ));
+         }
+       }
+     } catch (e) {
+       if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Błąd: $e')));
+       }
+     }
+   }
 
   void _openDayDetails(DateTime day) {
     final events = _eventsOn(day);

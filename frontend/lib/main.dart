@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:dio/dio.dart';
+import 'dart:ui' as ui;
 
 import 'core/theme/app_theme.dart';
 import 'routing/app_router.dart'; // plik z providerem routera (poniżej przykład)
@@ -12,6 +14,33 @@ import 'widgets/quick_module_overlay.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Obsługa unhandled exceptions w UI thread
+  FlutterError.onError = (FlutterErrorDetails details) {
+    if (details.exception is DioException) {
+      // Log DioException ale nie wyświetlaj red screen
+      final e = details.exception as DioException;
+      print('🔴 DioException: ${e.type} - ${e.message}');
+      print('   Status: ${e.response?.statusCode}');
+      print('   Path: ${e.requestOptions.path}');
+    } else {
+      FlutterError.dumpErrorToConsole(details);
+    }
+  };
+
+  // Obsługa unhandled exceptions w async contexcie
+  ui.PlatformDispatcher.instance.onError = (error, stack) {
+    if (error is DioException) {
+      // Log DioException ale nie wyświetlaj error
+      print('🔴 DioException (async): ${error.type} - ${error.message}');
+      print('   Status: ${error.response?.statusCode}');
+    } else {
+      print('❌ Unhandled error: $error');
+      print('Stack: $stack');
+    }
+    return true;
+  };
+
   runApp(const ProviderScope(child: TPMApp()));
 }
 

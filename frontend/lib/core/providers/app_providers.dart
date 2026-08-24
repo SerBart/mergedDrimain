@@ -14,8 +14,18 @@ import '../repositories/raporty_api_repository.dart';
 import '../repositories/notifications_api_repository.dart';
 import '../models/notification.dart';
 
-// Globalny klient HTTP (adres z --dart-define=API_BASE)
-final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
+// Globalny klient HTTP (adres z --dart-define=API_BASE) z automatycznym refresh tokenem
+final apiClientProvider = Provider<ApiClient>((ref) {
+  final storage = ref.watch(secureStorageProvider);
+  final auth = ref.watch(authServiceProvider);
+
+  return ApiClient(
+    refreshTokenCallback: () => auth.refresh(),
+    onTokenRefreshed: (newToken) {
+      // Token został odświeżony - można dodać dodatkową logikę tutaj
+    },
+  );
+});
 
 // Bezpieczny storage na token
 final secureStorageProvider =
