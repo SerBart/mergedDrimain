@@ -75,11 +75,11 @@ public class SecurityConfig {
                     if (h2ConsoleEnabled) { reg.requestMatchers("/h2-console/**").permitAll(); }
                     if (swaggerEnabled) { reg.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll(); }
 
-                    // Raporty: tworzenie / edycja dla każdego zalogowanego użytkownika, kasowanie tylko ADMIN
+                    // Raporty: bazowo wymagają uwierzytelnienia; szczegółowe role kontroluje @PreAuthorize w kontrolerze
                     reg.requestMatchers(HttpMethod.POST, "/api/raporty/**").authenticated();
                     reg.requestMatchers(HttpMethod.PUT, "/api/raporty/**").authenticated();
                     reg.requestMatchers(HttpMethod.PATCH, "/api/raporty/**").authenticated();
-                    reg.requestMatchers(HttpMethod.DELETE, "/api/raporty/**").hasRole("ADMIN");
+                    reg.requestMatchers(HttpMethod.DELETE, "/api/raporty/**").authenticated();
 
                     // Wszystkie pozostałe /api/** wymagają uwierzytelnienia
                     reg.requestMatchers("/api/**").authenticated();

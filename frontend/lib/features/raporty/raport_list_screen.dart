@@ -18,6 +18,7 @@ import '../../core/models/part_usage.dart';
 import '../../widgets/centered_scroll_card.dart';
 import 'raport_form_screen.dart';
 import '../../core/constants/naprawy_constants.dart';
+import '../../core/constants/app_roles.dart';
 import 'package:collection/collection.dart';
 
 class RaportyListScreen extends ConsumerStatefulWidget {
@@ -546,6 +547,7 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
   Widget build(BuildContext context) {
     final repo = ref.watch(mockRepoProvider);
     final raporty = _apply(repo.getRaporty());
+    final isAdmin = ref.watch(authStateProvider)?.role == AppRoles.admin;
 
     return Scaffold(
       appBar: const TopAppBar(title: 'Raporty', showBack: true),
@@ -703,30 +705,31 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                                   icon: const Icon(Icons.edit, color: Colors.blueAccent),
                                   onPressed: () => context.go('/raport/edytuj/${r.id}')
                                 ),
-                                IconButton(
-                                  tooltip: 'Usuń',
-                                  icon: const Icon(Icons.delete, color: Colors.redAccent),
-                                  onPressed: _busy ? null : () async {
-                                    final confirm = await showConfirmDialog(context, 'Usuń raport', 'Czy na pewno usunąć?');
-                                    if (confirm == true) {
-                                      setState(() => _busy = true);
-                                      try {
-                                        await ref.read(raportyApiRepositoryProvider).delete(r.id);
-                                        ref.read(mockRepoProvider).deleteRaport(r.id);
-                                        setState(() {});
-                                        if (mounted) {
-                                          showSuccessDialog(context, 'OK', 'Raport usunięty');
+                                if (isAdmin)
+                                  IconButton(
+                                    tooltip: 'Usuń',
+                                    icon: const Icon(Icons.delete, color: Colors.redAccent),
+                                    onPressed: _busy ? null : () async {
+                                      final confirm = await showConfirmDialog(context, 'Usuń raport', 'Czy na pewno usunąć?');
+                                      if (confirm == true) {
+                                        setState(() => _busy = true);
+                                        try {
+                                          await ref.read(raportyApiRepositoryProvider).delete(r.id);
+                                          ref.read(mockRepoProvider).deleteRaport(r.id);
+                                          setState(() {});
+                                          if (mounted) {
+                                            showSuccessDialog(context, 'OK', 'Raport usunięty');
+                                          }
+                                        } catch (e) {
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Błąd usuwania: $e')));
+                                          }
+                                        } finally {
+                                          if (mounted) setState(() => _busy = false);
                                         }
-                                      } catch (e) {
-                                        if (mounted) {
-                                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Błąd usuwania: $e')));
-                                        }
-                                      } finally {
-                                        if (mounted) setState(() => _busy = false);
                                       }
-                                    }
-                                  },
-                                ),
+                                    },
+                                  ),
                               ],
                             ),
                           ),
