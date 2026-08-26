@@ -10,6 +10,7 @@ import 'routing/app_router.dart'; // plik z providerem routera (poniżej przykł
 import 'routing/navigation_transition_overlay.dart';
 import 'core/utils/notification_router.dart';
 import 'core/models/notification.dart';
+import 'core/providers/app_providers.dart';
 import 'widgets/quick_module_overlay.dart';
 
 void main() {
@@ -51,10 +52,11 @@ class TPMApp extends ConsumerStatefulWidget {
   ConsumerState<TPMApp> createState() => _TPMAppState();
 }
 
-class _TPMAppState extends ConsumerState<TPMApp> {
+class _TPMAppState extends ConsumerState<TPMApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     // Run async init after first frame so `ref` is available and context is mounted
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -79,6 +81,19 @@ class _TPMAppState extends ConsumerState<TPMApp> {
         });
       } catch (_) {}
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.read(authStateProvider.notifier).refreshSessionSilently();
+    }
   }
 
   void _handleRemoteMessage(RemoteMessage? message) {

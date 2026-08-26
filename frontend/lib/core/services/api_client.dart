@@ -86,6 +86,7 @@ class ApiClient {
 
 /// Interceptor obsługujący wygaśnięte tokeny JWT (401 błędy)
 class _AuthInterceptor extends Interceptor {
+  static const String _retryKey = '__authRetried__';
   final Future<String?> Function() _refreshTokenCallback;
   final void Function(String token)? _onTokenRefreshed;
 
@@ -93,42 +94,37 @@ class _AuthInterceptor extends Interceptor {
 
   @override
   Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
-    // Jeśli jest 401, spróbuj odświeżyć token
-    if (err.response?.statusCode == 401) {
+    final statusCode = err.response?.statusCode;
+    final request = err.requestOptions;
+    final alreadyRetried = request.extra[_retryKey] == true;
+
+    // Nie odświeżaj tokenu dla endpointów auth ani dla requestu już ponowionego
+    if (statusCode == 401 && !alreadyRetried && !_isAuthEndpoint(request.path)) {
       try {
         final newToken = await _refreshTokenCallback();
         if (newToken != null && newToken.isNotEmpty) {
           _onTokenRefreshed?.call(newToken);
 
-          // Powtórz oryginalny request z nowym tokenem
-          final opts = err.requestOptions;
-          opts.headers['Authorization'] = 'Bearer $newToken';
+          // Powtórz oryginalny request z nowym tokenem tylko raz
+          final headers = Map<String, dynamic>.from(request.headers);
+          headers['Authorization'] = 'Bearer $newToken';
+          final extra = Map<String, dynamic>.from(request.extra);
+          extra[_retryKey] = true;
+          final retryRequest = request.copyWith(headers: headers, extra: extra);
 
-          final response = await err.requestOptions.dio.request<dynamic>(
-            opts.path,
-            data: opts.data,
-            queryParameters: opts.queryParameters,
-            options: Options(
-              method: opts.method,
-              sendTimeout: opts.sendTimeout,
-              receiveTimeout: opts.receiveTimeout,
-              extra: opts.extra,
-              headers: opts.headers,
-              responseType: opts.responseType,
-              contentType: opts.contentType,
-              validateStatus: opts.validateStatus,
-              receiveDataWhenStatusError: opts.receiveDataWhenStatusError,
-              followRedirects: opts.followRedirects,
-              maxRedirects: opts.maxRedirects,
-              persistentConnection: opts.persistentConnection,
-            ),
-          );
+          final response = await request.dio.fetch<dynamic>(retryRequest);
           return handler.resolve(response);
         }
-      } catch (e) {
+      } catch (_) {
         // Jeśli refresh zawiódł, pass na kolejny handler
       }
     }
     return handler.next(err);
+  }
+
+  bool _isAuthEndpoint(String path) {
+    return path.contains('/api/auth/login') ||
+        path.contains('/api/auth/refresh') ||
+        path.contains('/api/auth/logout');
   }
 }

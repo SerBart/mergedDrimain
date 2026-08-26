@@ -14,26 +14,40 @@ import '../repositories/raporty_api_repository.dart';
 import '../repositories/notifications_api_repository.dart';
 import '../models/notification.dart';
 
-// Globalny klient HTTP (adres z --dart-define=API_BASE) z automatycznym refresh tokenem
-final apiClientProvider = Provider<ApiClient>((ref) {
-  final storage = ref.watch(secureStorageProvider);
-  final auth = ref.watch(authServiceProvider);
-
-  return ApiClient(
-    refreshTokenCallback: () => auth.refresh(),
-    onTokenRefreshed: (newToken) {
-      // Token został odświeżony - można dodać dodatkową logikę tutaj
-    },
-  );
-});
-
 // Bezpieczny storage na token
 final secureStorageProvider =
 Provider<SecureStorageService>((ref) => SecureStorageService());
 
+// Klient bez interceptora auth (używany m.in. do login/refresh, aby uniknąć pętli)
+final authApiClientProvider = Provider<ApiClient>((ref) => ApiClient());
+
+class _RefreshCoordinator {
+  _RefreshCoordinator(this._authService);
+
+  final AuthService _authService;
+  Future<String?>? _inFlight;
+
+  Future<String?> refreshOnce() {
+    if (_inFlight != null) return _inFlight!;
+    _inFlight = _authService.refresh().whenComplete(() => _inFlight = null);
+    return _inFlight!;
+  }
+}
+
+final refreshCoordinatorProvider = Provider<_RefreshCoordinator>((ref) {
+  final auth = ref.watch(authServiceProvider);
+  return _RefreshCoordinator(auth);
+});
+
+// Globalny klient HTTP do API biznesowego, z bezpiecznym auto-refresh
+final apiClientProvider = Provider<ApiClient>((ref) {
+  final refresh = ref.watch(refreshCoordinatorProvider);
+  return ApiClient(refreshTokenCallback: refresh.refreshOnce);
+});
+
 // Realny serwis autoryzacji (HTTP)
 final authServiceProvider = Provider<AuthService>((ref) {
-  final api = ref.watch(apiClientProvider);
+  final api = ref.watch(authApiClientProvider);
   final storage = ref.watch(secureStorageProvider);
   return AuthService(api.dio, storage);
 });
@@ -131,21 +145,23 @@ class AuthController extends StateNotifier<User?> {
     final storage = _ref.read(secureStorageProvider);
     final auth = _ref.read(authServiceProvider);
     String? token = await storage.readToken();
+    bool refreshed = false;
     Map<String, dynamic>? me;
 
     if (token == null || token.isEmpty) {
       token = await auth.refresh();
+      refreshed = true;
     }
 
     if (token != null && token.isNotEmpty) {
       me = await auth.me(token);
     }
 
-    if (me == null) {
-      final refreshed = await auth.refresh();
-      if (refreshed != null && refreshed.isNotEmpty) {
-        token = refreshed;
-        me = await auth.me(refreshed);
+    if (me == null && !refreshed) {
+      final refreshedToken = await auth.refresh();
+      if (refreshedToken != null && refreshedToken.isNotEmpty) {
+        token = refreshedToken;
+        me = await auth.me(refreshedToken);
       }
     }
 
@@ -169,6 +185,20 @@ class AuthController extends StateNotifier<User?> {
     await _ref.read(authServiceProvider).logout();
     await _ref.read(secureStorageProvider).clear();
     state = null;
+  }
+
+  Future<void> refreshSessionSilently() async {
+    final auth = _ref.read(authServiceProvider);
+    final refreshedToken = await auth.refresh();
+    if (refreshedToken == null || refreshedToken.isEmpty) return;
+
+    final me = await auth.me(refreshedToken);
+    if (me == null) return;
+
+    final roles = (me['roles'] as List<dynamic>? ?? const []).cast<String>();
+    final role = roles.contains('ROLE_ADMIN') ? 'ADMIN' : 'USER';
+    final merged = <String, dynamic>{...me, 'token': refreshedToken, 'role': role};
+    state = User.fromJson(merged);
   }
 
   bool get isAdmin => state?.role == 'ADMIN';
