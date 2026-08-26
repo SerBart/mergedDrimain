@@ -16,7 +16,6 @@ import java.time.LocalDate;
 public class HarmonogramCreateRequest {
     
     @NotNull(message = "Data jest wymagana")
-    @FutureOrPresent(message = "Data nie może być w przeszłości")
     private LocalDate data;
     
     @Size(max = 1000, message = "Opis nie może przekraczać 1000 znaków")

@@ -15,7 +15,6 @@ import java.time.LocalDate;
 @Schema(description = "Request to update an existing schedule")
 public class HarmonogramUpdateRequest {
     
-    @FutureOrPresent(message = "Data nie może być w przeszłości")
     private LocalDate data;
     
     @Size(max = 1000, message = "Opis nie może przekraczać 1000 znaków")
