@@ -57,6 +57,8 @@ app:
     secret: ${JWT_SECRET}
     access-expiration: ${JWT_ACCESS_TTL_MS:900000}
     refresh-expiration: ${JWT_REFRESH_TTL_MS:604800000}
+  energy:
+    ingest-key: ${ENERGY_INGEST_KEY:}
   cors:
     allowed-origins: "https://app.drimain.com,https://mergeddrimain-production.up.railway.app,https://*.up.railway.app"
   security:

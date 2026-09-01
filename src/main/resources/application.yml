@@ -28,6 +28,8 @@ app:
     # New configuration for access and refresh tokens
     access-expiration: 3600000    # 1 hour in milliseconds
     refresh-expiration: 604800000 # 7 days in milliseconds
+  energy:
+    ingest-key: ${ENERGY_INGEST_KEY:}
   
   # CORS configuration
   cors:

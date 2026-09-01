@@ -3,7 +3,6 @@ package drimer.drimain.security;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -17,21 +16,18 @@ public final class ModulesCatalog {
             "Zgloszenia",
             "Raporty",
             "Harmonogramy",
+            "Energia",
             "Czesci",
             "Instrukcje"
     );
 
-    public static boolean isAllowed(String value) {
-        if (value == null || value.isBlank()) return false;
-        return ALLOWED.stream().anyMatch(v -> v.equalsIgnoreCase(value));
-    }
 
     /**
      * Zwraca zbiór kanonicznych nazw (jak w ALLOWED) dla podanych wejściowych
      * nazw modułów (case-insensitive). Nieznane wartości są pomijane.
      */
     public static Set<String> normalizeAndFilter(Set<String> input) {
-        if (input == null || input.isEmpty()) return Collections.emptySet();
+        if (input == null || input.isEmpty()) return new LinkedHashSet<>();
         Set<String> out = new LinkedHashSet<>();
         for (String in : input) {
             if (in == null) continue;

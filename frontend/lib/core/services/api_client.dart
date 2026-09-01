@@ -47,7 +47,7 @@ class ApiClient {
     // Dodaję Interceptor do obsługi 401 i odświeżania tokenu
     if (refreshTokenCallback != null) {
       dio.interceptors.add(
-        _AuthInterceptor(refreshTokenCallback, onTokenRefreshed),
+        _AuthInterceptor(dio, refreshTokenCallback, onTokenRefreshed),
       );
     }
 
@@ -87,10 +87,11 @@ class ApiClient {
 /// Interceptor obsługujący wygaśnięte tokeny JWT (401 błędy)
 class _AuthInterceptor extends Interceptor {
   static const String _retryKey = '__authRetried__';
+  final Dio _dio;
   final Future<String?> Function() _refreshTokenCallback;
   final void Function(String token)? _onTokenRefreshed;
 
-  _AuthInterceptor(this._refreshTokenCallback, this._onTokenRefreshed);
+  _AuthInterceptor(this._dio, this._refreshTokenCallback, this._onTokenRefreshed);
 
   @override
   Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
@@ -112,7 +113,7 @@ class _AuthInterceptor extends Interceptor {
           extra[_retryKey] = true;
           final retryRequest = request.copyWith(headers: headers, extra: extra);
 
-          final response = await request.dio.fetch<dynamic>(retryRequest);
+          final response = await _dio.fetch<dynamic>(retryRequest);
           return handler.resolve(response);
         }
       } catch (_) {

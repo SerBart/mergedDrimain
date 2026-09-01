@@ -472,24 +472,26 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
     int weeklyWeekday = selectedDate.weekday;
     DateTime planEndDate = item.planEndDate ?? DateTime(selectedDate.year, 12, 31);
     String opis = item.opis;
+    final opisCtrl = TextEditingController(text: opis);
     int? maszynaId = item.maszyna?.id;
     int? dzialId = item.dzial?.id;
     int? osobaId = item.osoba?.id;
     bool applyToFuture = true;
     bool useMaszyna = item.maszyna != null;
 
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          title: const Text('Edytuj przegląd'),
-          content: SizedBox(
-            width: 500,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
+    try {
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setLocal) => AlertDialog(
+            title: const Text('Edytuj przegląd'),
+            content: SizedBox(
+              width: 500,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                   InputDecorator(
                     decoration: const InputDecoration(labelText: 'Data', border: OutlineInputBorder()),
                     child: InkWell(
@@ -610,7 +612,7 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
                    ],
                    const SizedBox(height: 12),
                    TextField(
-                     initialValue: opis,
+                     controller: opisCtrl,
                      maxLines: 2,
                      decoration: const InputDecoration(
                        labelText: 'Opis przeglądu',
@@ -662,9 +664,12 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
               child: const Text('Zapisz'),
             ),
           ],
+          ),
         ),
-      ),
-    );
+      );
+    } finally {
+      opisCtrl.dispose();
+    }
   }
 
    Future<void> _openRaportFromPrzeglad(Harmonogram item) async {

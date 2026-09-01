@@ -15,6 +15,7 @@ import '../features/zgloszenia/zgloszenia_screen_modern.dart';
 import '../features/zgloszenia/moje_zgloszenia_screen.dart';
 import '../features/harmonogramy/harmonogramy_screen.dart';
 import '../features/przeglady/przeglady_screen.dart';
+import '../features/energia/energia_screen.dart';
 import '../features/admin/admin_screen.dart';
 import '../features/instrukcje/instrukcje_list_screen.dart' as instrukcje_list;
 import '../features/instrukcje/instrukcja_form_screen.dart' as instrukcja_form;
@@ -81,6 +82,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/statystyki',
         pageBuilder: (_, state) => _smoothPage(state: state, child: const StatystykiScreen()),
+      ),
+      GoRoute(
+        path: '/energia',
+        pageBuilder: (_, state) => _smoothPage(state: state, child: const EnergiaScreen()),
       ),
       GoRoute(
         path: '/aktualnosci',

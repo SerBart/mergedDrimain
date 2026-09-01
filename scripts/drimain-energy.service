@@ -1,0 +1,26 @@
+[Unit]
+Description=Drimain Energy Reader Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/drimain
+Environment="PATH=/home/pi/drimain/venv/bin"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/home/pi/drimain/venv/bin/python3 /home/pi/drimain/energy_reader.py
+Restart=on-failure
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=drimain-energy
+
+# Limity
+LimitNOFILE=65536
+MemoryLimit=256M
+
+[Install]
+WantedBy=multi-user.target
+

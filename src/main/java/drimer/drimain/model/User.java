@@ -60,7 +60,7 @@ public class User implements UserDetails {
     public void setDzial(Dzial dzial) { this.dzial = dzial; }
 
     public Set<String> getModules() { return modules; }
-    public void setModules(Set<String> modules) { this.modules = modules != null ? modules : new HashSet<>(); }
+    public void setModules(Set<String> modules) { this.modules = modules != null ? new HashSet<>(modules) : new HashSet<>(); }
 
     // UserDetails
     @Override

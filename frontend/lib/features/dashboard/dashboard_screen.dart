@@ -4,6 +4,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_roles.dart';
+import '../../core/models/energia.dart';
 import '../../core/models/harmonogram.dart';
 import '../../core/models/raport.dart';
 import '../../core/models/zgloszenie.dart';
@@ -50,6 +51,15 @@ final _dashboardLiveSummaryProvider = FutureProvider.autoDispose<_DashboardLiveS
   );
 });
 
+final _energyLiveSummaryProvider = FutureProvider.autoDispose<EnergyOverview?>((ref) async {
+  final repo = ref.watch(energiaApiRepositoryProvider);
+  try {
+    return await repo.fetchOverview(days: 1);
+  } catch (_) {
+    return null;
+  }
+});
+
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
@@ -58,6 +68,7 @@ class DashboardScreen extends ConsumerWidget {
     final auth = ref.watch(authStateProvider);
     final notificationsAsync = ref.watch(notificationsListProvider);
     final liveSummaryAsync = ref.watch(_dashboardLiveSummaryProvider);
+    final energySummaryAsync = ref.watch(_energyLiveSummaryProvider);
     final isAdmin = auth?.role == AppRoles.admin;
     final modules = auth?.modules ?? const <String>{};
     final scheme = Theme.of(context).colorScheme;
@@ -75,6 +86,10 @@ class DashboardScreen extends ConsumerWidget {
     );
     final raportyToday = liveSummaryAsync.maybeWhen(
       data: (summary) => summary.raportyToday,
+      orElse: () => null,
+    );
+    final energySummary = energySummaryAsync.maybeWhen(
+      data: (summary) => summary,
       orElse: () => null,
     );
     final aktualnosciLiveCount = (unreadNotifications ?? 0) + (raportyToday ?? 0) + (harmonogramyToday ?? 0);
@@ -162,6 +177,15 @@ class DashboardScreen extends ConsumerWidget {
         onTap: () => context.go('/harmonogramy'),
         requiredModule: 'Harmonogramy',
         hasAccess: isAdmin || has('Harmonogramy'),
+      ),
+      _DashboardItem(
+        icon: Icons.bolt_outlined,
+        label: 'Zużycie energii',
+        subtitle: 'Bieżące pomiary i historia 15-minutowa',
+        badge: energySummary != null ? '${energySummary.todayEnergyKwh.toStringAsFixed(1)} kWh' : 'Energia',
+        accent: const Color(0xFF16A34A),
+        accentSoft: const Color(0xFFD1FAE5),
+        onTap: () => context.go('/energia'),
       ),
       _DashboardItem(
         icon: FontAwesomeIcons.clipboardCheck,

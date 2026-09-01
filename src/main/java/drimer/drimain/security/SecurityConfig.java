@@ -30,7 +30,7 @@ import java.util.List;
 
 @Configuration
 @RequiredArgsConstructor
-@EnableMethodSecurity(prePostEnabled = true)
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
@@ -80,6 +80,9 @@ public class SecurityConfig {
                     reg.requestMatchers(HttpMethod.PUT, "/api/raporty/**").authenticated();
                     reg.requestMatchers(HttpMethod.PATCH, "/api/raporty/**").authenticated();
                     reg.requestMatchers(HttpMethod.DELETE, "/api/raporty/**").authenticated();
+
+                    // Energy ingest from Raspberry Pi uses its own API key, not JWT
+                    reg.requestMatchers(HttpMethod.POST, "/api/energia/readings").permitAll();
 
                     // Wszystkie pozostałe /api/** wymagają uwierzytelnienia
                     reg.requestMatchers("/api/**").authenticated();

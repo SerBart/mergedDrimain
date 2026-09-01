@@ -345,7 +345,7 @@ public class AdminRestController {
         if (req.getModules() != null) {
             user.setModules(ModulesCatalog.normalizeAndFilter(req.getModules()));
         } else {
-            user.setModules(Set.of());
+            user.setModules(new LinkedHashSet<>());
         }
 
         userRepository.save(user);

@@ -48,6 +48,13 @@ const List<_QuickModule> _quickModules = [
     accent: Color(0xFF10B981),
   ),
   _QuickModule(
+    label: 'Zużycie energii',
+    route: '/energia',
+    requiredModule: 'Energia',
+    icon: Icons.bolt_rounded,
+    accent: Color(0xFF16A34A),
+  ),
+  _QuickModule(
     label: 'Przeglady',
     route: '/przeglady',
     icon: Icons.fact_check_rounded,

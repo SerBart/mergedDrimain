@@ -12,6 +12,7 @@ import '../repositories/instructions_api_repository.dart';
 import '../repositories/parts_api_repository.dart';
 import '../repositories/raporty_api_repository.dart';
 import '../repositories/notifications_api_repository.dart';
+import '../repositories/energia_api_repository.dart';
 import '../models/notification.dart';
 
 // Bezpieczny storage na token
@@ -106,6 +107,13 @@ final raportyApiRepositoryProvider = Provider<RaportyApiRepository>((ref) {
   final api = ref.watch(apiClientProvider);
   final storage = ref.watch(secureStorageProvider);
   return RaportyApiRepository(api.dio, storage);
+});
+
+// Repozytorium API dla energii
+final energiaApiRepositoryProvider = Provider<EnergiaApiRepository>((ref) {
+  final api = ref.watch(apiClientProvider);
+  final storage = ref.watch(secureStorageProvider);
+  return EnergiaApiRepository(api.dio, storage);
 });
 
 // Notifications repository + provider

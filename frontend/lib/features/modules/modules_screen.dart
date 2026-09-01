@@ -29,6 +29,7 @@ class ModulesScreen extends ConsumerWidget {
       _ModuleTile(label: 'Zgłoszenia',     route: '/zgloszenia',       icon: FontAwesomeIcons.triangleExclamation, gradient: [const Color(0xFFF59E0B), const Color(0xFFF97316)], moduleKey: 'Zgloszenia'),
       _ModuleTile(label: 'Moje zgłoszenia',route: '/moje-zgloszenia',  icon: FontAwesomeIcons.checkDouble,         gradient: [const Color(0xFFFCA5A5), const Color(0xFFF87171)], moduleKey: 'Zgloszenia'),
       _ModuleTile(label: 'Harmonogramy',   route: '/harmonogramy',     icon: FontAwesomeIcons.calendarDays,        gradient: [const Color(0xFF10B981), const Color(0xFF059669)], moduleKey: 'Harmonogramy'),
+      _ModuleTile(label: 'Zużycie energii', route: '/energia',         icon: Icons.bolt_outlined,                  gradient: [const Color(0xFF16A34A), const Color(0xFF15803D)], moduleKey: 'Energia'),
       _ModuleTile(label: 'Przeglądy',      route: '/przeglady',        icon: FontAwesomeIcons.clipboardCheck,      gradient: [const Color(0xFF0EA5E9), const Color(0xFF2563EB)]),
       _ModuleTile(label: 'Instrukcje',     route: '/instrukcje',       icon: FontAwesomeIcons.screwdriverWrench,   gradient: [const Color(0xFF8B5CF6), const Color(0xFF7C3AED)], moduleKey: 'Instrukcje'),
       _ModuleTile(label: 'Części',         route: '/czesci',           icon: FontAwesomeIcons.boxOpen,             gradient: [const Color(0xFFEC4899), const Color(0xFFDB2777)], moduleKey: 'Czesci'),
