@@ -1,7 +1,9 @@
 import 'package:dio/dio.dart';
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../models/energia.dart';
+import '../services/energy_sse_client.dart';
 import '../services/secure_storage_service.dart';
 
 class EnergiaApiRepository {
@@ -38,13 +40,24 @@ class EnergiaApiRepository {
   }) async* {
     try {
       final token = await _readToken();
+      final queryParameters = {
+        'scope': scope.apiValue,
+        if (dzialId != null) 'dzialId': dzialId,
+        if (maszynaId != null) 'maszynaId': maszynaId,
+      };
+
+      if (kIsWeb) {
+        yield* connectEnergySse(
+          baseUrl: _dio.options.baseUrl,
+          token: token,
+          queryParameters: queryParameters,
+        ).map(EnergyOverview.fromJson);
+        return;
+      }
+
       final resp = await _dio.get<ResponseBody>(
         '/api/energia/stream',
-        queryParameters: {
-          'scope': scope.apiValue,
-          if (dzialId != null) 'dzialId': dzialId,
-          if (maszynaId != null) 'maszynaId': maszynaId,
-        },
+        queryParameters: queryParameters,
         options: Options(
           headers: {'Authorization': 'Bearer $token'},
           responseType: ResponseType.stream,

@@ -46,6 +46,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             token = getJwtFromCookie(request);
         }
         if (token == null) {
+            token = getJwtFromSseQuery(request);
+        }
+        if (token == null) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -83,5 +86,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             }
         }
         return null;
+    }
+
+    private String getJwtFromSseQuery(HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        if (uri == null || !uri.startsWith("/api/energia/stream")) {
+            return null;
+        }
+        String token = request.getParameter("token");
+        return token == null || token.isBlank() ? null : token.trim();
     }
 }
