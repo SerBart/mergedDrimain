@@ -105,6 +105,12 @@ class EnergyOverview {
   final DateTime? generatedAt;
   final double totalPowerKw;
   final double todayEnergyKwh;
+  final double peakPower1hKw;
+  final double peakPower8hKw;
+  final double peakPower24hKw;
+  final double peakPower3dKw;
+  final double peakPower7dKw;
+  final double peakPower30dKw;
   final int activeMachines;
   final int totalMachines;
   final List<EnergyMachineSummary> machines;
@@ -117,6 +123,12 @@ class EnergyOverview {
     required this.generatedAt,
     required this.totalPowerKw,
     required this.todayEnergyKwh,
+    required this.peakPower1hKw,
+    required this.peakPower8hKw,
+    required this.peakPower24hKw,
+    required this.peakPower3dKw,
+    required this.peakPower7dKw,
+    required this.peakPower30dKw,
     required this.activeMachines,
     required this.totalMachines,
     required this.machines,
@@ -133,10 +145,16 @@ class EnergyOverview {
       scopeType: (json['scopeType'] ?? 'TOTAL').toString(),
       scopeLabel: (json['scopeLabel'] ?? 'Całość zakładu').toString(),
       zakresDni: (json['zakresDni'] as num?)?.toInt() ?? 1,
-      bucketMinutes: (json['bucketMinutes'] as num?)?.toInt() ?? 15,
+      bucketMinutes: (json['bucketMinutes'] as num?)?.toInt() ?? 5,
       generatedAt: rawDate != null ? DateTime.tryParse(rawDate) : null,
       totalPowerKw: (json['totalPowerKw'] as num?)?.toDouble() ?? 0.0,
       todayEnergyKwh: (json['todayEnergyKwh'] as num?)?.toDouble() ?? 0.0,
+      peakPower1hKw: (json['peakPower1hKw'] as num?)?.toDouble() ?? 0.0,
+      peakPower8hKw: (json['peakPower8hKw'] as num?)?.toDouble() ?? 0.0,
+      peakPower24hKw: (json['peakPower24hKw'] as num?)?.toDouble() ?? 0.0,
+      peakPower3dKw: (json['peakPower3dKw'] as num?)?.toDouble() ?? 0.0,
+      peakPower7dKw: (json['peakPower7dKw'] as num?)?.toDouble() ?? 0.0,
+      peakPower30dKw: (json['peakPower30dKw'] as num?)?.toDouble() ?? 0.0,
       activeMachines: (json['activeMachines'] as num?)?.toInt() ?? 0,
       totalMachines: (json['totalMachines'] as num?)?.toInt() ?? 0,
       machines: machines,

@@ -27,7 +27,7 @@ METER_SLAVE_ID = int(os.getenv("METER_SLAVE_ID", "1"))
 DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() in ("1", "true", "yes", "on")
 
 # Interwał odczytu (sekundy)
-READ_INTERVAL = int(os.getenv("READ_INTERVAL", "60"))
+READ_INTERVAL = int(os.getenv("READ_INTERVAL", "5"))
 
 # ===== KONIEC KONFIGURACJI =====
 

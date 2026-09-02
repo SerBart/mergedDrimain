@@ -5,8 +5,9 @@ Ten plik to praktyczna checklista od zera do dzialajacego wysylania danych energ
 ## Model danych (docelowo)
 
 - Aktualne dane w UI: realtime przez SSE
-- Historia i wykres: snapshoty zapisywane do bazy co 15 minut
-- RPi moze wysylac czesciej (np. co 30-60 s), ale backend nie musi zapisywac kazdego pomiaru do DB
+- Historia i wykres: snapshoty zapisywane do bazy co 5 minut
+- RPi wysyla pomiar live co 5 sekund, ale backend nie zapisuje kazdego pomiaru do DB
+- Overview pokazuje tez chwilowe maksima dla 1h, 8h, 24h, 3d, 7d i 30d
 
 ## 0) Co juz masz
 

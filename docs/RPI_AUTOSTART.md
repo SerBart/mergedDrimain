@@ -37,6 +37,10 @@ If meter is not connected yet:
 - keep `DEMO_MODE=false` if you do not want fake readings
 - set `DEMO_MODE=true` only for UI demo data
 
+Recommended live setup:
+- `READ_INTERVAL=5` for near real-time updates in UI
+- backend persists snapshots every 5 minutes
+
 ## 3) Install systemd service
 
 ```bash

@@ -181,7 +181,7 @@ class DashboardScreen extends ConsumerWidget {
       _DashboardItem(
         icon: Icons.bolt_outlined,
         label: 'Zużycie energii',
-        subtitle: 'Bieżące pomiary i historia 15-minutowa',
+        subtitle: 'Bieżące pomiary live i historia 5-minutowa',
         badge: energySummary != null ? '${energySummary.todayEnergyKwh.toStringAsFixed(1)} kWh' : 'Energia',
         accent: const Color(0xFF16A34A),
         accentSoft: const Color(0xFFD1FAE5),

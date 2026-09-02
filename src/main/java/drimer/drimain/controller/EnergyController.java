@@ -75,7 +75,7 @@ public class EnergyController {
             @RequestParam(name = "dzialId", required = false) Long dzialId,
             @RequestParam(name = "maszynaId", required = false) Long maszynaId,
             @RequestParam(name = "days", defaultValue = "7") int days,
-            @RequestParam(name = "bucketMinutes", defaultValue = "15") int bucketMinutes) {
+            @RequestParam(name = "bucketMinutes", defaultValue = "5") int bucketMinutes) {
         return energyService.history(EnergyScopeType.from(scope), dzialId, maszynaId, days, bucketMinutes);
     }
 
@@ -84,7 +84,7 @@ public class EnergyController {
     public List<EnergyHistoryPointDTO> history(
             @PathVariable Long maszynaId,
             @RequestParam(name = "days", defaultValue = "7") int days,
-            @RequestParam(name = "bucketMinutes", defaultValue = "15") int bucketMinutes) {
+            @RequestParam(name = "bucketMinutes", defaultValue = "5") int bucketMinutes) {
         return energyService.history(EnergyScopeType.MASZYNA, null, maszynaId, days, bucketMinutes);
     }
 

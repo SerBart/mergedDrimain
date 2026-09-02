@@ -31,6 +31,8 @@ import java.util.stream.Collectors;
 @Slf4j
 public class EnergyService {
 
+    private static final int SNAPSHOT_BUCKET_MINUTES = 5;
+
     private final EnergyReadingRepository energyReadingRepository;
     private final MaszynaRepository maszynaRepository;
     private final SseProperties sseProperties;
@@ -52,7 +54,7 @@ public class EnergyService {
         return transientReading;
     }
 
-    @Scheduled(cron = "0 */15 * * * *")
+    @Scheduled(cron = "0 */5 * * * *")
     @Transactional
     public void persistLiveSnapshots() {
         if (latestLiveReadings.isEmpty()) {
@@ -86,11 +88,13 @@ public class EnergyService {
     @Transactional(readOnly = true)
     public EnergyOverviewDTO overview(EnergyScopeType scope, Long dzialId, Long maszynaId, int days) {
         int normalizedDays = normalizeDays(days);
-        LocalDate today = LocalDate.now();
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        LocalDate today = now.toLocalDate();
         LocalDate startDate = today.minusDays(normalizedDays - 1L);
         LocalDateTime start = startDate.atStartOfDay();
         LocalDateTime endExclusive = today.plusDays(1).atStartOfDay();
-        LocalDateTime activeThreshold = LocalDateTime.now().minusMinutes(30);
+        LocalDateTime historyLookbackStart = now.minusDays(30);
+        LocalDateTime activeThreshold = now.minusMinutes(30);
 
         List<Maszyna> machinesInScope = resolveMachines(scope, dzialId, maszynaId);
         Map<Long, Maszyna> machinesById = machinesInScope.stream()
@@ -102,14 +106,14 @@ public class EnergyService {
             empty.setScopeType(scope.name());
             empty.setScopeLabel(resolveScopeLabel(scope, null, dzialId, maszynaId));
             empty.setZakresDni(normalizedDays);
-            empty.setBucketMinutes(15);
+            empty.setBucketMinutes(SNAPSHOT_BUCKET_MINUTES);
             empty.setGeneratedAt(OffsetDateTime.now(ZoneOffset.UTC));
             empty.setTotalMachines(0);
             empty.setMachines(List.of());
             return empty;
         }
 
-        List<EnergyReading> readings = energyReadingRepository.findByRecordedAtBetweenOrderByRecordedAtAsc(start, endExclusive);
+        List<EnergyReading> readings = energyReadingRepository.findByRecordedAtBetweenOrderByRecordedAtAsc(historyLookbackStart, endExclusive);
         Map<Long, List<EnergyReading>> grouped = new LinkedHashMap<>();
         for (EnergyReading reading : readings) {
             if (reading.getMaszyna() == null || reading.getMaszyna().getId() == null) {
@@ -122,6 +126,7 @@ public class EnergyService {
         }
 
         List<EnergyMachineSummaryDTO> machines = new ArrayList<>();
+        List<EnergyReading> scopeReadings = new ArrayList<>();
         BigDecimal totalPowerKw = BigDecimal.ZERO;
         BigDecimal todayEnergyKwh = BigDecimal.ZERO;
         long activeMachines = 0;
@@ -129,6 +134,7 @@ public class EnergyService {
         for (Maszyna maszyna : machinesInScope) {
             List<EnergyReading> machineReadings = grouped.getOrDefault(maszyna.getId(), List.of());
             List<EnergyReading> effectiveReadings = mergeWithLiveReading(machineReadings, latestLiveReadings.get(maszyna.getId()));
+            scopeReadings.addAll(effectiveReadings);
             EnergyReading latest = effectiveReadings.stream()
                     .filter(r -> r.getRecordedAt() != null)
                     .max(Comparator.comparing(EnergyReading::getRecordedAt))
@@ -153,14 +159,22 @@ public class EnergyService {
                 Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)
         ));
 
+        PeakConsumptionSummary peaks = calculatePeakConsumptions(scopeReadings, now);
+
         EnergyOverviewDTO overview = new EnergyOverviewDTO();
         overview.setScopeType(scope.name());
         overview.setScopeLabel(resolveScopeLabel(scope, machines, dzialId, maszynaId));
         overview.setZakresDni(normalizedDays);
-        overview.setBucketMinutes(15);
+        overview.setBucketMinutes(SNAPSHOT_BUCKET_MINUTES);
         overview.setGeneratedAt(OffsetDateTime.now(ZoneOffset.UTC));
         overview.setTotalPowerKw(totalPowerKw.max(BigDecimal.ZERO));
         overview.setTodayEnergyKwh(todayEnergyKwh.max(BigDecimal.ZERO));
+        overview.setPeakPower1hKw(peaks.oneHourKw());
+        overview.setPeakPower8hKw(peaks.eightHoursKw());
+        overview.setPeakPower24hKw(peaks.twentyFourHoursKw());
+        overview.setPeakPower3dKw(peaks.threeDaysKw());
+        overview.setPeakPower7dKw(peaks.sevenDaysKw());
+        overview.setPeakPower30dKw(peaks.thirtyDaysKw());
         overview.setActiveMachines(activeMachines);
         overview.setTotalMachines(machinesInScope.size());
         overview.setMachines(machines);
@@ -207,7 +221,7 @@ public class EnergyService {
     }
 
     private int normalizeBucketMinutes(int bucketMinutes) {
-        if (bucketMinutes < 1) return 15;
+        if (bucketMinutes < 1) return SNAPSHOT_BUCKET_MINUTES;
         return Math.min(bucketMinutes, 60);
     }
 
@@ -465,6 +479,57 @@ public class EnergyService {
             maszynaId != null ? maszynaId : "");
     }
 
+    private PeakConsumptionSummary calculatePeakConsumptions(List<EnergyReading> readings, LocalDateTime now) {
+        return new PeakConsumptionSummary(
+                maxPowerInWindow(readings, now.minusHours(1), now.plusSeconds(1)),
+                maxPowerInWindow(readings, now.minusHours(8), now.plusSeconds(1)),
+                maxPowerInWindow(readings, now.minusHours(24), now.plusSeconds(1)),
+                maxPowerInWindow(readings, now.minusDays(3), now.plusSeconds(1)),
+                maxPowerInWindow(readings, now.minusDays(7), now.plusSeconds(1)),
+                maxPowerInWindow(readings, now.minusDays(30), now.plusSeconds(1))
+        );
+    }
+
+    private BigDecimal maxPowerInWindow(List<EnergyReading> readings, LocalDateTime fromInclusive, LocalDateTime toExclusive) {
+        if (readings == null || readings.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+
+        Map<LocalDateTime, Map<Long, EnergyReading>> bucketedByTimeAndMachine = new LinkedHashMap<>();
+
+        for (EnergyReading reading : readings) {
+            if (reading == null || reading.getRecordedAt() == null || reading.getMaszyna() == null || reading.getMaszyna().getId() == null) {
+                continue;
+            }
+            if (reading.getRecordedAt().isBefore(fromInclusive) || !reading.getRecordedAt().isBefore(toExclusive)) {
+                continue;
+            }
+
+            LocalDateTime bucket = EnergyAggregationUtils.bucketStart(reading.getRecordedAt(), SNAPSHOT_BUCKET_MINUTES);
+            Map<Long, EnergyReading> perMachine = bucketedByTimeAndMachine.computeIfAbsent(bucket, ignored -> new LinkedHashMap<>());
+            perMachine.merge(
+                    reading.getMaszyna().getId(),
+                    reading,
+                    (current, candidate) -> candidate.getRecordedAt().isAfter(current.getRecordedAt()) ? candidate : current
+            );
+        }
+
+        BigDecimal max = BigDecimal.ZERO;
+        for (Map<Long, EnergyReading> bucketReadings : bucketedByTimeAndMachine.values()) {
+            BigDecimal bucketPower = BigDecimal.ZERO;
+            for (EnergyReading reading : bucketReadings.values()) {
+                if (reading.getPowerKw() != null) {
+                    bucketPower = bucketPower.add(reading.getPowerKw());
+                }
+            }
+            if (bucketPower.compareTo(max) > 0) {
+                max = bucketPower;
+            }
+        }
+
+        return max;
+    }
+
     public int getActiveSubscriptionCount() {
         return energySubscriptions.size();
     }
@@ -522,5 +587,15 @@ public class EnergyService {
                     req.getCurrentA()
             );
         }
+    }
+
+    private record PeakConsumptionSummary(
+            BigDecimal oneHourKw,
+            BigDecimal eightHoursKw,
+            BigDecimal twentyFourHoursKw,
+            BigDecimal threeDaysKw,
+            BigDecimal sevenDaysKw,
+            BigDecimal thirtyDaysKw
+    ) {
     }
 }

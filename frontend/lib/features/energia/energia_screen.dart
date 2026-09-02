@@ -53,7 +53,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
   void _startAutoRefresh() {
     _autoRefreshTimer?.cancel();
     _autoRefreshTimer = Timer.periodic(
-      const Duration(minutes: 5),
+      const Duration(seconds: 30),
       (_) {
         _refreshLiveDataSilently();
       },
@@ -148,7 +148,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
       final points = await repo.fetchHistory(
         scope: _scope,
         days: _selectedDays,
-        bucketMinutes: 15,
+        bucketMinutes: 5,
         dzialId: _scope == EnergyScope.dzial ? _selectedDzialId : null,
         maszynaId: _scope == EnergyScope.maszyna ? _selectedMaszynaId : null,
       );
@@ -186,10 +186,16 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
             scopeType: _scope.apiValue,
             scopeLabel: _scope.label,
             zakresDni: _selectedDays,
-            bucketMinutes: 15,
+            bucketMinutes: 5,
             generatedAt: DateTime.now(),
             totalPowerKw: 0,
             todayEnergyKwh: 0,
+            peakPower1hKw: 0,
+            peakPower8hKw: 0,
+            peakPower24hKw: 0,
+            peakPower3dKw: 0,
+            peakPower7dKw: 0,
+            peakPower30dKw: 0,
             activeMachines: 0,
             totalMachines: 0,
             machines: const [],
@@ -239,10 +245,16 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
             scopeType: _scope.apiValue,
             scopeLabel: _scope.label,
             zakresDni: _selectedDays,
-            bucketMinutes: 15,
+            bucketMinutes: 5,
             generatedAt: DateTime.now(),
             totalPowerKw: 0,
             todayEnergyKwh: 0,
+            peakPower1hKw: 0,
+            peakPower8hKw: 0,
+            peakPower24hKw: 0,
+            peakPower3dKw: 0,
+            peakPower7dKw: 0,
+            peakPower30dKw: 0,
             activeMachines: 0,
             totalMachines: 0,
             machines: const [],
@@ -294,7 +306,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
       final points = await repo.fetchHistory(
         scope: _scope,
         days: _selectedDays,
-        bucketMinutes: 15,
+        bucketMinutes: 5,
         dzialId: _scope == EnergyScope.dzial ? _selectedDzialId : null,
         maszynaId: _scope == EnergyScope.maszyna ? _selectedMaszynaId : null,
       );
@@ -626,7 +638,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
                       ),
                       const SizedBox(height: 4),
                       const Text(
-                        'Moc chwilowa i lista maszyn odświeżają się live. Historia zapisuje snapshoty co 15 minut.',
+                        'Moc chwilowa i lista maszyn odświeżają się live co kilka sekund. Historia zapisuje snapshoty co 5 minut.',
                         style: TextStyle(fontSize: 12, color: Colors.black54),
                       ),
                     ],
@@ -670,7 +682,48 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
               ),
               const SizedBox(height: 12),
               AppCard(
-                title: 'Historia 15-minutowa',
+                title: 'Skoki zużycia (max chwilowy)',
+                divided: true,
+                child: Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    _MiniInsightCard(
+                      label: '1 godzina',
+                      value: '${overview?.peakPower1hKw.toStringAsFixed(1) ?? '0.0'} kW',
+                      icon: Icons.speed_outlined,
+                    ),
+                    _MiniInsightCard(
+                      label: '8 godzin',
+                      value: '${overview?.peakPower8hKw.toStringAsFixed(1) ?? '0.0'} kW',
+                      icon: Icons.timeline_outlined,
+                    ),
+                    _MiniInsightCard(
+                      label: '24 godziny',
+                      value: '${overview?.peakPower24hKw.toStringAsFixed(1) ?? '0.0'} kW',
+                      icon: Icons.today_outlined,
+                    ),
+                    _MiniInsightCard(
+                      label: '3 dni',
+                      value: '${overview?.peakPower3dKw.toStringAsFixed(1) ?? '0.0'} kW',
+                      icon: Icons.view_week_outlined,
+                    ),
+                    _MiniInsightCard(
+                      label: '7 dni',
+                      value: '${overview?.peakPower7dKw.toStringAsFixed(1) ?? '0.0'} kW',
+                      icon: Icons.date_range_outlined,
+                    ),
+                    _MiniInsightCard(
+                      label: '30 dni',
+                      value: '${overview?.peakPower30dKw.toStringAsFixed(1) ?? '0.0'} kW',
+                      icon: Icons.calendar_month_outlined,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              AppCard(
+                title: 'Historia 5-minutowa',
                 divided: true,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -724,7 +777,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Ostatnie snapshoty 15-minutowe',
+                        'Ostatnie snapshoty 5-minutowe',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 8),

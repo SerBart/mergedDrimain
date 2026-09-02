@@ -3,7 +3,7 @@
 ## API flow
 - Raspberry Pi sends `POST /api/energia/readings`
 - Backend validates `X-API-KEY`
-- Backend stores measurement in PostgreSQL on Railway
+- Backend updates live state for SSE and stores snapshots in PostgreSQL on Railway
 - Flutter dashboard shows the `Zużycie energii` tile and `/energia` screen
 
 ## Required environment variables
@@ -24,7 +24,7 @@
 ```
 
 ## Sampling
-- send readings every 15 minutes
-- backend stores each sample as a historical record
+- send readings every 5 seconds for live view
+- backend stores the latest snapshot every 5 minutes for history
 - `/api/energia/machines/{id}/history` returns points for charting
 
