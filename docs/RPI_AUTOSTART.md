@@ -33,6 +33,21 @@ Minimum required values in `/etc/drimain-energy-reader.env`:
 - `ENERGY_INGEST_KEY`
 - `MASZYNA_ID`
 
+For RS485 USB (Modbus RTU) also set:
+- `MODBUS_MODE=rtu`
+- `SERIAL_PORT=/dev/ttyUSB0`
+- `BAUD_RATE=9600`
+- `PARITY=N`
+- `STOP_BITS=1`
+- `BYTE_SIZE=8`
+- `METER_SLAVE_ID=1`
+
+Set register indexes from Lumel Modbus table in env:
+- `REG_VOLTAGE_IDX`
+- `REG_CURRENT_IDX`
+- `REG_POWER_IDX`
+- `REG_ENERGY_TOTAL_IDX`
+
 If meter is not connected yet:
 - keep `DEMO_MODE=false` if you do not want fake readings
 - set `DEMO_MODE=true` only for UI demo data
@@ -40,6 +55,12 @@ If meter is not connected yet:
 Recommended live setup:
 - `READ_INTERVAL=5` for near real-time updates in UI
 - backend persists snapshots every 5 minutes
+
+Find the USB serial device after plugging adapter:
+```bash
+ls /dev/ttyUSB* /dev/ttyACM*
+dmesg | tail -n 40
+```
 
 ## 3) Install systemd service
 

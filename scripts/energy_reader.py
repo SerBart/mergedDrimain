@@ -17,11 +17,27 @@ DRIMAIN_API_URL = os.getenv("DRIMAIN_API_URL", "https://mergeddrimain-production
 DRIMAIN_API_KEY = os.getenv("ENERGY_INGEST_KEY", "")
 MASZYNA_ID = int(os.getenv("MASZYNA_ID", "1"))
 
+# Transport: rtu (RS485 USB) or tcp (Modbus TCP gateway)
+MODBUS_MODE = os.getenv("MODBUS_MODE", "rtu").strip().lower()
+
 # Typ miernika
 METER_TYPE = os.getenv("METER_TYPE", "SDM630")  # SDM630, SDM120, Eastron, Victron
 METER_IP = os.getenv("METER_IP", "192.168.1.50")
 METER_PORT = int(os.getenv("METER_PORT", "502"))
 METER_SLAVE_ID = int(os.getenv("METER_SLAVE_ID", "1"))
+
+# RS485 USB (Modbus RTU)
+SERIAL_PORT = os.getenv("SERIAL_PORT", "/dev/ttyUSB0")
+BAUD_RATE = int(os.getenv("BAUD_RATE", "9600"))
+PARITY = os.getenv("PARITY", "N").upper()
+STOP_BITS = int(os.getenv("STOP_BITS", "1"))
+BYTE_SIZE = int(os.getenv("BYTE_SIZE", "8"))
+
+# Optional custom register map (2 registers per float32, index in read block)
+REG_VOLTAGE_IDX = int(os.getenv("REG_VOLTAGE_IDX", "0"))
+REG_CURRENT_IDX = int(os.getenv("REG_CURRENT_IDX", "6"))
+REG_POWER_IDX = int(os.getenv("REG_POWER_IDX", "12"))
+REG_ENERGY_TOTAL_IDX = int(os.getenv("REG_ENERGY_TOTAL_IDX", "72"))
 
 # Optional demo mode when meter is not connected yet.
 DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() in ("1", "true", "yes", "on")
@@ -40,6 +56,7 @@ logger = logging.getLogger(__name__)
 try:
     # pymodbus 2.x
     from pymodbus.client.sync import ModbusTcpClient
+    from pymodbus.client.sync import ModbusSerialClient
     from pymodbus.exceptions import ConnectionException
     MODBUS_AVAILABLE = True
     MODBUS_API = "2.x"
@@ -47,6 +64,7 @@ except ImportError:
     try:
         # pymodbus 3.x
         from pymodbus.client import ModbusTcpClient
+        from pymodbus.client import ModbusSerialClient
         from pymodbus.exceptions import ConnectionException
         MODBUS_AVAILABLE = True
         MODBUS_API = "3.x"
@@ -69,13 +87,27 @@ class EnergyMeterReader:
     def connect(self):
         """Połączenie z miernikiem"""
         try:
-            self.client = ModbusTcpClient(
-                host=METER_IP,
-                port=METER_PORT,
-                timeout=3
-            )
+            if MODBUS_MODE == "rtu":
+                self.client = ModbusSerialClient(
+                    method="rtu",
+                    port=SERIAL_PORT,
+                    baudrate=BAUD_RATE,
+                    parity=PARITY,
+                    stopbits=STOP_BITS,
+                    bytesize=BYTE_SIZE,
+                    timeout=3,
+                )
+            else:
+                self.client = ModbusTcpClient(
+                    host=METER_IP,
+                    port=METER_PORT,
+                    timeout=3,
+                )
             if self.client.connect():
-                logger.info(f"✓ Połączenie z miernikiem {METER_IP}:{METER_PORT}")
+                if MODBUS_MODE == "rtu":
+                    logger.info(f"✓ Połączenie z miernikiem RS485 {SERIAL_PORT} slave={METER_SLAVE_ID}")
+                else:
+                    logger.info(f"✓ Połączenie z miernikiem TCP {METER_IP}:{METER_PORT}")
                 self.connection_attempts = 0
                 return True
             else:
@@ -84,7 +116,10 @@ class EnergyMeterReader:
             self.connection_attempts += 1
             self.last_error = str(e)
             if self.connection_attempts >= 3:
-                logger.error(f"✗ Brak połączenia z miernikiem (próba {self.connection_attempts}): {e}")
+                if MODBUS_MODE == "rtu":
+                    logger.error(f"✗ Brak połączenia z miernikiem RS485 ({SERIAL_PORT}) próba {self.connection_attempts}: {e}")
+                else:
+                    logger.error(f"✗ Brak połączenia z miernikiem TCP (próba {self.connection_attempts}): {e}")
             return False
 
     def read_registers(self, start_addr, count):
@@ -159,11 +194,11 @@ class EnergyMeterReader:
                 energy_kwh_total = self.regs_to_float(regs, 58)
 
             else:
-                # Generic fallback
-                voltage_v = self.regs_to_float(regs, 0)
-                current_a = self.regs_to_float(regs, 2)
-                power_kw = self.regs_to_float(regs, 4) / 1000
-                energy_kwh_total = self.regs_to_float(regs, 50)
+                # Generic/Lumel fallback with env-configurable register indexes.
+                voltage_v = self.regs_to_float(regs, REG_VOLTAGE_IDX)
+                current_a = self.regs_to_float(regs, REG_CURRENT_IDX)
+                power_kw = self.regs_to_float(regs, REG_POWER_IDX) / 1000
+                energy_kwh_total = self.regs_to_float(regs, REG_ENERGY_TOTAL_IDX)
 
             return {
                 "voltageV": round(voltage_v, 1),
@@ -189,7 +224,7 @@ class EnergyMeterReader:
         """Wysłanie danych do Drimain API"""
         payload = {
             "maszynaId": MASZYNA_ID,
-            "deviceId": f"rpi-{METER_IP}",
+            "deviceId": self._device_id(),
             "recordedAt": datetime.utcnow().isoformat() + "Z",
             "voltageV": data.get("voltageV"),
             "currentA": data.get("currentA"),
@@ -233,7 +268,11 @@ class EnergyMeterReader:
         logger.info(f"🚀 Drimain Energy Reader")
         logger.info(f"   API: {DRIMAIN_API_URL}")
         logger.info(f"   Modbus API: {MODBUS_API}")
-        logger.info(f"   Miernik: {METER_TYPE} @ {METER_IP}:{METER_PORT}")
+        logger.info(f"   Modbus mode: {MODBUS_MODE}")
+        if MODBUS_MODE == "rtu":
+            logger.info(f"   Miernik: {METER_TYPE} @ {SERIAL_PORT} (baud={BAUD_RATE}, parity={PARITY}, stop={STOP_BITS}, bytes={BYTE_SIZE}, slave={METER_SLAVE_ID})")
+        else:
+            logger.info(f"   Miernik: {METER_TYPE} @ {METER_IP}:{METER_PORT} (slave={METER_SLAVE_ID})")
         logger.info(f"   Demo mode: {'ON' if DEMO_MODE else 'OFF'}")
         logger.info(f"   Maszyna ID: {MASZYNA_ID}")
         logger.info(f"   Interwał: {READ_INTERVAL}s")
@@ -241,6 +280,10 @@ class EnergyMeterReader:
 
         if not DRIMAIN_API_KEY:
             logger.error("✗ Brak ENERGY_INGEST_KEY (ustaw zmienna srodowiskowa)")
+            return
+
+        if MODBUS_MODE not in ("rtu", "tcp"):
+            logger.error("✗ Nieprawidlowy MODBUS_MODE. Uzyj: rtu lub tcp")
             return
 
         error_count = 0
@@ -269,6 +312,11 @@ class EnergyMeterReader:
                 logger.error(f"✗ Nieoczekiwany błąd: {e}")
                 error_count += 1
                 time.sleep(5)
+
+    def _device_id(self):
+        if MODBUS_MODE == "rtu":
+            return f"rpi-rs485-{SERIAL_PORT.split('/')[-1]}-s{METER_SLAVE_ID}"
+        return f"rpi-{METER_IP}-s{METER_SLAVE_ID}"
 
 
 if __name__ == "__main__":
