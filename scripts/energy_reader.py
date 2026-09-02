@@ -4,8 +4,8 @@ Drimain Energy Reader - Odczyt miernika energii Modbus TCP
 Wyślij dane do Drimain API
 """
 
+import os
 import requests
-import json
 import time
 import logging
 from datetime import datetime
@@ -13,9 +13,9 @@ from datetime import datetime
 # ===== KONFIGURACJA =====
 # Zmień te wartości na swoje!
 
-DRIMAIN_API_URL = "https://mergeddrimain-production.up.railway.app/api/energia/readings"
-DRIMAIN_API_KEY = "k7F2mQ9xL4vN8pR1sT6wY3zA5cD0eHjB"  # Zmień!
-MASZYNA_ID = 1  # ID maszyny z bazy
+DRIMAIN_API_URL = os.getenv("DRIMAIN_API_URL", "https://mergeddrimain-production.up.railway.app/api/energia/readings")
+DRIMAIN_API_KEY = os.getenv("ENERGY_INGEST_KEY", "")
+MASZYNA_ID = int(os.getenv("MASZYNA_ID", "1"))
 
 # Typ miernika
 METER_TYPE = "SDM630"  # "SDM630", "SDM120", "Eastron", "Victron" itp
@@ -24,7 +24,7 @@ METER_PORT = 502
 METER_SLAVE_ID = 1
 
 # Interwał odczytu (sekundy)
-READ_INTERVAL = 15
+READ_INTERVAL = int(os.getenv("READ_INTERVAL", "60"))
 
 # ===== KONIEC KONFIGURACJI =====
 
@@ -35,12 +35,22 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 try:
+    # pymodbus 2.x
     from pymodbus.client.sync import ModbusTcpClient
     from pymodbus.exceptions import ConnectionException
     MODBUS_AVAILABLE = True
+    MODBUS_API = "2.x"
 except ImportError:
-    logger.warning("pymodbus nie zainstalowany - zainstaluj: pip install pymodbus")
-    MODBUS_AVAILABLE = False
+    try:
+        # pymodbus 3.x
+        from pymodbus.client import ModbusTcpClient
+        from pymodbus.exceptions import ConnectionException
+        MODBUS_AVAILABLE = True
+        MODBUS_API = "3.x"
+    except ImportError:
+        logger.warning("pymodbus nie zainstalowany - zainstaluj: pip install pymodbus")
+        MODBUS_AVAILABLE = False
+        MODBUS_API = "none"
 
 
 class EnergyMeterReader:
@@ -80,11 +90,20 @@ class EnergyMeterReader:
             return None
 
         try:
-            result = self.client.read_holding_registers(
-                address=start_addr,
-                count=count,
-                unit=METER_SLAVE_ID
-            )
+            # pymodbus 2.x uses unit=..., 3.x uses slave=...
+            kwargs = {
+                "address": start_addr,
+                "count": count,
+                "unit": METER_SLAVE_ID,
+            }
+            if MODBUS_API == "3.x":
+                kwargs = {
+                    "address": start_addr,
+                    "count": count,
+                    "slave": METER_SLAVE_ID,
+                }
+
+            result = self.client.read_holding_registers(**kwargs)
             if not result.isError():
                 return result.registers
         except ConnectionException:
@@ -206,10 +225,15 @@ class EnergyMeterReader:
         logger.info("=" * 60)
         logger.info(f"🚀 Drimain Energy Reader")
         logger.info(f"   API: {DRIMAIN_API_URL}")
+        logger.info(f"   Modbus API: {MODBUS_API}")
         logger.info(f"   Miernik: {METER_TYPE} @ {METER_IP}:{METER_PORT}")
         logger.info(f"   Maszyna ID: {MASZYNA_ID}")
         logger.info(f"   Interwał: {READ_INTERVAL}s")
         logger.info("=" * 60)
+
+        if not DRIMAIN_API_KEY:
+            logger.error("✗ Brak ENERGY_INGEST_KEY (ustaw zmienna srodowiskowa)")
+            return
 
         error_count = 0
         success_count = 0

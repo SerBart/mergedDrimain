@@ -28,6 +28,8 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
   EnergyOverview? _overview;
   List<EnergyHistoryPoint> _history = const [];
   StreamSubscription<EnergyOverview>? _sseSubscription;
+  Timer? _sseReconnectTimer;
+  int _sseRetrySeconds = 2;
 
   @override
   void initState() {
@@ -38,10 +40,12 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
   @override
   void dispose() {
     _sseSubscription?.cancel();
+    _sseReconnectTimer?.cancel();
     super.dispose();
   }
 
   void _startSseStream() {
+    _sseReconnectTimer?.cancel();
     _sseSubscription?.cancel();
     final repo = ref.read(energiaApiRepositoryProvider);
     _sseSubscription = repo
@@ -53,14 +57,25 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
         .listen(
           (overview) {
             if (!mounted) return;
+            _sseRetrySeconds = 2;
             setState(() => _overview = overview);
           },
           onError: (e) {
             if (!mounted) return;
-            // Fallback na polling jeśli SSE się przerywa
-            Future.delayed(const Duration(seconds: 5), _reloadCurrentView);
+            _scheduleSseReconnect();
           },
         );
+  }
+
+  void _scheduleSseReconnect() {
+    _sseReconnectTimer?.cancel();
+    _sseSubscription?.cancel();
+    final delay = Duration(seconds: _sseRetrySeconds);
+    _sseReconnectTimer = Timer(delay, () {
+      if (!mounted) return;
+      _startSseStream();
+    });
+    _sseRetrySeconds = ((_sseRetrySeconds * 2).clamp(2, 30) as num).toInt();
   }
 
   Future<void> _reloadAll() async {
@@ -375,7 +390,12 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
   }
 
   double get _historyEnergySum {
-    return _history.fold<double>(0, (sum, point) => sum + (point.energyKwhTotal ?? 0));
+    final sorted = [..._history]..sort((a, b) => a.recordedAt.compareTo(b.recordedAt));
+    final totals = sorted.map((point) => point.energyKwhTotal).whereType<double>().toList();
+    if (totals.length < 2) return 0;
+    final first = totals.first;
+    final last = totals.last;
+    return (last - first).clamp(0, double.infinity);
   }
 
   @override
