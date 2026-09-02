@@ -47,6 +47,9 @@ Zmien sekcje konfiguracji:
 
 ## 3) Przygotowanie Raspberry Pi
 
+Pelna instrukcja autostartu uslugi po restarcie RPi:
+- `docs/RPI_AUTOSTART.md`
+
 ### 3.1 Instalacja zaleznosci
 
 Uwaga: `scripts/energy_sender_requirements.txt` zawiera tylko `requests`; do Modbus potrzebujesz tez `pymodbus`.

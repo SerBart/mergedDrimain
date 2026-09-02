@@ -30,10 +30,13 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
   StreamSubscription<EnergyOverview>? _sseSubscription;
   Timer? _sseReconnectTimer;
   int _sseRetrySeconds = 2;
+  Timer? _autoRefreshTimer;
+  Timer? _historyRefreshDebounce;
 
   @override
   void initState() {
     super.initState();
+    _startAutoRefresh();
     WidgetsBinding.instance.addPostFrameCallback((_) => _reloadAll());
   }
 
@@ -41,7 +44,19 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
   void dispose() {
     _sseSubscription?.cancel();
     _sseReconnectTimer?.cancel();
+    _autoRefreshTimer?.cancel();
+    _historyRefreshDebounce?.cancel();
     super.dispose();
+  }
+
+  void _startAutoRefresh() {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = Timer.periodic(
+      const Duration(seconds: 60),
+      (_) {
+        _refreshLiveDataSilently();
+      },
+    );
   }
 
   void _startSseStream() {
@@ -58,7 +73,13 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
           (overview) {
             if (!mounted) return;
             _sseRetrySeconds = 2;
-            setState(() => _overview = overview);
+            setState(() {
+              _overview = overview;
+              if (_scope == EnergyScope.total) {
+                _catalogOverview = overview;
+              }
+            });
+            _scheduleHistoryRefresh();
           },
           onError: (e) {
             if (!mounted) return;
@@ -76,6 +97,70 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
       _startSseStream();
     });
     _sseRetrySeconds = ((_sseRetrySeconds * 2).clamp(2, 30) as num).toInt();
+  }
+
+  void _scheduleHistoryRefresh() {
+    _historyRefreshDebounce?.cancel();
+    _historyRefreshDebounce = Timer(
+      const Duration(seconds: 2),
+      () {
+        _reloadHistorySilently();
+      },
+    );
+  }
+
+  Future<void> _refreshLiveDataSilently() async {
+    if (!mounted || _catalogOverview == null) return;
+    if ((_scope == EnergyScope.dzial && _selectedDzialId == null) ||
+        (_scope == EnergyScope.maszyna && _selectedMaszynaId == null)) {
+      return;
+    }
+
+    try {
+      final repo = ref.read(energiaApiRepositoryProvider);
+      final overview = await repo.fetchOverview(
+        scope: _scope,
+        days: _selectedDays,
+        dzialId: _scope == EnergyScope.dzial ? _selectedDzialId : null,
+        maszynaId: _scope == EnergyScope.maszyna ? _selectedMaszynaId : null,
+      );
+      if (!mounted) return;
+      setState(() {
+        _overview = overview;
+        if (_scope == EnergyScope.total) {
+          _catalogOverview = overview;
+        }
+        _error = null;
+      });
+      await _reloadHistorySilently();
+    } catch (_) {
+      // Silent refresh should not break an already visible screen.
+    }
+  }
+
+  Future<void> _reloadHistorySilently() async {
+    final overview = _overview;
+    if (!mounted || overview == null) return;
+    if (_scope == EnergyScope.dzial && _selectedDzialId == null) return;
+    if (_scope == EnergyScope.maszyna && _selectedMaszynaId == null) return;
+
+    try {
+      final repo = ref.read(energiaApiRepositoryProvider);
+      final points = await repo.fetchHistory(
+        scope: _scope,
+        days: _selectedDays,
+        bucketMinutes: 15,
+        dzialId: _scope == EnergyScope.dzial ? _selectedDzialId : null,
+        maszynaId: _scope == EnergyScope.maszyna ? _selectedMaszynaId : null,
+      );
+      if (!mounted) return;
+      setState(() {
+        _history = points;
+        _error = null;
+      });
+    } catch (_) {
+      // Silent refresh should not replace visible data with an error.
+    }
   }
 
   Future<void> _reloadAll() async {

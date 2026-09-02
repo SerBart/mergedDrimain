@@ -1,0 +1,25 @@
+[Unit]
+Description=Drimain Energy Reader (Modbus -> Railway API)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/mergedDrimain
+EnvironmentFile=/etc/drimain-energy-reader.env
+ExecStart=/home/pi/mergedDrimain/.venv/bin/python /home/pi/mergedDrimain/scripts/energy_reader.py
+Restart=always
+RestartSec=5
+
+# Hardening (safe defaults for a Python worker)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+ReadWritePaths=/home/pi/mergedDrimain
+
+[Install]
+WantedBy=multi-user.target
+

@@ -18,10 +18,13 @@ DRIMAIN_API_KEY = os.getenv("ENERGY_INGEST_KEY", "")
 MASZYNA_ID = int(os.getenv("MASZYNA_ID", "1"))
 
 # Typ miernika
-METER_TYPE = "SDM630"  # "SDM630", "SDM120", "Eastron", "Victron" itp
-METER_IP = "192.168.1.50"
-METER_PORT = 502
-METER_SLAVE_ID = 1
+METER_TYPE = os.getenv("METER_TYPE", "SDM630")  # SDM630, SDM120, Eastron, Victron
+METER_IP = os.getenv("METER_IP", "192.168.1.50")
+METER_PORT = int(os.getenv("METER_PORT", "502"))
+METER_SLAVE_ID = int(os.getenv("METER_SLAVE_ID", "1"))
+
+# Optional demo mode when meter is not connected yet.
+DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() in ("1", "true", "yes", "on")
 
 # Interwał odczytu (sekundy)
 READ_INTERVAL = int(os.getenv("READ_INTERVAL", "60"))
@@ -126,6 +129,10 @@ class EnergyMeterReader:
 
     def read_energy_data(self):
         """Odczyt danych energii dla różnych typów mierników"""
+        if DEMO_MODE:
+            logger.info("[DEMO_MODE] Wysylam dane testowe")
+            return self._dummy_data()
+
         if not MODBUS_AVAILABLE:
             logger.warning("⚠ Modbus niedostępny - zwracam dane testowe")
             return self._dummy_data()
@@ -227,6 +234,7 @@ class EnergyMeterReader:
         logger.info(f"   API: {DRIMAIN_API_URL}")
         logger.info(f"   Modbus API: {MODBUS_API}")
         logger.info(f"   Miernik: {METER_TYPE} @ {METER_IP}:{METER_PORT}")
+        logger.info(f"   Demo mode: {'ON' if DEMO_MODE else 'OFF'}")
         logger.info(f"   Maszyna ID: {MASZYNA_ID}")
         logger.info(f"   Interwał: {READ_INTERVAL}s")
         logger.info("=" * 60)

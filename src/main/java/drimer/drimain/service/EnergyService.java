@@ -1,5 +1,6 @@
 package drimer.drimain.service;
 
+import drimer.drimain.config.SseProperties;
 import drimer.drimain.api.dto.EnergyHistoryPointDTO;
 import drimer.drimain.api.dto.EnergyMachineSummaryDTO;
 import drimer.drimain.api.dto.EnergyOverviewDTO;
@@ -10,6 +11,7 @@ import drimer.drimain.repository.EnergyReadingRepository;
 import drimer.drimain.repository.MaszynaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -31,6 +33,7 @@ public class EnergyService {
 
     private final EnergyReadingRepository energyReadingRepository;
     private final MaszynaRepository maszynaRepository;
+    private final SseProperties sseProperties;
     private final Map<String, SseEmitter> energySubscriptions = new ConcurrentHashMap<>();
 
     @Transactional
@@ -270,7 +273,10 @@ public class EnergyService {
 
     public SseEmitter subscribeToUpdates(String scope, Long dzialId, Long maszynaId) {
         EnergyScopeType scopeType = EnergyScopeType.from(scope);
-        SseEmitter emitter = new SseEmitter(300_000L); // 5 min timeout
+        if (energySubscriptions.size() >= sseProperties.getMaxClients()) {
+            throw new IllegalStateException("Maximum number of SSE clients reached");
+        }
+        SseEmitter emitter = new SseEmitter(sseProperties.getClientTimeoutSeconds() * 1000L);
         
         String subscriptionId = UUID.randomUUID().toString();
         String subscriptionKey = buildSubscriptionKey(subscriptionId, scopeType, dzialId, maszynaId);
@@ -303,6 +309,29 @@ public class EnergyService {
         
         log.debug("SSE subscription {} created. Active subscriptions: {}", subscriptionKey, energySubscriptions.size());
         return emitter;
+    }
+
+    @Scheduled(fixedDelayString = "#{sseProperties.heartbeatIntervalSeconds * 1000}")
+    public void sendHeartbeat() {
+        if (energySubscriptions.isEmpty()) {
+            return;
+        }
+
+        List<String> failedSubscriptions = new ArrayList<>();
+
+        energySubscriptions.entrySet().parallelStream().forEach(entry -> {
+            try {
+                entry.getValue().send(SseEmitter.event()
+                        .name("HEARTBEAT")
+                        .data("ping"));
+            } catch (IOException e) {
+                synchronized (failedSubscriptions) {
+                    failedSubscriptions.add(entry.getKey());
+                }
+            }
+        });
+
+        failedSubscriptions.forEach(energySubscriptions::remove);
     }
 
     private void broadcastUpdate(EnergyReading reading) {
