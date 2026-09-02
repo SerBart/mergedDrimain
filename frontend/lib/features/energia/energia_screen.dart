@@ -24,6 +24,8 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
   EnergyScope _scope = EnergyScope.total;
   int? _selectedDzialId;
   int? _selectedMaszynaId;
+  int? _machineFilterDzialId;
+  String _machineSearchQuery = '';
   EnergyOverview? _catalogOverview;
   EnergyOverview? _overview;
   List<EnergyHistoryPoint> _history = const [];
@@ -32,6 +34,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
   int _sseRetrySeconds = 2;
   Timer? _autoRefreshTimer;
   Timer? _historyAutoRefreshTimer;
+  final TextEditingController _machineSearchController = TextEditingController();
 
   @override
   void initState() {
@@ -47,6 +50,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
     _sseReconnectTimer?.cancel();
     _autoRefreshTimer?.cancel();
     _historyAutoRefreshTimer?.cancel();
+    _machineSearchController.dispose();
     super.dispose();
   }
 
@@ -403,6 +407,54 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
     await _reloadCurrentView();
   }
 
+  void _filterMachinesByDepartment(int? dzialId) {
+    setState(() {
+      _machineFilterDzialId = dzialId;
+      _dropSelectedMachineIfFilteredOut();
+    });
+  }
+
+  void _filterMachinesByQuery(String query) {
+    setState(() {
+      _machineSearchQuery = query.trim();
+      _dropSelectedMachineIfFilteredOut();
+    });
+  }
+
+  void _dropSelectedMachineIfFilteredOut() {
+    final selectedId = _selectedMaszynaId;
+    if (selectedId == null) {
+      return;
+    }
+    final stillVisible = _availableMachines.any((machine) => machine.maszynaId == selectedId);
+    if (stillVisible) {
+      return;
+    }
+
+    _selectedMaszynaId = null;
+    if (_scope == EnergyScope.maszyna) {
+      _overview = EnergyOverview(
+        scopeType: _scope.apiValue,
+        scopeLabel: _scope.label,
+        zakresDni: _selectedDays,
+        bucketMinutes: 5,
+        generatedAt: DateTime.now(),
+        totalPowerKw: 0,
+        todayEnergyKwh: 0,
+        peakPower1hKw: 0,
+        peakPower8hKw: 0,
+        peakPower24hKw: 0,
+        peakPower3dKw: 0,
+        peakPower7dKw: 0,
+        peakPower30dKw: 0,
+        activeMachines: 0,
+        totalMachines: 0,
+        machines: const [],
+      );
+      _history = const [];
+    }
+  }
+
   List<_DepartmentOption> get _availableDepartments {
     final catalog = _catalogOverview;
     if (catalog == null) return const [];
@@ -421,7 +473,25 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
     return map.values.toList();
   }
 
-  List<EnergyMachineSummary> get _availableMachines => _catalogOverview?.machines ?? const [];
+  List<EnergyMachineSummary> get _availableMachines {
+    final catalog = _catalogOverview;
+    if (catalog == null) return const [];
+
+    final query = _machineSearchQuery.trim().toLowerCase();
+    final machines = catalog.machines.where((machine) {
+      if (_machineFilterDzialId != null && machine.dzialId != _machineFilterDzialId) {
+        return false;
+      }
+      if (query.isEmpty) {
+        return true;
+      }
+      final name = machine.maszynaNazwa.trim().toLowerCase();
+      return name.startsWith(query) || name.contains(query);
+    }).toList();
+
+    machines.sort((a, b) => a.maszynaNazwa.toLowerCase().compareTo(b.maszynaNazwa.toLowerCase()));
+    return machines;
+  }
 
   EnergyMachineSummary? get _selectedMachine {
     final overview = _overview;
@@ -591,11 +661,54 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
                       const SizedBox(height: 12),
                     ],
                     if (_scope == EnergyScope.maszyna) ...[
+                      DropdownButtonFormField<int?>(
+                        value: _machineFilterDzialId,
+                        decoration: const InputDecoration(
+                          labelText: 'Filtruj po dziale',
+                          border: OutlineInputBorder(),
+                        ),
+                        isExpanded: true,
+                        items: [
+                          const DropdownMenuItem<int?>(
+                            value: null,
+                            child: Text('Wszystkie działy'),
+                          ),
+                          ..._availableDepartments.map(
+                            (d) => DropdownMenuItem<int?>(value: d.id, child: Text(d.name)),
+                          ),
+                        ],
+                        onChanged: _filterMachinesByDepartment,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _machineSearchController,
+                        decoration: InputDecoration(
+                          labelText: 'Szukaj maszyny',
+                          hintText: 'Wpisz nazwę lub pierwsze litery',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: _machineSearchQuery.isEmpty
+                              ? null
+                              : IconButton(
+                                  tooltip: 'Wyczyść',
+                                  onPressed: () {
+                                    _machineSearchController.clear();
+                                    _filterMachinesByQuery('');
+                                  },
+                                  icon: const Icon(Icons.close),
+                                ),
+                          border: const OutlineInputBorder(),
+                        ),
+                        onChanged: _filterMachinesByQuery,
+                      ),
+                      const SizedBox(height: 12),
                       DropdownButtonFormField<int>(
                         value: _selectedMaszynaId,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Wybierz maszynę',
-                          border: OutlineInputBorder(),
+                          helperText: _availableMachines.isEmpty
+                              ? 'Brak maszyn dla wybranego działu lub frazy.'
+                              : 'Znaleziono ${_availableMachines.length} maszyn.',
+                          border: const OutlineInputBorder(),
                         ),
                         isExpanded: true,
                         items: _availableMachines

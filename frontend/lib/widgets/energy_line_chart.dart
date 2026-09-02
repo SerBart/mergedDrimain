@@ -123,16 +123,27 @@ class _EnergyChartPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (points.isEmpty) return;
 
-    const left = 14.0;
+    const left = 52.0;
+    const right = 12.0;
     const top = 18.0;
-    const bottom = 24.0;
-    final drawWidth = math.max(1.0, size.width - left * 2);
+    const bottom = 42.0;
+    final drawWidth = math.max(1.0, size.width - left - right);
     final drawHeight = math.max(1.0, size.height - top - bottom);
     final values = points.map((p) => p.powerKw).toList();
     final maxValue = values.reduce(math.max);
     final minValue = values.reduce(math.min);
     final range = math.max(0.1, maxValue - minValue);
     final stepX = points.length == 1 ? 0.0 : drawWidth / (points.length - 1);
+    final labelStyle = TextStyle(
+      color: Colors.black.withOpacity(.58),
+      fontSize: 11,
+      fontWeight: FontWeight.w500,
+    );
+    final axisStyle = TextStyle(
+      color: Colors.black.withOpacity(.72),
+      fontSize: 11,
+      fontWeight: FontWeight.w600,
+    );
 
     final gridPaint = Paint()
       ..color = Colors.black.withOpacity(.06)
@@ -140,8 +151,23 @@ class _EnergyChartPainter extends CustomPainter {
 
     for (var i = 0; i < 3; i++) {
       final y = top + (drawHeight * i / 2);
-      canvas.drawLine(Offset(left, y), Offset(size.width - left, y), gridPaint);
+      canvas.drawLine(Offset(left, y), Offset(size.width - right, y), gridPaint);
+
+      final value = maxValue - ((maxValue - minValue) * i / 2);
+      _paintText(
+        canvas,
+        text: '${value.toStringAsFixed(1)} kW',
+        offset: Offset(4, y - 8),
+        style: labelStyle,
+      );
     }
+
+    _paintText(
+      canvas,
+      text: 'Pobór [kW]',
+      offset: const Offset(6, 8),
+      style: axisStyle,
+    );
 
     final linePaint = Paint()
       ..color = accentColor
@@ -197,6 +223,50 @@ class _EnergyChartPainter extends CustomPainter {
       canvas.drawCircle(Offset(x, y), 4.0, dotPaint);
       canvas.drawCircle(Offset(x, y), 1.8, Paint()..color = Colors.white);
     }
+
+    final tickIndices = <int>{
+      0,
+      if (points.length > 2) (points.length / 3).floor(),
+      if (points.length > 3) ((points.length * 2) / 3).floor(),
+      points.length - 1,
+    }.toList()
+      ..sort();
+
+    for (final index in tickIndices) {
+      final x = left + stepX * index;
+      canvas.drawLine(
+        Offset(x, top + drawHeight),
+        Offset(x, top + drawHeight + 4),
+        gridPaint,
+      );
+      _paintText(
+        canvas,
+        text: DateFormat('HH:mm').format(points[index].recordedAt),
+        offset: Offset(x - 16, top + drawHeight + 8),
+        style: labelStyle,
+      );
+    }
+
+    _paintText(
+      canvas,
+      text: 'Czas',
+      offset: Offset((left + drawWidth / 2) - 14, size.height - 16),
+      style: axisStyle,
+    );
+  }
+
+  void _paintText(
+    Canvas canvas, {
+    required String text,
+    required Offset offset,
+    required TextStyle style,
+  }) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+    painter.paint(canvas, offset);
   }
 
   @override
