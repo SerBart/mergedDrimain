@@ -95,11 +95,11 @@ class _EnergyLineChartState extends State<EnergyLineChart> {
                           child: const SizedBox.expand(),
                         ),
                         if (hoveredPoint != null && hoveredOffset != null)
-                          IgnorePointer(
-                            child: _ChartTooltip(
-                              point: hoveredPoint,
-                              pointOffset: hoveredOffset,
-                              chartWidth: constraints.maxWidth,
+                          Positioned(
+                            left: _tooltipLeft(hoveredOffset.dx, constraints.maxWidth),
+                            top: _tooltipTop(hoveredOffset.dy),
+                            child: IgnorePointer(
+                              child: _ChartTooltip(point: hoveredPoint),
                             ),
                           ),
                       ],
@@ -120,6 +120,15 @@ class _EnergyLineChartState extends State<EnergyLineChart> {
       return;
     }
     setState(() => _hoveredIndex = nextIndex);
+  }
+
+  double _tooltipLeft(double pointDx, double chartWidth) {
+    const tooltipWidth = _ChartTooltip.tooltipWidth;
+    return (pointDx - (tooltipWidth / 2)).clamp(8.0, chartWidth - tooltipWidth - 8.0);
+  }
+
+  double _tooltipTop(double pointDy) {
+    return math.max(8.0, pointDy - 64);
   }
 }
 
@@ -167,59 +176,49 @@ class _Meta extends StatelessWidget {
 }
 
 class _ChartTooltip extends StatelessWidget {
+  static const double tooltipWidth = 148.0;
+
   final EnergyHistoryPoint point;
-  final Offset pointOffset;
-  final double chartWidth;
 
   const _ChartTooltip({
     required this.point,
-    required this.pointOffset,
-    required this.chartWidth,
   });
 
   @override
   Widget build(BuildContext context) {
-    const tooltipWidth = 148.0;
-    final left = (pointOffset.dx - (tooltipWidth / 2)).clamp(8.0, chartWidth - tooltipWidth - 8.0);
-    final top = math.max(8.0, pointOffset.dy - 64);
-
-    return Positioned(
-      left: left,
-      top: top,
-      child: Material(
-        elevation: 6,
-        borderRadius: BorderRadius.circular(12),
-        color: Colors.transparent,
-        child: Container(
-          width: tooltipWidth,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.black.withOpacity(.06)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(.08),
-                blurRadius: 16,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                DateFormat('yyyy-MM-dd HH:mm').format(point.recordedAt.toLocal()),
-                style: const TextStyle(fontSize: 11, color: Colors.black54),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Moc: ${point.powerKw.toStringAsFixed(2)} kW',
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-              ),
-            ],
-          ),
+    return Material(
+      elevation: 6,
+      borderRadius: BorderRadius.circular(12),
+      color: Colors.transparent,
+      child: Container(
+        width: tooltipWidth,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.black.withOpacity(.06)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(.08),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              DateFormat('yyyy-MM-dd HH:mm').format(point.recordedAt.toLocal()),
+              style: const TextStyle(fontSize: 11, color: Colors.black54),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Moc: ${point.powerKw.toStringAsFixed(2)} kW',
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            ),
+          ],
         ),
       ),
     );
