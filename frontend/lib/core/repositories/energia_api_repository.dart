@@ -61,14 +61,13 @@ class EnergiaApiRepository {
         options: Options(
           headers: {'Authorization': 'Bearer $token'},
           responseType: ResponseType.stream,
-          connectTimeout: const Duration(seconds: 30),
           receiveTimeout: const Duration(minutes: 10),
           sendTimeout: const Duration(seconds: 30),
         ),
       );
 
-      final stream = resp.data!.stream.transform<String>(
-        const Utf8Decoder().fuse(const LineSplitter()),
+      final stream = const LineSplitter().bind(
+        utf8.decoder.bind(resp.data!.stream),
       );
 
       await for (final line in stream) {
