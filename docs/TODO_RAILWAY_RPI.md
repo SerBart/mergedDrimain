@@ -2,6 +2,12 @@
 
 Ten plik to praktyczna checklista od zera do dzialajacego wysylania danych energii z RPi do backendu na Railway.
 
+## Model danych (docelowo)
+
+- Aktualne dane w UI: realtime przez SSE
+- Historia i wykres: snapshoty zapisywane do bazy co 15 minut
+- RPi moze wysylac czesciej (np. co 30-60 s), ale backend nie musi zapisywac kazdego pomiaru do DB
+
 ## 0) Co juz masz
 
 - `APP_JWT_SECRET` na Railway: ustawione (ok).

@@ -35,26 +35,52 @@ public class EnergyService {
     private final MaszynaRepository maszynaRepository;
     private final SseProperties sseProperties;
     private final Map<String, SseEmitter> energySubscriptions = new ConcurrentHashMap<>();
+    private final Map<Long, LiveEnergyReading> latestLiveReadings = new ConcurrentHashMap<>();
 
     @Transactional
     public EnergyReading ingest(EnergyReadingIngestRequest req) {
         Maszyna maszyna = maszynaRepository.findById(req.getMaszynaId())
                 .orElseThrow(() -> new IllegalArgumentException("Maszyna not found"));
 
-        EnergyReading reading = new EnergyReading();
-        reading.setMaszyna(maszyna);
-        reading.setDeviceId(req.getDeviceId().trim());
-        reading.setRecordedAt(req.getRecordedAt().withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime());
-        reading.setPowerKw(req.getPowerKw());
-        reading.setEnergyKwhTotal(req.getEnergyKwhTotal());
-        reading.setVoltageV(req.getVoltageV());
-        reading.setCurrentA(req.getCurrentA());
-        EnergyReading saved = energyReadingRepository.save(reading);
+        LiveEnergyReading liveReading = LiveEnergyReading.from(maszyna, req);
+        latestLiveReadings.put(maszyna.getId(), liveReading);
+        EnergyReading transientReading = toEnergyReading(liveReading);
         
         // Broadcast nowy odczyt do wszystkich nasłuchujących
-        broadcastUpdate(saved);
+        broadcastUpdate(transientReading);
         
-        return saved;
+        return transientReading;
+    }
+
+    @Scheduled(cron = "0 */15 * * * *")
+    @Transactional
+    public void persistLiveSnapshots() {
+        if (latestLiveReadings.isEmpty()) {
+            return;
+        }
+
+        List<EnergyReading> snapshots = new ArrayList<>();
+        for (LiveEnergyReading liveReading : latestLiveReadings.values()) {
+            if (liveReading == null || liveReading.maszyna() == null || liveReading.maszyna().getId() == null || liveReading.recordedAt() == null) {
+                continue;
+            }
+
+            LocalDateTime latestPersistedAt = energyReadingRepository
+                    .findTopByMaszyna_IdOrderByRecordedAtDesc(liveReading.maszyna().getId())
+                    .map(EnergyReading::getRecordedAt)
+                    .orElse(null);
+
+            if (latestPersistedAt != null && !liveReading.recordedAt().isAfter(latestPersistedAt)) {
+                continue;
+            }
+
+            snapshots.add(toEnergyReading(liveReading));
+        }
+
+        if (!snapshots.isEmpty()) {
+            energyReadingRepository.saveAll(snapshots);
+            log.info("Persisted {} energy snapshot(s) from live cache", snapshots.size());
+        }
     }
 
     @Transactional(readOnly = true)
@@ -102,16 +128,17 @@ public class EnergyService {
 
         for (Maszyna maszyna : machinesInScope) {
             List<EnergyReading> machineReadings = grouped.getOrDefault(maszyna.getId(), List.of());
-            EnergyReading latest = machineReadings.stream()
+            List<EnergyReading> effectiveReadings = mergeWithLiveReading(machineReadings, latestLiveReadings.get(maszyna.getId()));
+            EnergyReading latest = effectiveReadings.stream()
                     .filter(r -> r.getRecordedAt() != null)
                     .max(Comparator.comparing(EnergyReading::getRecordedAt))
                     .orElse(null);
-            List<EnergyReading> todayReadings = machineReadings.stream()
+            List<EnergyReading> todayReadings = effectiveReadings.stream()
                     .filter(r -> r.getRecordedAt() != null && !r.getRecordedAt().isBefore(start))
                     .toList();
             BigDecimal deltaToday = EnergyAggregationUtils.calculateEnergyDelta(todayReadings);
 
-            EnergyMachineSummaryDTO dto = buildMachineSummary(maszyna, latest, machineReadings, deltaToday);
+            EnergyMachineSummaryDTO dto = buildMachineSummary(maszyna, latest, effectiveReadings, deltaToday);
             machines.add(dto);
 
             totalPowerKw = totalPowerKw.add(dto.getPowerKw() != null ? dto.getPowerKw() : BigDecimal.ZERO);
@@ -440,5 +467,60 @@ public class EnergyService {
 
     public int getActiveSubscriptionCount() {
         return energySubscriptions.size();
+    }
+
+    private List<EnergyReading> mergeWithLiveReading(List<EnergyReading> persistedReadings, LiveEnergyReading liveReading) {
+        if (liveReading == null) {
+            return persistedReadings == null ? List.of() : persistedReadings;
+        }
+
+        List<EnergyReading> merged = new ArrayList<>(persistedReadings == null ? List.of() : persistedReadings);
+        LocalDateTime latestPersistedAt = merged.stream()
+                .map(EnergyReading::getRecordedAt)
+                .filter(Objects::nonNull)
+                .max(LocalDateTime::compareTo)
+                .orElse(null);
+
+        if (latestPersistedAt == null || liveReading.recordedAt().isAfter(latestPersistedAt)) {
+            merged.add(toEnergyReading(liveReading));
+        }
+
+        merged.sort(Comparator.comparing(EnergyReading::getRecordedAt, Comparator.nullsLast(LocalDateTime::compareTo)));
+        return merged;
+    }
+
+    private EnergyReading toEnergyReading(LiveEnergyReading liveReading) {
+        EnergyReading reading = new EnergyReading();
+        reading.setMaszyna(liveReading.maszyna());
+        reading.setDeviceId(liveReading.deviceId());
+        reading.setRecordedAt(liveReading.recordedAt());
+        reading.setPowerKw(liveReading.powerKw());
+        reading.setEnergyKwhTotal(liveReading.energyKwhTotal());
+        reading.setVoltageV(liveReading.voltageV());
+        reading.setCurrentA(liveReading.currentA());
+        reading.setCreatedAt(LocalDateTime.now());
+        return reading;
+    }
+
+    private record LiveEnergyReading(
+            Maszyna maszyna,
+            String deviceId,
+            LocalDateTime recordedAt,
+            BigDecimal powerKw,
+            BigDecimal energyKwhTotal,
+            BigDecimal voltageV,
+            BigDecimal currentA
+    ) {
+        private static LiveEnergyReading from(Maszyna maszyna, EnergyReadingIngestRequest req) {
+            return new LiveEnergyReading(
+                    maszyna,
+                    req.getDeviceId().trim(),
+                    req.getRecordedAt().withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime(),
+                    req.getPowerKw(),
+                    req.getEnergyKwhTotal(),
+                    req.getVoltageV(),
+                    req.getCurrentA()
+            );
+        }
     }
 }

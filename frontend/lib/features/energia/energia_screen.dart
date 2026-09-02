@@ -31,12 +31,13 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
   Timer? _sseReconnectTimer;
   int _sseRetrySeconds = 2;
   Timer? _autoRefreshTimer;
-  Timer? _historyRefreshDebounce;
+  Timer? _historyAutoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     _startAutoRefresh();
+    _startHistoryAutoRefresh();
     WidgetsBinding.instance.addPostFrameCallback((_) => _reloadAll());
   }
 
@@ -45,16 +46,26 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
     _sseSubscription?.cancel();
     _sseReconnectTimer?.cancel();
     _autoRefreshTimer?.cancel();
-    _historyRefreshDebounce?.cancel();
+    _historyAutoRefreshTimer?.cancel();
     super.dispose();
   }
 
   void _startAutoRefresh() {
     _autoRefreshTimer?.cancel();
     _autoRefreshTimer = Timer.periodic(
-      const Duration(seconds: 60),
+      const Duration(minutes: 5),
       (_) {
         _refreshLiveDataSilently();
+      },
+    );
+  }
+
+  void _startHistoryAutoRefresh() {
+    _historyAutoRefreshTimer?.cancel();
+    _historyAutoRefreshTimer = Timer.periodic(
+      const Duration(minutes: 5),
+      (_) {
+        _reloadHistorySilently();
       },
     );
   }
@@ -79,7 +90,6 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
                 _catalogOverview = overview;
               }
             });
-            _scheduleHistoryRefresh();
           },
           onError: (e) {
             if (!mounted) return;
@@ -97,16 +107,6 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
       _startSseStream();
     });
     _sseRetrySeconds = ((_sseRetrySeconds * 2).clamp(2, 30) as num).toInt();
-  }
-
-  void _scheduleHistoryRefresh() {
-    _historyRefreshDebounce?.cancel();
-    _historyRefreshDebounce = Timer(
-      const Duration(seconds: 2),
-      () {
-        _reloadHistorySilently();
-      },
-    );
   }
 
   Future<void> _refreshLiveDataSilently() async {
@@ -132,7 +132,6 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
         }
         _error = null;
       });
-      await _reloadHistorySilently();
     } catch (_) {
       // Silent refresh should not break an already visible screen.
     }
@@ -162,6 +161,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
       // Silent refresh should not replace visible data with an error.
     }
   }
+
 
   Future<void> _reloadAll() async {
     if (!mounted) return;
@@ -624,6 +624,11 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
                         'Aktualizacja: ${DateFormat('yyyy-MM-dd HH:mm').format(overview!.generatedAt!.toLocal())}',
                         style: const TextStyle(fontSize: 12, color: Colors.black54),
                       ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Moc chwilowa i lista maszyn odświeżają się live. Historia zapisuje snapshoty co 15 minut.',
+                        style: TextStyle(fontSize: 12, color: Colors.black54),
+                      ),
                     ],
                   ],
                 ),
@@ -719,7 +724,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Ostatnie pomiary',
+                        'Ostatnie snapshoty 15-minutowe',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 8),
