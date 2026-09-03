@@ -14,7 +14,7 @@ import 'core/providers/app_providers.dart';
 import 'widgets/quick_module_overlay.dart';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
+
 
   // Obsługa unhandled exceptions w UI thread
   FlutterError.onError = (FlutterErrorDetails details) {

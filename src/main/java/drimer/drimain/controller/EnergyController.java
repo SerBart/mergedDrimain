@@ -12,13 +12,18 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.format.annotation.DateTimeFormat;
 
+import java.time.LocalDateTime;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.List;
 
 @RestController
@@ -88,6 +93,21 @@ public class EnergyController {
         return energyService.history(EnergyScopeType.MASZYNA, null, maszynaId, days, bucketMinutes);
     }
 
+    @DeleteMapping("/admin/machines/{maszynaId}/readings")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, Object>> deleteMachineReadings(
+            @PathVariable Long maszynaId,
+            @RequestParam(name = "from", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+            @RequestParam(name = "to", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
+        int deleted = energyService.deleteReadingsForMachine(maszynaId, from, to);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("maszynaId", maszynaId);
+        body.put("deletedCount", deleted);
+        body.put("from", from);
+        body.put("to", to);
+        return ResponseEntity.ok(body);
+    }
+
     private boolean isValidIngestKey(String provided) {
         if (ingestKey == null || ingestKey.isBlank()) {
             return false;
@@ -127,3 +147,5 @@ public class EnergyController {
         return dto;
     }
 }
+
+

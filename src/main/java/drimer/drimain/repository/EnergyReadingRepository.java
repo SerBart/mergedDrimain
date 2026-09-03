@@ -1,8 +1,11 @@
 package drimer.drimain.repository;
 
 import drimer.drimain.model.EnergyReading;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -18,5 +21,15 @@ public interface EnergyReadingRepository extends JpaRepository<EnergyReading, Lo
 
     @EntityGraph(attributePaths = {"maszyna", "maszyna.dzial", "maszyna.sekcja"})
     Optional<EnergyReading> findTopByMaszyna_IdOrderByRecordedAtDesc(Long maszynaId);
+
+    @Modifying
+    @Transactional
+    @Query("delete from EnergyReading e where e.maszyna.id = :maszynaId")
+    int deleteByMaszynaId(Long maszynaId);
+
+    @Modifying
+    @Transactional
+    @Query("delete from EnergyReading e where e.maszyna.id = :maszynaId and e.recordedAt between :from and :to")
+    int deleteByMaszynaIdAndRecordedAtBetween(Long maszynaId, LocalDateTime from, LocalDateTime to);
 }
 
