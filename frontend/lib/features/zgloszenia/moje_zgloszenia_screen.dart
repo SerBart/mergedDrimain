@@ -39,6 +39,7 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
   static const statusy = ['WSZYSTKIE', 'NOWE', 'W TOKU', 'WERYFIKACJA', 'ZAMKNIĘTE'];
   static const types = ['WSZYSTKIE', 'Usterka', 'Awaria', 'Przezbrojenie', 'Modernizacja'];
   final _dtf = DateFormat('yyyy-MM-dd HH:mm');
+  final ScrollController _horizontalTableController = ScrollController();
 
   @override
   void initState() {
@@ -49,6 +50,7 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
 
   @override
   void dispose() {
+    _horizontalTableController.dispose();
     _search.dispose();
     super.dispose();
   }
@@ -311,7 +313,12 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
   Widget _buildTable(List<Zgloszenie> data, ColorScheme scheme) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final minWidth = constraints.maxWidth < 1480 ? 1480.0 : constraints.maxWidth;
+        final isNarrow = constraints.maxWidth < 1200;
+        final minWidth = isNarrow ? 1120.0 : 1280.0;
+        final zgWidth = isNarrow ? 340.0 : 430.0;
+        final maszynaWidth = isNarrow ? 170.0 : 220.0;
+        final zglaszajacyWidth = isNarrow ? 140.0 : 180.0;
+        final columnSpacing = isNarrow ? 12.0 : 20.0;
 
         return Padding(
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
@@ -389,15 +396,22 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
                         thumbVisibility: true,
                         child: SingleChildScrollView(
                           padding: const EdgeInsets.all(12),
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(minWidth: minWidth),
-                              child: DataTable(
+                          child: Scrollbar(
+                            controller: _horizontalTableController,
+                            thumbVisibility: true,
+                            trackVisibility: true,
+                            notificationPredicate: (notification) =>
+                                notification.metrics.axis == Axis.horizontal,
+                            child: SingleChildScrollView(
+                              controller: _horizontalTableController,
+                              scrollDirection: Axis.horizontal,
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(minWidth: minWidth),
+                                child: DataTable(
                                     sortColumnIndex: _sortCol,
                                     sortAscending: _sortAsc,
                                     showCheckboxColumn: false,
-                                    columnSpacing: 20,
+                                     columnSpacing: columnSpacing,
                                 headingRowColor: WidgetStatePropertyAll(
                                   scheme.primary.withOpacity(.04),
                                 ),
@@ -433,7 +447,7 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
                                           cells: [
                                                 DataCell(
                                                   SizedBox(
-                                                    width: 430,
+                                                    width: zgWidth,
                                                     child: Column(
                                                       mainAxisAlignment: MainAxisAlignment.center,
                                                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -463,7 +477,7 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
                                             DataCell(_statusChip(z.status, scheme)),
                                             DataCell(
                                               SizedBox(
-                                                    width: 220,
+                                                    width: maszynaWidth,
                                                 child: Text(
                                                   z.maszyna?.nazwa ?? '-',
                                                   maxLines: 2,
@@ -473,7 +487,7 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
                                             ),
                                             DataCell(
                                               SizedBox(
-                                                    width: 180,
+                                                    width: zglaszajacyWidth,
                                                 child: Text(
                                                   '${z.imie} ${z.nazwisko}'.trim().isEmpty
                                                       ? '-'
@@ -486,6 +500,7 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
                                           ],
                                         ))
                                     .toList(),
+                                ),
                               ),
                             ),
                           ),
