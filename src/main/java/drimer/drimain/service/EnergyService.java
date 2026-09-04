@@ -44,6 +44,7 @@ public class EnergyService {
     private final MaszynaRepository maszynaRepository;
     private final DzialRepository dzialRepository;
     private final Map<String, SseEmitter> energySubscriptions = new ConcurrentHashMap<>();
+    private final Map<String, SubscriptionScope> energySubscriptionScopes = new ConcurrentHashMap<>();
 
     @Value("${app.energy.live-stale-seconds:20}")
     private long liveStaleSeconds;
@@ -238,26 +239,28 @@ public class EnergyService {
         long timeoutMs = Math.max(30_000L, energySseClientTimeoutMs);
         SseEmitter emitter = new SseEmitter(timeoutMs);
         String subscriptionId = UUID.randomUUID().toString();
+        EnergyScopeType scopeType = EnergyScopeType.from(scope);
         energySubscriptions.put(subscriptionId, emitter);
+        energySubscriptionScopes.put(subscriptionId, new SubscriptionScope(scopeType, dzialId, maszynaId));
 
-        emitter.onCompletion(() -> energySubscriptions.remove(subscriptionId));
+        emitter.onCompletion(() -> removeEnergySubscription(subscriptionId));
         emitter.onTimeout(() -> {
             log.debug("Energy SSE timeout for subscription {}", subscriptionId);
-            energySubscriptions.remove(subscriptionId);
+            removeEnergySubscription(subscriptionId);
             completeQuietly(emitter);
         });
         emitter.onError(e -> {
             log.warn("Energy SSE error for subscription {}: {}", subscriptionId, e.getMessage());
-            energySubscriptions.remove(subscriptionId);
+            removeEnergySubscription(subscriptionId);
             completeQuietly(emitter);
         });
 
         try {
-            EnergyOverviewDTO snapshot = overview(1);
+            EnergyOverviewDTO snapshot = overview(scopeType, dzialId, maszynaId, 1);
             emitter.send(SseEmitter.event().name("INIT").data(snapshot));
         } catch (IOException e) {
             log.warn("Failed to send initial energy SSE event for subscription {}", subscriptionId, e);
-            energySubscriptions.remove(subscriptionId);
+            removeEnergySubscription(subscriptionId);
             completeQuietly(emitter);
         }
         return emitter;
@@ -268,23 +271,26 @@ public class EnergyService {
             return;
         }
         List<String> failed = new ArrayList<>();
-        EnergyOverviewDTO overview;
-        try {
-            overview = overview(1);
-        } catch (Exception e) {
-            log.error("Failed to build energy overview for SSE broadcast", e);
-            return;
-        }
+        Map<String, EnergyOverviewDTO> overviewCache = new ConcurrentHashMap<>();
         for (Map.Entry<String, SseEmitter> entry : energySubscriptions.entrySet()) {
+            String subscriptionId = entry.getKey();
+            SubscriptionScope scope = energySubscriptionScopes.get(subscriptionId);
+            if (scope == null) {
+                failed.add(subscriptionId);
+                continue;
+            }
             try {
-                entry.getValue().send(SseEmitter.event().name("ENERGY_UPDATE").data(overview));
-            } catch (IOException e) {
+                String cacheKey = buildOverviewCacheKey(scope);
+                EnergyOverviewDTO scopedOverview = overviewCache.computeIfAbsent(cacheKey,
+                        key -> overview(scope.scope(), scope.dzialId(), scope.maszynaId(), 1));
+                entry.getValue().send(SseEmitter.event().name("ENERGY_UPDATE").data(scopedOverview));
+            } catch (Exception e) {
                 log.debug("Failed to send ENERGY_UPDATE to subscription {}", entry.getKey(), e);
                 failed.add(entry.getKey());
             }
         }
         failed.forEach(subscriptionId -> {
-            SseEmitter removed = energySubscriptions.remove(subscriptionId);
+            SseEmitter removed = removeEnergySubscription(subscriptionId);
             if (removed != null) {
                 completeQuietly(removed);
             }
@@ -306,11 +312,20 @@ public class EnergyService {
             }
         }
         failed.forEach(subscriptionId -> {
-            SseEmitter removed = energySubscriptions.remove(subscriptionId);
+            SseEmitter removed = removeEnergySubscription(subscriptionId);
             if (removed != null) {
                 completeQuietly(removed);
             }
         });
+    }
+
+    private SseEmitter removeEnergySubscription(String subscriptionId) {
+        energySubscriptionScopes.remove(subscriptionId);
+        return energySubscriptions.remove(subscriptionId);
+    }
+
+    private String buildOverviewCacheKey(SubscriptionScope scope) {
+        return scope.scope().name() + "|" + scope.dzialId() + "|" + scope.maszynaId();
     }
 
     private void completeQuietly(SseEmitter emitter) {
@@ -319,6 +334,9 @@ public class EnergyService {
         } catch (Exception ignored) {
             // Emitter may already be completed/closed.
         }
+    }
+
+    private record SubscriptionScope(EnergyScopeType scope, Long dzialId, Long maszynaId) {
     }
 
     private int normalizeDays(int days) {
