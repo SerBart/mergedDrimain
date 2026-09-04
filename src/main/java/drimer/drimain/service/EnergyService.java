@@ -6,6 +6,7 @@ import drimer.drimain.api.dto.EnergyOverviewDTO;
 import drimer.drimain.api.dto.EnergyReadingIngestRequest;
 import drimer.drimain.model.EnergyReading;
 import drimer.drimain.model.Maszyna;
+import drimer.drimain.repository.DzialRepository;
 import drimer.drimain.repository.EnergyReadingRepository;
 import drimer.drimain.repository.MaszynaRepository;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -36,9 +38,11 @@ import java.util.concurrent.ConcurrentHashMap;
 public class EnergyService {
 
     private static final long DEFAULT_LIVE_STALE_SECONDS = 20L;
+    private static final String TOTAL_SCOPE_LABEL = "Całość zakładu";
 
     private final EnergyReadingRepository energyReadingRepository;
     private final MaszynaRepository maszynaRepository;
+    private final DzialRepository dzialRepository;
     private final Map<String, SseEmitter> energySubscriptions = new ConcurrentHashMap<>();
 
     @Value("${app.energy.live-stale-seconds:20}")
@@ -67,7 +71,13 @@ public class EnergyService {
 
     @Transactional(readOnly = true)
     public EnergyOverviewDTO overview(int days) {
+        return overview(EnergyScopeType.TOTAL, null, null, days);
+    }
+
+    @Transactional(readOnly = true)
+    public EnergyOverviewDTO overview(EnergyScopeType scope, Long dzialId, Long maszynaId, int days) {
         int normalizedDays = normalizeDays(days);
+        EnergyScopeType normalizedScope = scope == null ? EnergyScopeType.TOTAL : scope;
         LocalDate today = LocalDate.now();
         LocalDate startDate = today.minusDays(normalizedDays - 1L);
         LocalDateTime start = startDate.atStartOfDay();
@@ -75,7 +85,9 @@ public class EnergyService {
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         LocalDateTime activeThreshold = now.minusMinutes(30);
 
-        List<EnergyReading> readings = energyReadingRepository.findByRecordedAtBetweenOrderByRecordedAtAsc(start, endExclusive);
+        List<EnergyReading> readings = energyReadingRepository.findByRecordedAtBetweenOrderByRecordedAtAsc(start, endExclusive).stream()
+                .filter(r -> matchesScope(r, normalizedScope, dzialId, maszynaId))
+                .toList();
         Map<Long, List<EnergyReading>> grouped = new LinkedHashMap<>();
         for (EnergyReading reading : readings) {
             if (reading.getMaszyna() == null || reading.getMaszyna().getId() == null) {
@@ -105,6 +117,10 @@ public class EnergyService {
             EnergyMachineSummaryDTO dto = new EnergyMachineSummaryDTO();
             dto.setMaszynaId(entry.getKey());
             dto.setMaszynaNazwa(latest.getMaszyna() != null ? latest.getMaszyna().getNazwa() : "Maszyna #" + entry.getKey());
+            if (latest.getMaszyna() != null && latest.getMaszyna().getDzial() != null) {
+                dto.setDzialId(latest.getMaszyna().getDzial().getId());
+                dto.setDzialNazwa(latest.getMaszyna().getDzial().getNazwa());
+            }
             dto.setDeviceId(latest.getDeviceId());
             dto.setLastRecordedAt(toOffsetUtc(latest.getRecordedAt()));
             boolean fresh = isFresh(latest, now);
@@ -127,17 +143,20 @@ public class EnergyService {
         overview.setZakresDni(normalizedDays);
         overview.setBucketMinutes(15);
         overview.setGeneratedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        overview.setScopeType(normalizedScope.name());
+        overview.setScopeLabel(buildScopeLabel(normalizedScope, dzialId, maszynaId));
         overview.setTotalPowerKw(totalPowerKw.max(BigDecimal.ZERO));
         overview.setTodayEnergyKwh(todayEnergyKwh.max(BigDecimal.ZERO));
+        overview.setPeakPower1hKw(calculatePeakPowerForWindow(readings, now.minusHours(1), now));
+        overview.setPeakPower8hKw(calculatePeakPowerForWindow(readings, now.minusHours(8), now));
+        overview.setPeakPower24hKw(calculatePeakPowerForWindow(readings, now.minusDays(1), now));
+        overview.setPeakPower3dKw(calculatePeakPowerForWindow(readings, now.minusDays(3), now));
+        overview.setPeakPower7dKw(calculatePeakPowerForWindow(readings, now.minusDays(7), now));
+        overview.setPeakPower30dKw(calculatePeakPowerForWindow(readings, now.minusDays(30), now));
         overview.setActiveMachines(activeMachines);
-        overview.setTotalMachines(maszynaRepository.count());
+        overview.setTotalMachines(resolveTotalMachines(normalizedScope, dzialId, maszynaId));
         overview.setMachines(machines);
         return overview;
-    }
-
-    @Transactional(readOnly = true)
-    public EnergyOverviewDTO overview(EnergyScopeType scope, Long dzialId, Long maszynaId, int days) {
-        return overview(days);
     }
 
     @Transactional(readOnly = true)
@@ -323,6 +342,84 @@ public class EnergyService {
         }
         long staleSeconds = liveStaleSeconds > 0 ? liveStaleSeconds : DEFAULT_LIVE_STALE_SECONDS;
         return !latest.getRecordedAt().isBefore(now.minusSeconds(staleSeconds));
+    }
+
+    private boolean matchesScope(EnergyReading reading, EnergyScopeType scope, Long dzialId, Long maszynaId) {
+        if (reading == null || reading.getMaszyna() == null || reading.getMaszyna().getId() == null) {
+            return false;
+        }
+        if (scope == EnergyScopeType.MASZYNA) {
+            return maszynaId != null && Objects.equals(reading.getMaszyna().getId(), maszynaId);
+        }
+        if (scope == EnergyScopeType.DZIAL) {
+            return dzialId != null
+                    && reading.getMaszyna().getDzial() != null
+                    && Objects.equals(reading.getMaszyna().getDzial().getId(), dzialId);
+        }
+        return true;
+    }
+
+    private long resolveTotalMachines(EnergyScopeType scope, Long dzialId, Long maszynaId) {
+        if (scope == EnergyScopeType.MASZYNA) {
+            if (maszynaId == null) {
+                return 0;
+            }
+            return maszynaRepository.existsById(maszynaId) ? 1 : 0;
+        }
+        if (scope == EnergyScopeType.DZIAL) {
+            if (dzialId == null) {
+                return 0;
+            }
+            return maszynaRepository.findByDzial_Id(dzialId).size();
+        }
+        return maszynaRepository.count();
+    }
+
+    private String buildScopeLabel(EnergyScopeType scope, Long dzialId, Long maszynaId) {
+        if (scope == EnergyScopeType.MASZYNA) {
+            if (maszynaId == null) {
+                return "Maszyna";
+            }
+            return maszynaRepository.findById(maszynaId)
+                    .map(Maszyna::getNazwa)
+                    .map(name -> "Maszyna: " + name)
+                    .orElse("Maszyna #" + maszynaId);
+        }
+        if (scope == EnergyScopeType.DZIAL) {
+            if (dzialId == null) {
+                return "Dział";
+            }
+            return dzialRepository.findById(dzialId)
+                    .map(d -> d.getNazwa() != null ? d.getNazwa() : ("Dział #" + dzialId))
+                    .map(name -> "Dział: " + name)
+                    .orElse("Dział #" + dzialId);
+        }
+        return TOTAL_SCOPE_LABEL;
+    }
+
+    private BigDecimal calculatePeakPowerForWindow(List<EnergyReading> scopedReadings, LocalDateTime fromInclusive, LocalDateTime toInclusive) {
+        if (scopedReadings == null || scopedReadings.isEmpty() || fromInclusive == null || toInclusive == null) {
+            return BigDecimal.ZERO;
+        }
+        if (fromInclusive.isAfter(toInclusive)) {
+            return BigDecimal.ZERO;
+        }
+
+        List<EnergyReading> windowReadings = scopedReadings.stream()
+                .filter(r -> r.getRecordedAt() != null)
+                .filter(r -> !r.getRecordedAt().isBefore(fromInclusive) && !r.getRecordedAt().isAfter(toInclusive))
+                .toList();
+        if (windowReadings.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+
+        List<EnergyHistoryPointDTO> points = EnergyAggregationUtils.aggregateHistory(windowReadings, 1);
+        return points.stream()
+                .map(EnergyHistoryPointDTO::getPowerKw)
+                .filter(Objects::nonNull)
+                .max(BigDecimal::compareTo)
+                .orElse(BigDecimal.ZERO)
+                .max(BigDecimal.ZERO);
     }
 }
 

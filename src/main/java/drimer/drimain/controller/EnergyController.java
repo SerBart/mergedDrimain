@@ -24,6 +24,9 @@ import org.springframework.format.annotation.DateTimeFormat;
 import java.time.LocalDateTime;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.List;
@@ -178,16 +181,32 @@ public class EnergyController {
     }
 
     private String buildHistoryCsv(List<EnergyHistoryPointDTO> points) {
+        List<EnergyHistoryPointDTO> sorted = new ArrayList<>(points == null ? List.of() : points);
+        sorted.sort(Comparator.comparing(EnergyHistoryPointDTO::getRecordedAt, Comparator.nullsLast(Comparator.naturalOrder())));
+
         StringBuilder sb = new StringBuilder();
-        sb.append("czas;deviceId;mocKw;energiaKwhTotal;napiecieV;pradA\n");
-        for (EnergyHistoryPointDTO point : points) {
+        sb.append("czas;deviceId;mocKw;licznikKwhTotal;przyrostEnergiiKwh;napiecieV;pradA\n");
+
+        BigDecimal previousTotal = null;
+        for (EnergyHistoryPointDTO point : sorted) {
+            BigDecimal currentTotal = point.getEnergyKwhTotal();
+            BigDecimal delta = BigDecimal.ZERO;
+            if (currentTotal != null && previousTotal != null) {
+                delta = currentTotal.subtract(previousTotal).max(BigDecimal.ZERO);
+            }
+
             sb.append(csvEscape(point.getRecordedAt() == null ? "" : point.getRecordedAt().toString())).append(';')
                     .append(csvEscape(point.getDeviceId())).append(';')
                     .append(csvEscape(point.getPowerKw() == null ? "" : point.getPowerKw().toPlainString())).append(';')
-                    .append(csvEscape(point.getEnergyKwhTotal() == null ? "" : point.getEnergyKwhTotal().toPlainString())).append(';')
+                    .append(csvEscape(currentTotal == null ? "" : currentTotal.toPlainString())).append(';')
+                    .append(csvEscape(delta.toPlainString())).append(';')
                     .append(csvEscape(point.getVoltageV() == null ? "" : point.getVoltageV().toPlainString())).append(';')
                     .append(csvEscape(point.getCurrentA() == null ? "" : point.getCurrentA().toPlainString()))
                     .append('\n');
+
+            if (currentTotal != null) {
+                previousTotal = currentTotal;
+            }
         }
         return sb.toString();
     }
