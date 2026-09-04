@@ -46,22 +46,44 @@ final class EnergyAggregationUtils {
                 continue;
             }
 
-            EnergyReading first = bucketReadings.get(0);
-            EnergyReading last = bucketReadings.get(bucketReadings.size() - 1);
-            BigDecimal totalPower = totalPower(bucketReadings);
-            BigDecimal totalEnergy = totalEnergy(bucketReadings);
+            List<EnergyReading> representativeReadings = latestReadingPerMachine(bucketReadings);
+            if (representativeReadings.isEmpty()) {
+                continue;
+            }
+
+            EnergyReading first = representativeReadings.get(0);
+            EnergyReading last = representativeReadings.get(representativeReadings.size() - 1);
+            BigDecimal totalPower = totalPower(representativeReadings);
+            BigDecimal totalEnergy = totalEnergy(representativeReadings);
 
             EnergyHistoryPointDTO point = new EnergyHistoryPointDTO();
             point.setRecordedAt(OffsetDateTime.of(entry.getKey(), ZoneOffset.UTC));
             point.setPowerKw(totalPower);
             point.setEnergyKwhTotal(totalEnergy);
-            point.setVoltageV(averageVoltage(bucketReadings));
-            point.setCurrentA(averageCurrent(bucketReadings));
+            point.setVoltageV(averageVoltage(representativeReadings));
+            point.setCurrentA(averageCurrent(representativeReadings));
             point.setDeviceId(last.getDeviceId() != null ? last.getDeviceId() : first.getDeviceId());
             points.add(point);
         }
 
         return points;
+    }
+
+    private static List<EnergyReading> latestReadingPerMachine(List<EnergyReading> readings) {
+        Map<Long, EnergyReading> latestByMachine = new LinkedHashMap<>();
+        for (EnergyReading reading : readings) {
+            if (reading == null || reading.getMaszyna() == null || reading.getMaszyna().getId() == null || reading.getRecordedAt() == null) {
+                continue;
+            }
+            latestByMachine.merge(
+                    reading.getMaszyna().getId(),
+                    reading,
+                    (current, candidate) -> candidate.getRecordedAt().isAfter(current.getRecordedAt()) ? candidate : current
+            );
+        }
+        return latestByMachine.values().stream()
+                .sorted(Comparator.comparing(EnergyReading::getRecordedAt))
+                .toList();
     }
 
     static BigDecimal calculateEnergyDelta(List<EnergyReading> readings) {
