@@ -112,6 +112,31 @@ class EnergiaApiRepository {
     return list.map(EnergyHistoryPoint.fromJson).toList();
   }
 
+  Future<String> fetchHistoryCsv({
+    EnergyScope scope = EnergyScope.total,
+    int days = 7,
+    int bucketMinutes = 5,
+    int? dzialId,
+    int? maszynaId,
+  }) async {
+    final token = await _readToken();
+    final resp = await _dio.get<String>(
+      '/api/energia/history/export',
+      queryParameters: {
+        'scope': scope.apiValue,
+        'days': days,
+        'bucketMinutes': bucketMinutes,
+        if (dzialId != null) 'dzialId': dzialId,
+        if (maszynaId != null) 'maszynaId': maszynaId,
+      },
+      options: Options(
+        headers: {'Authorization': 'Bearer $token'},
+        responseType: ResponseType.plain,
+      ),
+    );
+    return resp.data ?? '';
+  }
+
   Future<String> _readToken() async {
     final token = await _storage.readToken();
     if (token == null || token.isEmpty) {

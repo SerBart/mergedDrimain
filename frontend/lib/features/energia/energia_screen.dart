@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
+import 'dart:convert';
 
 import '../../core/models/energia.dart';
 import '../../core/providers/app_providers.dart';
+import '../../core/utils/file_download.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/energy_line_chart.dart';
 import '../../widgets/top_app_bar.dart';
@@ -19,6 +21,7 @@ class EnergiaScreen extends ConsumerStatefulWidget {
 class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
   bool _loading = true;
   bool _historyLoading = false;
+  bool _historyExporting = false;
   String? _error;
   int _selectedDays = 7;
   EnergyScope _scope = EnergyScope.total;
@@ -321,6 +324,48 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
       setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _historyLoading = false);
+    }
+  }
+
+  Future<void> _exportHistoryCsv() async {
+    if (_historyExporting || _historyLoading) return;
+    if (_scope == EnergyScope.dzial && _selectedDzialId == null) return;
+    if (_scope == EnergyScope.maszyna && _selectedMaszynaId == null) return;
+
+    setState(() => _historyExporting = true);
+    try {
+      final repo = ref.read(energiaApiRepositoryProvider);
+      final csv = await repo.fetchHistoryCsv(
+        scope: _scope,
+        days: _selectedDays,
+        bucketMinutes: 5,
+        dzialId: _scope == EnergyScope.dzial ? _selectedDzialId : null,
+        maszynaId: _scope == EnergyScope.maszyna ? _selectedMaszynaId : null,
+      );
+      if (!mounted) return;
+
+      final scopeSuffix = _scope.apiValue.toLowerCase();
+      final fileName = 'energia-historia-$scopeSuffix-${_selectedDays}d.csv';
+      final downloaded = downloadBytesAsFile(
+        fileName: fileName,
+        mimeType: 'text/csv;charset=utf-8',
+        bytes: utf8.encode(csv),
+      );
+
+      if (!downloaded) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pobieranie pliku CSV jest wspierane w wersji web aplikacji.'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Nie udało się wyeksportować historii: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _historyExporting = false);
     }
   }
 
@@ -838,6 +883,17 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
               AppCard(
                 title: 'Historia 5-minutowa',
                 divided: true,
+                action: OutlinedButton.icon(
+                  onPressed: _history.isEmpty || _historyExporting ? null : _exportHistoryCsv,
+                  icon: _historyExporting
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.table_view_outlined),
+                  label: Text(_historyExporting ? 'Eksport...' : 'Eksport do Excel (CSV)'),
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

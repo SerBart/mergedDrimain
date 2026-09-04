@@ -10,6 +10,7 @@ import drimer.drimain.service.EnergyScopeType;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -84,6 +85,28 @@ public class EnergyController {
         return energyService.history(EnergyScopeType.from(scope), dzialId, maszynaId, days, bucketMinutes);
     }
 
+    @GetMapping(value = "/history/export", produces = "text/csv")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<String> exportHistory(
+            @RequestParam(name = "scope", defaultValue = "TOTAL") String scope,
+            @RequestParam(name = "dzialId", required = false) Long dzialId,
+            @RequestParam(name = "maszynaId", required = false) Long maszynaId,
+            @RequestParam(name = "days", defaultValue = "7") int days,
+            @RequestParam(name = "bucketMinutes", defaultValue = "5") int bucketMinutes) {
+        EnergyScopeType scopeType = EnergyScopeType.from(scope);
+        List<EnergyHistoryPointDTO> points = energyService.history(scopeType, dzialId, maszynaId, days, bucketMinutes);
+        String csv = buildHistoryCsv(points);
+
+        String filename = "energia-history-" + scopeType.name().toLowerCase(java.util.Locale.ROOT) + "-" + days + "d.csv";
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(new MediaType("text", "csv", StandardCharsets.UTF_8));
+        headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"");
+
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(csv);
+    }
+
     @GetMapping("/machines/{maszynaId}/history")
     @PreAuthorize("isAuthenticated()")
     public List<EnergyHistoryPointDTO> history(
@@ -145,6 +168,32 @@ public class EnergyController {
         dto.setTodayEnergyKwh(java.math.BigDecimal.ZERO);
         dto.setReadingsCount(1L);
         return dto;
+    }
+
+    private String buildHistoryCsv(List<EnergyHistoryPointDTO> points) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("czas;deviceId;mocKw;energiaKwhTotal;napiecieV;pradA\n");
+        for (EnergyHistoryPointDTO point : points) {
+            sb.append(csvEscape(point.getRecordedAt() == null ? "" : point.getRecordedAt().toString())).append(';')
+                    .append(csvEscape(point.getDeviceId())).append(';')
+                    .append(csvEscape(point.getPowerKw() == null ? "" : point.getPowerKw().toPlainString())).append(';')
+                    .append(csvEscape(point.getEnergyKwhTotal() == null ? "" : point.getEnergyKwhTotal().toPlainString())).append(';')
+                    .append(csvEscape(point.getVoltageV() == null ? "" : point.getVoltageV().toPlainString())).append(';')
+                    .append(csvEscape(point.getCurrentA() == null ? "" : point.getCurrentA().toPlainString()))
+                    .append('\n');
+        }
+        return sb.toString();
+    }
+
+    private String csvEscape(String value) {
+        if (value == null) {
+            return "";
+        }
+        String escaped = value.replace("\"", "\"\"");
+        if (escaped.indexOf(';') >= 0 || escaped.indexOf('"') >= 0 || escaped.indexOf('\n') >= 0 || escaped.indexOf('\r') >= 0) {
+            return '"' + escaped + '"';
+        }
+        return escaped;
     }
 }
 
