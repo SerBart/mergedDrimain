@@ -61,7 +61,7 @@ class _EnergyLineChartState extends State<EnergyLineChart> {
               _Meta(label: 'Śr.', value: '${avgValue.toStringAsFixed(1)} kW'),
               _Meta(label: 'Min', value: '${minValue.toStringAsFixed(1)} kW'),
               _Meta(label: 'Max', value: '${maxValue.toStringAsFixed(1)} kW'),
-              _Meta(label: 'Zakres', value: '${DateFormat('HH:mm').format(first)} – ${DateFormat('HH:mm').format(last)}'),
+              _Meta(label: 'Zakres', value: '${_formatHourMinute(first)} – ${_formatHourMinute(last)}'),
             ],
           ),
           const SizedBox(height: 12),
@@ -131,6 +131,8 @@ class _EnergyLineChartState extends State<EnergyLineChart> {
     return math.max(8.0, pointDy - 64);
   }
 }
+
+String _formatHourMinute(DateTime value) => DateFormat('HH:mm').format(value.toLocal());
 
 class _ChartShell extends StatelessWidget {
   final String title;
@@ -436,7 +438,7 @@ class _EnergyChartPainter extends CustomPainter {
       );
       _paintText(
         canvas,
-        text: DateFormat('HH:mm').format(points[index].recordedAt),
+        text: _formatHourMinute(points[index].recordedAt),
         offset: Offset(x - 16, top + drawHeight + 8),
         style: labelStyle,
       );
