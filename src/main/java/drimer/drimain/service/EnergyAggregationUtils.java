@@ -30,6 +30,8 @@ final class EnergyAggregationUtils {
             return List.of();
         }
 
+        Map<Long, BigDecimal> baselineEnergyByMachine = firstEnergyByMachine(readings);
+
         Map<LocalDateTime, List<EnergyReading>> grouped = new LinkedHashMap<>();
         readings.stream()
                 .filter(r -> r.getRecordedAt() != null)
@@ -54,7 +56,7 @@ final class EnergyAggregationUtils {
             EnergyReading first = representativeReadings.get(0);
             EnergyReading last = representativeReadings.get(representativeReadings.size() - 1);
             BigDecimal totalPower = totalPower(representativeReadings);
-            BigDecimal totalEnergy = totalEnergy(representativeReadings);
+            BigDecimal totalEnergy = relativeEnergySinceRangeStart(representativeReadings, baselineEnergyByMachine);
 
             EnergyHistoryPointDTO point = new EnergyHistoryPointDTO();
             point.setRecordedAt(OffsetDateTime.of(entry.getKey(), ZoneOffset.UTC));
@@ -126,15 +128,34 @@ final class EnergyAggregationUtils {
         return sum.max(BigDecimal.ZERO);
     }
 
-    private static BigDecimal totalEnergy(List<EnergyReading> readings) {
+    private static BigDecimal relativeEnergySinceRangeStart(List<EnergyReading> readings, Map<Long, BigDecimal> baselineEnergyByMachine) {
         BigDecimal sum = BigDecimal.ZERO;
         for (EnergyReading reading : readings) {
-            if (reading.getEnergyKwhTotal() == null) {
+            if (reading == null || reading.getMaszyna() == null || reading.getMaszyna().getId() == null || reading.getEnergyKwhTotal() == null) {
                 continue;
             }
-            sum = sum.add(reading.getEnergyKwhTotal());
+            BigDecimal baseline = baselineEnergyByMachine.get(reading.getMaszyna().getId());
+            if (baseline == null) {
+                continue;
+            }
+            BigDecimal delta = reading.getEnergyKwhTotal().subtract(baseline).max(BigDecimal.ZERO);
+            sum = sum.add(delta);
         }
         return sum.max(BigDecimal.ZERO);
+    }
+
+    private static Map<Long, BigDecimal> firstEnergyByMachine(List<EnergyReading> readings) {
+        Map<Long, BigDecimal> baseline = new LinkedHashMap<>();
+        readings.stream()
+                .filter(r -> r != null && r.getRecordedAt() != null)
+                .sorted(Comparator.comparing(EnergyReading::getRecordedAt))
+                .forEach(reading -> {
+                    if (reading.getMaszyna() == null || reading.getMaszyna().getId() == null || reading.getEnergyKwhTotal() == null) {
+                        return;
+                    }
+                    baseline.putIfAbsent(reading.getMaszyna().getId(), reading.getEnergyKwhTotal());
+                });
+        return baseline;
     }
 
                                                                                                                                                                 private static BigDecimal averagePower(List<EnergyReading> readings) {
