@@ -9,6 +9,7 @@ import drimer.drimain.service.EnergyService;
 import drimer.drimain.service.EnergyScopeType;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.LazyInitializationException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -157,9 +158,15 @@ public class EnergyController {
         EnergyMachineSummaryDTO dto = new EnergyMachineSummaryDTO();
         dto.setMaszynaId(saved.getMaszyna() != null ? saved.getMaszyna().getId() : null);
         dto.setMaszynaNazwa(saved.getMaszyna() != null ? saved.getMaszyna().getNazwa() : null);
-        if (saved.getMaszyna() != null && saved.getMaszyna().getDzial() != null) {
-            dto.setDzialId(saved.getMaszyna().getDzial().getId());
-            dto.setDzialNazwa(saved.getMaszyna().getDzial().getNazwa());
+        try {
+            if (saved.getMaszyna() != null && saved.getMaszyna().getDzial() != null) {
+                dto.setDzialId(saved.getMaszyna().getDzial().getId());
+                dto.setDzialNazwa(saved.getMaszyna().getDzial().getNazwa());
+            }
+        } catch (LazyInitializationException | IllegalStateException ex) {
+            // Ingest response should still succeed even if lazy relation cannot initialize here.
+            dto.setDzialId(null);
+            dto.setDzialNazwa(null);
         }
         dto.setDeviceId(saved.getDeviceId());
         dto.setLastRecordedAt(saved.getRecordedAt() != null ? java.time.OffsetDateTime.of(saved.getRecordedAt(), java.time.ZoneOffset.UTC) : null);

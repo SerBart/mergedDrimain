@@ -9,6 +9,7 @@ import drimer.drimain.model.Maszyna;
 import drimer.drimain.repository.EnergyReadingRepository;
 import drimer.drimain.repository.MaszynaRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -31,6 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class EnergyService {
 
     private static final long DEFAULT_LIVE_STALE_SECONDS = 20L;
@@ -41,6 +43,9 @@ public class EnergyService {
 
     @Value("${app.energy.live-stale-seconds:20}")
     private long liveStaleSeconds;
+
+    @Value("${app.energy.sse.client-timeout-ms:180000}")
+    private long energySseClientTimeoutMs;
 
     @Transactional
     public EnergyReading ingest(EnergyReadingIngestRequest req) {
@@ -211,18 +216,30 @@ public class EnergyService {
     }
 
     public SseEmitter subscribeToUpdates(String scope, Long dzialId, Long maszynaId) {
-        SseEmitter emitter = new SseEmitter(30_000L);
+        long timeoutMs = Math.max(30_000L, energySseClientTimeoutMs);
+        SseEmitter emitter = new SseEmitter(timeoutMs);
         String subscriptionId = UUID.randomUUID().toString();
         energySubscriptions.put(subscriptionId, emitter);
 
         emitter.onCompletion(() -> energySubscriptions.remove(subscriptionId));
-        emitter.onTimeout(() -> energySubscriptions.remove(subscriptionId));
-        emitter.onError(e -> energySubscriptions.remove(subscriptionId));
+        emitter.onTimeout(() -> {
+            log.debug("Energy SSE timeout for subscription {}", subscriptionId);
+            energySubscriptions.remove(subscriptionId);
+            completeQuietly(emitter);
+        });
+        emitter.onError(e -> {
+            log.warn("Energy SSE error for subscription {}: {}", subscriptionId, e.getMessage());
+            energySubscriptions.remove(subscriptionId);
+            completeQuietly(emitter);
+        });
 
         try {
-            emitter.send(SseEmitter.event().name("INIT").data(overview(1)));
+            EnergyOverviewDTO snapshot = overview(1);
+            emitter.send(SseEmitter.event().name("INIT").data(snapshot));
         } catch (IOException e) {
+            log.warn("Failed to send initial energy SSE event for subscription {}", subscriptionId, e);
             energySubscriptions.remove(subscriptionId);
+            completeQuietly(emitter);
         }
         return emitter;
     }
@@ -232,18 +249,30 @@ public class EnergyService {
             return;
         }
         List<String> failed = new ArrayList<>();
-        EnergyOverviewDTO overview = overview(1);
+        EnergyOverviewDTO overview;
+        try {
+            overview = overview(1);
+        } catch (Exception e) {
+            log.error("Failed to build energy overview for SSE broadcast", e);
+            return;
+        }
         for (Map.Entry<String, SseEmitter> entry : energySubscriptions.entrySet()) {
             try {
                 entry.getValue().send(SseEmitter.event().name("ENERGY_UPDATE").data(overview));
             } catch (IOException e) {
+                log.debug("Failed to send ENERGY_UPDATE to subscription {}", entry.getKey(), e);
                 failed.add(entry.getKey());
             }
         }
-        failed.forEach(energySubscriptions::remove);
+        failed.forEach(subscriptionId -> {
+            SseEmitter removed = energySubscriptions.remove(subscriptionId);
+            if (removed != null) {
+                completeQuietly(removed);
+            }
+        });
     }
 
-    @Scheduled(fixedDelay = 30_000L)
+    @Scheduled(fixedDelayString = "${app.energy.sse.heartbeat-interval-ms:15000}")
     public void sendHeartbeat() {
         if (energySubscriptions.isEmpty()) {
             return;
@@ -253,10 +282,24 @@ public class EnergyService {
             try {
                 entry.getValue().send(SseEmitter.event().name("HEARTBEAT").data("ping"));
             } catch (IOException e) {
+                log.debug("Energy SSE heartbeat failed for subscription {}", entry.getKey(), e);
                 failed.add(entry.getKey());
             }
         }
-        failed.forEach(energySubscriptions::remove);
+        failed.forEach(subscriptionId -> {
+            SseEmitter removed = energySubscriptions.remove(subscriptionId);
+            if (removed != null) {
+                completeQuietly(removed);
+            }
+        });
+    }
+
+    private void completeQuietly(SseEmitter emitter) {
+        try {
+            emitter.complete();
+        } catch (Exception ignored) {
+            // Emitter may already be completed/closed.
+        }
     }
 
     private int normalizeDays(int days) {

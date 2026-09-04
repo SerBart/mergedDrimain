@@ -75,7 +75,7 @@ public class SseSubscriptionService {
 
         List<String> failedSubscriptions = new ArrayList<>();
 
-        subscriptions.entrySet().parallelStream().forEach(entry -> {
+        for (Map.Entry<String, SseEmitter> entry : subscriptions.entrySet()) {
             String subscriptionId = entry.getKey();
             SseEmitter emitter = entry.getValue();
             SubscriptionInfo info = subscriptionInfo.get(subscriptionId);
@@ -88,15 +88,13 @@ public class SseSubscriptionService {
                     );
                 } catch (IOException e) {
                     log.warn("Failed to send event to subscription {}", subscriptionId, e);
-                    synchronized (failedSubscriptions) {
-                        failedSubscriptions.add(subscriptionId);
-                    }
+                    failedSubscriptions.add(subscriptionId);
                 }
             }
-        });
+        }
 
         // Clean up failed subscriptions
-        failedSubscriptions.forEach(this::removeSubscription);
+        failedSubscriptions.forEach(this::removeSubscriptionAndComplete);
     }
 
     @Scheduled(fixedDelayString = "#{sseProperties.heartbeatIntervalSeconds * 1000}")
@@ -106,8 +104,8 @@ public class SseSubscriptionService {
         }
 
         List<String> failedSubscriptions = new ArrayList<>();
-        
-        subscriptions.entrySet().parallelStream().forEach(entry -> {
+
+        for (Map.Entry<String, SseEmitter> entry : subscriptions.entrySet()) {
             String subscriptionId = entry.getKey();
             SseEmitter emitter = entry.getValue();
 
@@ -118,13 +116,11 @@ public class SseSubscriptionService {
                 );
             } catch (IOException e) {
                 log.debug("Heartbeat failed for subscription {}", subscriptionId, e);
-                synchronized (failedSubscriptions) {
-                    failedSubscriptions.add(subscriptionId);
-                }
+                failedSubscriptions.add(subscriptionId);
             }
-        });
+        }
 
-        failedSubscriptions.forEach(this::removeSubscription);
+        failedSubscriptions.forEach(this::removeSubscriptionAndComplete);
         
         if (!subscriptions.isEmpty()) {
             log.debug("Sent heartbeat to {} active SSE subscriptions", subscriptions.size());
@@ -146,6 +142,19 @@ public class SseSubscriptionService {
     private void removeSubscription(String subscriptionId) {
         subscriptions.remove(subscriptionId);
         subscriptionInfo.remove(subscriptionId);
+        log.debug("SSE subscription {} removed. Active subscriptions: {}", subscriptionId, subscriptions.size());
+    }
+
+    private void removeSubscriptionAndComplete(String subscriptionId) {
+        SseEmitter emitter = subscriptions.remove(subscriptionId);
+        subscriptionInfo.remove(subscriptionId);
+        if (emitter != null) {
+            try {
+                emitter.complete();
+            } catch (Exception ignored) {
+                // Emitter may already be completed/closed.
+            }
+        }
         log.debug("SSE subscription {} removed. Active subscriptions: {}", subscriptionId, subscriptions.size());
     }
 
