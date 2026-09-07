@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import '../../core/constants/app_roles.dart';
 import '../../core/providers/app_providers.dart';
@@ -25,17 +24,17 @@ class ModulesScreen extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
 
     final allTiles = <_ModuleTile>[
-      _ModuleTile(label: 'Raporty',        route: '/raporty',          icon: FontAwesomeIcons.fileCircleCheck,    gradient: [scheme.primary, scheme.primary.withOpacity(.75)], moduleKey: 'Raporty'),
-      _ModuleTile(label: 'Zgłoszenia',     route: '/zgloszenia',       icon: FontAwesomeIcons.triangleExclamation, gradient: [const Color(0xFFF59E0B), const Color(0xFFF97316)], moduleKey: 'Zgloszenia'),
-      _ModuleTile(label: 'Moje zgłoszenia',route: '/moje-zgloszenia',  icon: FontAwesomeIcons.checkDouble,         gradient: [const Color(0xFFFCA5A5), const Color(0xFFF87171)], moduleKey: 'Zgloszenia'),
-      _ModuleTile(label: 'Harmonogramy',   route: '/harmonogramy',     icon: FontAwesomeIcons.calendarDays,        gradient: [const Color(0xFF10B981), const Color(0xFF059669)], moduleKey: 'Harmonogramy'),
+      _ModuleTile(label: 'Raporty',        route: '/raporty',          icon: Icons.task_alt_outlined,              gradient: [scheme.primary, scheme.primary.withOpacity(.75)], moduleKey: 'Raporty'),
+      _ModuleTile(label: 'Zgłoszenia',     route: '/zgloszenia',       icon: Icons.warning_amber_rounded,          gradient: [const Color(0xFFF59E0B), const Color(0xFFF97316)], moduleKey: 'Zgloszenia'),
+      _ModuleTile(label: 'Moje zgłoszenia',route: '/moje-zgloszenia',  icon: Icons.done_all_rounded,               gradient: [const Color(0xFFFCA5A5), const Color(0xFFF87171)], moduleKey: 'Zgloszenia'),
+      _ModuleTile(label: 'Harmonogramy',   route: '/harmonogramy',     icon: Icons.calendar_month_outlined,        gradient: [const Color(0xFF10B981), const Color(0xFF059669)], moduleKey: 'Harmonogramy'),
       _ModuleTile(label: 'Zużycie energii', route: '/energia',         icon: Icons.bolt_outlined,                  gradient: [const Color(0xFF16A34A), const Color(0xFF15803D)], moduleKey: 'Energia'),
-      _ModuleTile(label: 'Przeglądy',      route: '/przeglady',        icon: FontAwesomeIcons.clipboardCheck,      gradient: [const Color(0xFF0EA5E9), const Color(0xFF2563EB)]),
-      _ModuleTile(label: 'Instrukcje',     route: '/instrukcje',       icon: FontAwesomeIcons.screwdriverWrench,   gradient: [const Color(0xFF8B5CF6), const Color(0xFF7C3AED)], moduleKey: 'Instrukcje'),
-      _ModuleTile(label: 'Części',         route: '/czesci',           icon: FontAwesomeIcons.boxOpen,             gradient: [const Color(0xFFEC4899), const Color(0xFFDB2777)], moduleKey: 'Czesci'),
+      _ModuleTile(label: 'Przeglądy',      route: '/przeglady',        icon: Icons.fact_check_outlined,            gradient: [const Color(0xFF0EA5E9), const Color(0xFF2563EB)]),
+      _ModuleTile(label: 'Instrukcje',     route: '/instrukcje',       icon: Icons.handyman_outlined,              gradient: [const Color(0xFF8B5CF6), const Color(0xFF7C3AED)], moduleKey: 'Instrukcje'),
+      _ModuleTile(label: 'Części',         route: '/czesci',           icon: Icons.inventory_2_outlined,           gradient: [const Color(0xFFEC4899), const Color(0xFFDB2777)], moduleKey: 'Czesci'),
       _ModuleTile(label: 'Powiadomienia',  route: '/notifications',    icon: Icons.notifications_outlined,         gradient: [const Color(0xFF64748B), const Color(0xFF475569)]),
       _ModuleTile(label: 'Mój profil',     route: '/profil',           icon: Icons.person_outline,                 gradient: [const Color(0xFF6366F1), const Color(0xFF4F46E5)]),
-      _ModuleTile(label: 'Panel Admina',   route: '/admin',            icon: FontAwesomeIcons.userShield,          gradient: [const Color(0xFF14B8A6), const Color(0xFF0D9488)], adminOnly: true),
+      _ModuleTile(label: 'Panel Admina',   route: '/admin',            icon: Icons.admin_panel_settings_outlined,  gradient: [const Color(0xFF14B8A6), const Color(0xFF0D9488)], adminOnly: true),
     ];
 
     final visibleTiles = allTiles

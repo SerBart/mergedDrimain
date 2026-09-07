@@ -162,16 +162,20 @@ public class EnergyService {
 
     @Transactional(readOnly = true)
     public List<EnergyHistoryPointDTO> history(EnergyScopeType scope, Long dzialId, Long maszynaId, int days, int bucketMinutes) {
+        return history(scope, dzialId, maszynaId, null, null, days, bucketMinutes);
+    }
+
+    @Transactional(readOnly = true)
+    public List<EnergyHistoryPointDTO> history(EnergyScopeType scope, Long dzialId, Long maszynaId, LocalDateTime from, LocalDateTime to, int days, int bucketMinutes) {
         if (maszynaId != null) {
-            return history(maszynaId, days, bucketMinutes);
+            return history(maszynaId, from, to, days, bucketMinutes);
         }
 
         int normalizedDays = normalizeDays(days);
         int normalizedBucketMinutes = normalizeBucketMinutes(bucketMinutes);
-        LocalDate today = LocalDate.now();
-        LocalDate startDate = today.minusDays(normalizedDays - 1L);
-        LocalDateTime start = startDate.atStartOfDay();
-        LocalDateTime endExclusive = today.plusDays(1).atStartOfDay();
+        LocalDateTime[] range = resolveRange(from, to, normalizedDays);
+        LocalDateTime start = range[0];
+        LocalDateTime endExclusive = range[1];
 
         List<EnergyReading> readings;
         if (scope == EnergyScopeType.DZIAL && dzialId != null) {
@@ -233,6 +237,18 @@ public class EnergyService {
     @Transactional(readOnly = true)
     public List<EnergyMachineSummaryDTO> latestMachines() {
         return overview(1).getMachines();
+    }
+
+    @Transactional(readOnly = true)
+    public List<EnergyHistoryPointDTO> history(Long maszynaId, LocalDateTime from, LocalDateTime to, int days, int bucketMinutes) {
+        int normalizedDays = normalizeDays(days);
+        int normalizedBucketMinutes = normalizeBucketMinutes(bucketMinutes);
+        LocalDateTime[] range = resolveRange(from, to, normalizedDays);
+        LocalDateTime start = range[0];
+        LocalDateTime endExclusive = range[1];
+
+        List<EnergyReading> readings = energyReadingRepository.findByMaszyna_IdAndRecordedAtBetweenOrderByRecordedAtAsc(maszynaId, start, endExclusive);
+        return EnergyAggregationUtils.aggregateHistory(readings, normalizedBucketMinutes);
     }
 
     public SseEmitter subscribeToUpdates(String scope, Long dzialId, Long maszynaId) {
@@ -438,6 +454,23 @@ public class EnergyService {
                 .max(BigDecimal::compareTo)
                 .orElse(BigDecimal.ZERO)
                 .max(BigDecimal.ZERO);
+    }
+
+    private LocalDateTime[] resolveRange(LocalDateTime from, LocalDateTime to, int normalizedDays) {
+        if (from != null && to != null) {
+            LocalDateTime start = from.isBefore(to) ? from : to;
+            LocalDateTime endExclusive = from.isBefore(to) ? to : from;
+            if (start.isEqual(endExclusive)) {
+                endExclusive = endExclusive.plusMinutes(5);
+            }
+            return new LocalDateTime[]{start, endExclusive};
+        }
+
+        LocalDate today = LocalDate.now();
+        LocalDate startDate = today.minusDays(normalizedDays - 1L);
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime endExclusive = today.plusDays(1).atStartOfDay();
+        return new LocalDateTime[]{start, endExclusive};
     }
 }
 

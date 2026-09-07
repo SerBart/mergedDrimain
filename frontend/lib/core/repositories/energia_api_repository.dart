@@ -95,6 +95,8 @@ class EnergiaApiRepository {
     int bucketMinutes = 15,
     int? dzialId,
     int? maszynaId,
+    DateTime? from,
+    DateTime? to,
   }) async {
     final token = await _readToken();
     final resp = await _dio.get(
@@ -105,6 +107,8 @@ class EnergiaApiRepository {
         'bucketMinutes': bucketMinutes,
         if (dzialId != null) 'dzialId': dzialId,
         if (maszynaId != null) 'maszynaId': maszynaId,
+        if (from != null) 'from': from.toIso8601String(),
+        if (to != null) 'to': to.toIso8601String(),
       },
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );

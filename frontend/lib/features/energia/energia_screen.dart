@@ -40,7 +40,9 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
   Timer? _historyAutoRefreshTimer;
   final TextEditingController _machineSearchController = TextEditingController();
   EnergyAnalysisRule _analysisRule = EnergyAnalysisRule.average;
-  EnergyAnalysisWindow _analysisWindow = EnergyAnalysisWindow.last2Hours;
+  DateTimeRange? _analysisDateRange;
+  bool _analysisLoading = false;
+  List<EnergyHistoryPoint> _analysisHistory = const [];
 
   @override
   void initState() {
@@ -172,6 +174,40 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
     }
   }
 
+  Future<void> _reloadAnalysis({bool silent = false}) async {
+    if (!mounted || _analysisDateRange == null) return;
+    final overview = _overview;
+    if (overview == null) return;
+    if (_scope == EnergyScope.dzial && _selectedDzialId == null) return;
+    if (_scope == EnergyScope.maszyna && _selectedMaszynaId == null) return;
+
+    if (!silent) {
+      setState(() => _analysisLoading = true);
+    }
+
+    try {
+      final repo = ref.read(energiaApiRepositoryProvider);
+      final points = await repo.fetchHistory(
+        scope: _scope,
+        days: _selectedDays,
+        bucketMinutes: 5,
+        dzialId: _scope == EnergyScope.dzial ? _selectedDzialId : null,
+        maszynaId: _scope == EnergyScope.maszyna ? _selectedMaszynaId : null,
+        from: _startOfDayUtc(_analysisDateRange!.start),
+        to: _endOfDayUtc(_analysisDateRange!.end),
+      );
+      if (!mounted) return;
+      setState(() {
+        _analysisHistory = points;
+        _error = null;
+      });
+    } catch (_) {
+      // Leave the previous analysis on screen if refresh fails.
+    } finally {
+      if (mounted && !silent) setState(() => _analysisLoading = false);
+    }
+  }
+
 
   Future<void> _reloadAll() async {
     if (!mounted) return;
@@ -228,6 +264,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
       setState(() => _overview = overview);
       _startSseStream(); // Start SSE stream
       await _reloadHistory();
+      await _reloadAnalysis(silent: true);
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
@@ -286,6 +323,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
       setState(() => _overview = overview);
       _startSseStream(); // Start SSE stream
       await _reloadHistory();
+      await _reloadAnalysis(silent: true);
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
@@ -328,6 +366,48 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
     } finally {
       if (mounted) setState(() => _historyLoading = false);
     }
+  }
+
+  Future<void> _pickAnalysisDateRange() async {
+    final history = _history.isNotEmpty ? _history : _analysisHistory;
+    final now = DateTime.now();
+    final fallbackStart = now.subtract(const Duration(days: 1));
+    final firstAvailable = history.isNotEmpty
+        ? history.map((p) => p.recordedAt.toLocal()).reduce((a, b) => a.isBefore(b) ? a : b)
+        : fallbackStart;
+    final lastAvailable = history.isNotEmpty
+        ? history.map((p) => p.recordedAt.toLocal()).reduce((a, b) => a.isAfter(b) ? a : b)
+        : now;
+    final safeInitialStart = lastAvailable.subtract(const Duration(days: 1)).isBefore(firstAvailable)
+        ? firstAvailable
+        : lastAvailable.subtract(const Duration(days: 1));
+
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateUtils.dateOnly(firstAvailable),
+      lastDate: DateUtils.dateOnly(lastAvailable.add(const Duration(days: 1))),
+      initialDateRange: _analysisDateRange ?? DateTimeRange(
+        start: DateUtils.dateOnly(safeInitialStart),
+        end: DateUtils.dateOnly(lastAvailable),
+      ),
+      helpText: 'Wybierz zakres analizy',
+      saveText: 'Analizuj',
+      cancelText: 'Anuluj',
+    );
+    if (picked == null) return;
+
+    setState(() {
+      _analysisDateRange = picked;
+      _analysisHistory = const [];
+    });
+    await _reloadAnalysis();
+  }
+
+  Future<void> _clearAnalysisDateRange() async {
+    setState(() {
+      _analysisDateRange = null;
+      _analysisHistory = const [];
+    });
   }
 
   Future<void> _exportHistoryCsv() async {
@@ -614,18 +694,10 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
   }
 
   List<EnergyHistoryPoint> get _analysisPoints {
-    final sorted = [..._history]..sort((a, b) => a.recordedAt.compareTo(b.recordedAt));
+    final source = _analysisDateRange == null ? _history : _analysisHistory;
+    final sorted = [...source]..sort((a, b) => a.recordedAt.compareTo(b.recordedAt));
     if (sorted.isEmpty) return const [];
-    if (_analysisWindow == EnergyAnalysisWindow.fullRange) return sorted;
-
-    final latest = sorted.last.recordedAt;
-    final cutoff = switch (_analysisWindow) {
-      EnergyAnalysisWindow.last2Hours => latest.subtract(const Duration(hours: 2)),
-      EnergyAnalysisWindow.last8Hours => latest.subtract(const Duration(hours: 8)),
-      EnergyAnalysisWindow.last24Hours => latest.subtract(const Duration(hours: 24)),
-      EnergyAnalysisWindow.fullRange => sorted.first.recordedAt,
-    };
-    return sorted.where((p) => !p.recordedAt.isBefore(cutoff)).toList();
+    return sorted;
   }
 
   double get _analysisValue {
@@ -644,6 +716,54 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
   double get _analysisAverage => _analysisPoints.isEmpty
       ? 0
       : _analysisPoints.map((p) => p.powerKw).reduce((a, b) => a + b) / _analysisPoints.length;
+
+  double get _analysisRangeDurationHours {
+    final points = _analysisPoints;
+    if (points.length < 2) return 0;
+    return points.last.recordedAt.difference(points.first.recordedAt).inMinutes / 60.0;
+  }
+
+  List<EnergyHistoryPoint> get _analysisPreviousRangePoints {
+    final points = _analysisPoints;
+    if (_analysisDateRange == null || points.length < 2) return const [];
+    final duration = points.last.recordedAt.difference(points.first.recordedAt);
+    if (duration.inMinutes <= 0) return const [];
+    final currentStart = points.first.recordedAt;
+    final previousEnd = currentStart;
+    final previousStart = currentStart.subtract(duration);
+    return points.where((p) => !p.recordedAt.isBefore(previousStart) && p.recordedAt.isBefore(previousEnd)).toList();
+  }
+
+  String get _analysisRangeLabel {
+    final range = _analysisDateRange;
+    if (range == null) return 'Brak wybranego zakresu — analiza używa aktualnie załadowanej historii.';
+    final start = DateFormat('yyyy-MM-dd').format(range.start);
+    final end = DateFormat('yyyy-MM-dd').format(range.end);
+    return 'Zakres analizy: $start → $end';
+  }
+
+  double get _analysisPreviousAverage {
+    final prev = _analysisPreviousRangePoints;
+    if (prev.isEmpty) return 0;
+    return prev.map((p) => p.powerKw).reduce((a, b) => a + b) / prev.length;
+  }
+
+  double get _analysisDeltaPercent {
+    final prev = _analysisPreviousAverage;
+    if (prev <= 0) return 0;
+    return ((_analysisAverage - prev) / prev) * 100;
+  }
+
+  EnergyHistoryPoint? get _analysisPeakPoint {
+    if (_analysisPoints.isEmpty) return null;
+    return _analysisPoints.reduce((a, b) => a.powerKw >= b.powerKw ? a : b);
+  }
+
+  String get _analysisPeakLabel {
+    final peak = _analysisPeakPoint;
+    if (peak == null) return '-';
+    return '${DateFormat('HH:mm').format(peak.recordedAt.toLocal())} • ${peak.powerKw.toStringAsFixed(1)} kW';
+  }
 
   double get _analysisStabilityScore {
     final points = _analysisPoints;
@@ -700,6 +820,10 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
     final min = values.reduce((a, b) => a < b ? a : b);
     return (max - min).clamp(0.0, double.infinity);
   }
+
+  DateTime _startOfDayUtc(DateTime value) => DateTime(value.year, value.month, value.day);
+
+  DateTime _endOfDayUtc(DateTime value) => DateTime(value.year, value.month, value.day, 23, 59, 59, 999, 999);
 
   @override
   Widget build(BuildContext context) {
@@ -1000,27 +1124,33 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
                           ),
                         ),
                         SizedBox(
-                          width: 260,
-                          child: DropdownButtonFormField<EnergyAnalysisWindow>(
-                            value: _analysisWindow,
-                            decoration: const InputDecoration(
-                              labelText: 'Okno czasu',
-                              border: OutlineInputBorder(),
-                            ),
-                            isExpanded: true,
-                            items: EnergyAnalysisWindow.values
-                                .map((window) => DropdownMenuItem(value: window, child: Text(window.label)))
-                                .toList(),
-                            onChanged: (value) {
-                              if (value == null) return;
-                              setState(() => _analysisWindow = value);
-                            },
+                          width: 360,
+                          child: OutlinedButton.icon(
+                            onPressed: _analysisLoading ? null : _pickAnalysisDateRange,
+                            icon: const Icon(Icons.date_range_outlined),
+                            label: Text(_analysisDateRange == null ? 'Wybierz zakres dat od–do' : _analysisRangeLabel),
                           ),
                         ),
+                        if (_analysisDateRange != null)
+                          TextButton.icon(
+                            onPressed: _analysisLoading ? null : _clearAnalysisDateRange,
+                            icon: const Icon(Icons.close),
+                            label: const Text('Wyczyść zakres'),
+                          ),
                       ],
                     ),
                     const SizedBox(height: 14),
-                    if (_analysisPoints.isEmpty)
+                    Text(
+                      _analysisRangeLabel,
+                      style: const TextStyle(fontSize: 12, color: Colors.black54),
+                    ),
+                    const SizedBox(height: 10),
+                    if (_analysisLoading)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: LinearProgressIndicator(minHeight: 3),
+                      )
+                    else if (_analysisPoints.isEmpty)
                       const Text('Brak danych do analizy w wybranym oknie.')
                     else ...[
                       Wrap(
@@ -1028,7 +1158,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
                         runSpacing: 12,
                         children: [
                           _MiniInsightCard(
-                            label: '${_analysisRule.label} • ${_analysisWindow.label}',
+                            label: '${_analysisRule.label} • ${_analysisDateRange == null ? 'aktualna historia' : 'wybrany zakres'}',
                             value: '${_analysisValue.toStringAsFixed(1)} ${_analysisRule.unit}',
                             icon: _analysisRule.icon,
                           ),
@@ -1041,6 +1171,18 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
                             label: 'Prognoza 60 min',
                             value: '${_forecastNextHourKw.toStringAsFixed(1)} kW',
                             icon: Icons.auto_graph_outlined,
+                          ),
+                          _MiniInsightCard(
+                            label: 'Najmocniejszy punkt',
+                            value: _analysisPeakLabel,
+                            icon: Icons.event_available_outlined,
+                          ),
+                          _MiniInsightCard(
+                            label: 'Zmiana vs poprzedni okres',
+                            value: _analysisPreviousAverage <= 0
+                                ? 'Brak danych porównawczych'
+                                : '${_analysisDeltaPercent >= 0 ? '+' : ''}${_analysisDeltaPercent.toStringAsFixed(1)}%',
+                            icon: Icons.compare_arrows_outlined,
                           ),
                           _MiniInsightCard(
                             label: 'Werdykt',
@@ -1540,19 +1682,6 @@ enum EnergyAnalysisRule {
       };
 }
 
-enum EnergyAnalysisWindow {
-  last2Hours,
-  last8Hours,
-  last24Hours,
-  fullRange;
-
-  String get label => switch (this) {
-        EnergyAnalysisWindow.last2Hours => 'Ostatnie 2 godziny',
-        EnergyAnalysisWindow.last8Hours => 'Ostatnie 8 godzin',
-        EnergyAnalysisWindow.last24Hours => 'Ostatnie 24 godziny',
-        EnergyAnalysisWindow.fullRange => 'Cały zakres',
-      };
-}
 
 class _DepartmentOption {
   final int id;

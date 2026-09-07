@@ -84,9 +84,11 @@ public class EnergyController {
             @RequestParam(name = "scope", defaultValue = "TOTAL") String scope,
             @RequestParam(name = "dzialId", required = false) Long dzialId,
             @RequestParam(name = "maszynaId", required = false) Long maszynaId,
+            @RequestParam(name = "from", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+            @RequestParam(name = "to", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @RequestParam(name = "days", defaultValue = "7") int days,
             @RequestParam(name = "bucketMinutes", defaultValue = "5") int bucketMinutes) {
-        return energyService.history(EnergyScopeType.from(scope), dzialId, maszynaId, days, bucketMinutes);
+        return energyService.history(EnergyScopeType.from(scope), dzialId, maszynaId, from, to, days, bucketMinutes);
     }
 
     @GetMapping(value = "/history/export", produces = "text/csv")

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_roles.dart';
@@ -99,7 +98,7 @@ class DashboardScreen extends ConsumerWidget {
 
     final heroItems = [
       _DashboardItem(
-        icon: FontAwesomeIcons.chartLine,
+        icon: Icons.show_chart_outlined,
         label: 'Statystyki',
         subtitle: 'KPI, trendy i alerty operacyjne',
         badge: 'KPI',
@@ -109,7 +108,7 @@ class DashboardScreen extends ConsumerWidget {
         isHero: true,
       ),
       _DashboardItem(
-        icon: FontAwesomeIcons.newspaper,
+        icon: Icons.feed_outlined,
         label: 'Aktualności',
         subtitle: 'Zgłoszenia, raporty i harmonogramy w jednym miejscu',
         badge: aktualnosciLiveCount > 0 ? '$aktualnosciLiveCount live' : 'Live',
@@ -122,7 +121,7 @@ class DashboardScreen extends ConsumerWidget {
 
     final items = [
       _DashboardItem(
-        icon: FontAwesomeIcons.fileCircleCheck,
+        icon: Icons.task_alt_outlined,
         label: 'Raporty',
         subtitle: 'Historia napraw i dokumentacja działań',
         badge: raportyToday != null && raportyToday > 0 ? '$raportyToday dziś' : 'Workflow',
@@ -133,7 +132,7 @@ class DashboardScreen extends ConsumerWidget {
         hasAccess: isAdmin || has('Raporty'),
       ),
       _DashboardItem(
-        icon: FontAwesomeIcons.triangleExclamation,
+        icon: Icons.warning_amber_rounded,
         label: 'Zgłoszenia',
         subtitle: 'Nowe awarie i obsługa bieżących spraw',
         badge: openZgloszenia != null ? '$openZgloszenia otw.' : 'Priorytet',
@@ -144,7 +143,7 @@ class DashboardScreen extends ConsumerWidget {
         hasAccess: isAdmin || has('Zgloszenia'),
       ),
       _DashboardItem(
-        icon: FontAwesomeIcons.checkDouble,
+        icon: Icons.done_all_rounded,
         label: 'Moje Zgłoszenia',
         subtitle: 'Twoje zgłoszenia i ich aktualny status',
         badge: 'Moje',
@@ -155,7 +154,7 @@ class DashboardScreen extends ConsumerWidget {
         hasAccess: isAdmin || has('Zgloszenia'),
       ),
       _DashboardItem(
-        icon: FontAwesomeIcons.listCheck,
+        icon: Icons.checklist_rtl,
         label: 'Moje Zadania',
         subtitle: 'Lista zadań przypisanych do realizacji',
         badge: 'Focus',
@@ -166,7 +165,7 @@ class DashboardScreen extends ConsumerWidget {
         hasAccess: isAdmin || has('Zgloszenia'),
       ),
       _DashboardItem(
-        icon: FontAwesomeIcons.calendarDays,
+        icon: Icons.calendar_month_outlined,
         label: 'Harmonogramy',
         subtitle: 'Planowane przeglądy i działania serwisowe',
         badge: harmonogramyToday != null && harmonogramyToday > 0
@@ -188,7 +187,7 @@ class DashboardScreen extends ConsumerWidget {
         onTap: () => context.go('/energia'),
       ),
       _DashboardItem(
-        icon: FontAwesomeIcons.clipboardCheck,
+        icon: Icons.fact_check_outlined,
         label: 'Przeglądy',
         subtitle: 'Kontrole okresowe i check-listy maszyn',
         badge: 'QA',
@@ -197,7 +196,7 @@ class DashboardScreen extends ConsumerWidget {
         onTap: () => context.go('/przeglady'),
       ),
       _DashboardItem(
-        icon: FontAwesomeIcons.screwdriverWrench,
+        icon: Icons.handyman_outlined,
         label: 'Instrukcje napraw',
         subtitle: 'Procedury, wiedza i instrukcje serwisowe',
         badge: 'Know-how',
@@ -208,7 +207,7 @@ class DashboardScreen extends ConsumerWidget {
         hasAccess: isAdmin || has('Instrukcje'),
       ),
       _DashboardItem(
-        icon: FontAwesomeIcons.boxOpen,
+        icon: Icons.inventory_2_outlined,
         label: 'Części',
         subtitle: 'Stany magazynowe i dostępność komponentów',
         badge: 'Magazyn',
@@ -220,7 +219,7 @@ class DashboardScreen extends ConsumerWidget {
       ),
       if (isAdmin)
         _DashboardItem(
-          icon: FontAwesomeIcons.userShield,
+          icon: Icons.admin_panel_settings_outlined,
           label: 'Panel Admina',
           subtitle: 'Użytkownicy, dostęp i konfiguracja aplikacji',
           badge: 'Admin',

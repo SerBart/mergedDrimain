@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../widgets/top_app_bar.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/models/raport.dart';
 import '../../widgets/status_chip.dart';
@@ -768,7 +767,7 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                   setState(() {});
                 }
               },
-        icon: const Icon(FontAwesomeIcons.plus),
+        icon: const Icon(Icons.add),
         label: const Text('Nowy'),
       ),
     );
