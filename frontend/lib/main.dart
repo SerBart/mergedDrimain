@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:dio/dio.dart';
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'core/theme/app_theme.dart';
@@ -11,6 +12,7 @@ import 'routing/navigation_transition_overlay.dart';
 import 'core/utils/notification_router.dart';
 import 'core/models/notification.dart';
 import 'core/providers/app_providers.dart';
+import 'core/services/web_visibility_observer.dart';
 import 'widgets/quick_module_overlay.dart';
 
 void main() {
@@ -53,10 +55,16 @@ class TPMApp extends ConsumerStatefulWidget {
 }
 
 class _TPMAppState extends ConsumerState<TPMApp> with WidgetsBindingObserver {
+  Timer? _sessionWatchdog;
+  WebVisibilityObserver? _webVisibilityObserver;
+  StreamSubscription<bool>? _webVisibilitySub;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _startSessionWatchdog();
+    _startVisibilityWatchdog();
 
     // Run async init after first frame so `ref` is available and context is mounted
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -85,8 +93,31 @@ class _TPMAppState extends ConsumerState<TPMApp> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _sessionWatchdog?.cancel();
+    _webVisibilitySub?.cancel();
+    _webVisibilityObserver?.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  void _startSessionWatchdog() {
+    _sessionWatchdog?.cancel();
+    _sessionWatchdog = Timer.periodic(const Duration(minutes: 8), (_) {
+      final isLoggedIn = ref.read(authStateProvider) != null;
+      if (!isLoggedIn) return;
+      ref.read(authStateProvider.notifier).refreshSessionSilently();
+    });
+  }
+
+  void _startVisibilityWatchdog() {
+    _webVisibilityObserver?.dispose();
+    _webVisibilityObserver = createWebVisibilityObserver();
+    _webVisibilitySub = _webVisibilityObserver!.changes.listen((isVisible) {
+      if (!isVisible) return;
+      final isLoggedIn = ref.read(authStateProvider) != null;
+      if (!isLoggedIn) return;
+      ref.read(authStateProvider.notifier).refreshSessionSilently();
+    });
   }
 
   @override

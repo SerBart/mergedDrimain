@@ -20,7 +20,7 @@ class EnergiaScreen extends ConsumerStatefulWidget {
   ConsumerState<EnergiaScreen> createState() => _EnergiaScreenState();
 }
 
-class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
+class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindingObserver {
   bool _loading = true;
   bool _historyLoading = false;
   bool _historyExporting = false;
@@ -51,6 +51,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _startAutoRefresh();
     _startHistoryAutoRefresh();
     WidgetsBinding.instance.addPostFrameCallback((_) => _reloadAll());
@@ -58,12 +59,20 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _sseSubscription?.cancel();
     _sseReconnectTimer?.cancel();
     _autoRefreshTimer?.cancel();
     _historyAutoRefreshTimer?.cancel();
     _machineSearchController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _reloadCurrentView();
+    }
   }
 
   void _startAutoRefresh() {
@@ -108,6 +117,10 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
             });
           },
           onError: (e) {
+            if (!mounted) return;
+            _scheduleSseReconnect();
+          },
+          onDone: () {
             if (!mounted) return;
             _scheduleSseReconnect();
           },

@@ -20,6 +20,17 @@ Stream<Map<String, dynamic>> connectEnergySse({
   );
 
   final subscriptions = <StreamSubscription<dynamic>>[];
+  var closed = false;
+  var errorForwarded = false;
+
+  Future<void> closeConnection() async {
+    if (closed) return;
+    closed = true;
+    for (final subscription in subscriptions) {
+      await subscription.cancel();
+    }
+    eventSource.close();
+  }
 
   void emitPayload(dynamic rawData) {
     if (rawData == null) return;
@@ -53,16 +64,15 @@ Stream<Map<String, dynamic>> connectEnergySse({
   }));
 
   subscriptions.add(eventSource.onError.listen((_) {
-    if (eventSource.readyState == html.EventSource.CLOSED && !controller.isClosed) {
-      controller.addError(StateError('SSE connection closed'));
+    if (!controller.isClosed && !errorForwarded) {
+      errorForwarded = true;
+      controller.addError(StateError('SSE connection error/closed'));
     }
+    closeConnection();
   }));
 
   controller.onCancel = () async {
-    for (final subscription in subscriptions) {
-      await subscription.cancel();
-    }
-    eventSource.close();
+    await closeConnection();
   };
 
   return controller.stream;

@@ -8,7 +8,12 @@ class ApiClient {
 
   ApiClient._(this._dio);
 
-  factory ApiClient({String? baseUrl, void Function(String token)? onTokenRefreshed, Future<String?> Function()? refreshTokenCallback}) {
+  factory ApiClient({
+    String? baseUrl,
+    void Function(String token)? onTokenRefreshed,
+    void Function()? onSessionExpired,
+    Future<String?> Function()? refreshTokenCallback,
+  }) {
     // Prefer explicit param, then runtime config, then build-time define, then web-aware fallback, finally localhost
     final runtimeBase = kIsWeb ? PlatformOrigin.runtimeApiBase() : null;
     final defineBase = const String.fromEnvironment('API_BASE', defaultValue: '');
@@ -48,7 +53,7 @@ class ApiClient {
     // Dodaję Interceptor do obsługi 401 i odświeżania tokenu
     if (refreshTokenCallback != null) {
       dio.interceptors.add(
-        _AuthInterceptor(dio, refreshTokenCallback, onTokenRefreshed),
+        _AuthInterceptor(dio, refreshTokenCallback, onTokenRefreshed, onSessionExpired),
       );
     }
 
@@ -91,8 +96,15 @@ class _AuthInterceptor extends Interceptor {
   final Dio _dio;
   final Future<String?> Function() _refreshTokenCallback;
   final void Function(String token)? _onTokenRefreshed;
+  final void Function()? _onSessionExpired;
+  bool _sessionExpiredNotified = false;
 
-  _AuthInterceptor(this._dio, this._refreshTokenCallback, this._onTokenRefreshed);
+  _AuthInterceptor(
+    this._dio,
+    this._refreshTokenCallback,
+    this._onTokenRefreshed,
+    this._onSessionExpired,
+  );
 
   @override
   Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
@@ -105,6 +117,7 @@ class _AuthInterceptor extends Interceptor {
       try {
         final newToken = await _refreshTokenCallback();
         if (newToken != null && newToken.isNotEmpty) {
+          _sessionExpiredNotified = false;
           _onTokenRefreshed?.call(newToken);
 
           // Powtórz oryginalny request z nowym tokenem tylko raz
@@ -117,8 +130,18 @@ class _AuthInterceptor extends Interceptor {
           final response = await _dio.fetch<dynamic>(retryRequest);
           return handler.resolve(response);
         }
+        if (!_sessionExpiredNotified) {
+          _sessionExpiredNotified = true;
+          _onSessionExpired?.call();
+        }
+      } on DioException catch (refreshError) {
+        final refreshStatus = refreshError.response?.statusCode;
+        if ((refreshStatus == 401 || refreshStatus == 403) && !_sessionExpiredNotified) {
+          _sessionExpiredNotified = true;
+          _onSessionExpired?.call();
+        }
       } catch (_) {
-        // Jeśli refresh zawiódł, pass na kolejny handler
+        // Chwilowy problem sieci lub inny błąd - nie wylogowuj automatycznie.
       }
     }
     return handler.next(err);

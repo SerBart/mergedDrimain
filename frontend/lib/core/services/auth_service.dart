@@ -63,7 +63,16 @@ class AuthService {
         await _storage.saveToken(token);
         return token;
       }
-    } catch (_) {}
+      return null;
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      if (status == 401 || status == 403) {
+        return null;
+      }
+      rethrow;
+    } catch (_) {
+      rethrow;
+    }
     return null;
   }
 

@@ -43,7 +43,15 @@ final refreshCoordinatorProvider = Provider<_RefreshCoordinator>((ref) {
 // Globalny klient HTTP do API biznesowego, z bezpiecznym auto-refresh
 final apiClientProvider = Provider<ApiClient>((ref) {
   final refresh = ref.watch(refreshCoordinatorProvider);
-  return ApiClient(refreshTokenCallback: refresh.refreshOnce);
+  return ApiClient(
+    refreshTokenCallback: refresh.refreshOnce,
+    onTokenRefreshed: (token) {
+      ref.read(authStateProvider.notifier).onTokenRefreshed(token);
+    },
+    onSessionExpired: () {
+      ref.read(authStateProvider.notifier).handleSessionExpired();
+    },
+  );
 });
 
 // Realny serwis autoryzacji (HTTP)
@@ -144,40 +152,46 @@ final authStateProvider = StateNotifierProvider<AuthController, User?>(
 
 class AuthController extends StateNotifier<User?> {
   final Ref _ref;
+  Future<void>? _silentRefreshInFlight;
+  DateTime? _lastSilentRefreshAttempt;
   AuthController(this._ref) : super(null) {
     // Spróbuj przywrócić sesję na starcie
     _restore();
   }
 
   Future<void> _restore() async {
-    final storage = _ref.read(secureStorageProvider);
-    final auth = _ref.read(authServiceProvider);
-    String? token = await storage.readToken();
-    bool refreshed = false;
-    Map<String, dynamic>? me;
+    try {
+      final storage = _ref.read(secureStorageProvider);
+      final auth = _ref.read(authServiceProvider);
+      String? token = await storage.readToken();
+      bool refreshed = false;
+      Map<String, dynamic>? me;
 
-    if (token == null || token.isEmpty) {
-      token = await auth.refresh();
-      refreshed = true;
-    }
-
-    if (token != null && token.isNotEmpty) {
-      me = await auth.me(token);
-    }
-
-    if (me == null && !refreshed) {
-      final refreshedToken = await auth.refresh();
-      if (refreshedToken != null && refreshedToken.isNotEmpty) {
-        token = refreshedToken;
-        me = await auth.me(refreshedToken);
+      if (token == null || token.isEmpty) {
+        token = await auth.refresh();
+        refreshed = true;
       }
-    }
 
-    if (me != null && token != null) {
-      final roles = (me['roles'] as List<dynamic>? ?? const []).cast<String>();
-      final role = roles.contains('ROLE_ADMIN') ? 'ADMIN' : 'USER';
-      final merged = <String, dynamic>{...me, 'token': token, 'role': role};
-      state = User.fromJson(merged);
+      if (token != null && token.isNotEmpty) {
+        me = await auth.me(token);
+      }
+
+      if (me == null && !refreshed) {
+        final refreshedToken = await auth.refresh();
+        if (refreshedToken != null && refreshedToken.isNotEmpty) {
+          token = refreshedToken;
+          me = await auth.me(refreshedToken);
+        }
+      }
+
+      if (me != null && token != null) {
+        final roles = (me['roles'] as List<dynamic>? ?? const []).cast<String>();
+        final role = roles.contains('ROLE_ADMIN') ? 'ADMIN' : 'USER';
+        final merged = <String, dynamic>{...me, 'token': token, 'role': role};
+        state = User.fromJson(merged);
+      }
+    } catch (_) {
+      // Nie blokuj startu aplikacji przy chwilowych błędach sieci.
     }
   }
 
@@ -196,17 +210,59 @@ class AuthController extends StateNotifier<User?> {
   }
 
   Future<void> refreshSessionSilently() async {
-    final auth = _ref.read(authServiceProvider);
-    final refreshedToken = await auth.refresh();
-    if (refreshedToken == null || refreshedToken.isEmpty) return;
+    if (state == null) return;
 
-    final me = await auth.me(refreshedToken);
-    if (me == null) return;
+    final now = DateTime.now();
+    final lastAttempt = _lastSilentRefreshAttempt;
+    if (lastAttempt != null && now.difference(lastAttempt) < const Duration(seconds: 20)) {
+      return;
+    }
+    _lastSilentRefreshAttempt = now;
 
-    final roles = (me['roles'] as List<dynamic>? ?? const []).cast<String>();
-    final role = roles.contains('ROLE_ADMIN') ? 'ADMIN' : 'USER';
-    final merged = <String, dynamic>{...me, 'token': refreshedToken, 'role': role};
-    state = User.fromJson(merged);
+    if (_silentRefreshInFlight != null) {
+      return _silentRefreshInFlight!;
+    }
+
+    _silentRefreshInFlight = _doSilentRefresh().whenComplete(() {
+      _silentRefreshInFlight = null;
+    });
+    return _silentRefreshInFlight!;
+  }
+
+  Future<void> _doSilentRefresh() async {
+    try {
+      final auth = _ref.read(authServiceProvider);
+      final refreshedToken = await auth.refresh();
+      if (refreshedToken == null || refreshedToken.isEmpty) {
+        await handleSessionExpired();
+        return;
+      }
+
+      final me = await auth.me(refreshedToken);
+      if (me == null) {
+        await handleSessionExpired();
+        return;
+      }
+
+      final roles = (me['roles'] as List<dynamic>? ?? const []).cast<String>();
+      final role = roles.contains('ROLE_ADMIN') ? 'ADMIN' : 'USER';
+      final merged = <String, dynamic>{...me, 'token': refreshedToken, 'role': role};
+      state = User.fromJson(merged);
+    } catch (_) {
+      // Błędy sieciowe ignorujemy - sesja może nadal być ważna.
+    }
+  }
+
+  void onTokenRefreshed(String token) {
+    final current = state;
+    if (current == null || token.isEmpty) return;
+    state = current.copyWith(token: token);
+  }
+
+  Future<void> handleSessionExpired() async {
+    if (state == null) return;
+    await _ref.read(secureStorageProvider).clear();
+    state = null;
   }
 
   bool get isAdmin => state?.role == 'ADMIN';
