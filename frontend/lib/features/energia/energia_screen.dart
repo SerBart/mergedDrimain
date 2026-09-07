@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -38,6 +39,8 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
   Timer? _autoRefreshTimer;
   Timer? _historyAutoRefreshTimer;
   final TextEditingController _machineSearchController = TextEditingController();
+  EnergyAnalysisRule _analysisRule = EnergyAnalysisRule.average;
+  EnergyAnalysisWindow _analysisWindow = EnergyAnalysisWindow.last2Hours;
 
   @override
   void initState() {
@@ -610,6 +613,94 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
     return (last - first).clamp(0, double.infinity);
   }
 
+  List<EnergyHistoryPoint> get _analysisPoints {
+    final sorted = [..._history]..sort((a, b) => a.recordedAt.compareTo(b.recordedAt));
+    if (sorted.isEmpty) return const [];
+    if (_analysisWindow == EnergyAnalysisWindow.fullRange) return sorted;
+
+    final latest = sorted.last.recordedAt;
+    final cutoff = switch (_analysisWindow) {
+      EnergyAnalysisWindow.last2Hours => latest.subtract(const Duration(hours: 2)),
+      EnergyAnalysisWindow.last8Hours => latest.subtract(const Duration(hours: 8)),
+      EnergyAnalysisWindow.last24Hours => latest.subtract(const Duration(hours: 24)),
+      EnergyAnalysisWindow.fullRange => sorted.first.recordedAt,
+    };
+    return sorted.where((p) => !p.recordedAt.isBefore(cutoff)).toList();
+  }
+
+  double get _analysisValue {
+    final points = _analysisPoints;
+    if (points.isEmpty) return 0;
+    final values = points.map((p) => p.powerKw).toList();
+    return switch (_analysisRule) {
+      EnergyAnalysisRule.average => values.reduce((a, b) => a + b) / values.length,
+      EnergyAnalysisRule.max => values.reduce((a, b) => a > b ? a : b),
+      EnergyAnalysisRule.min => values.reduce((a, b) => a < b ? a : b),
+      EnergyAnalysisRule.loadFactor => _loadFactor(points),
+      EnergyAnalysisRule.peakSpread => _peakSpread(points),
+    };
+  }
+
+  double get _analysisAverage => _analysisPoints.isEmpty
+      ? 0
+      : _analysisPoints.map((p) => p.powerKw).reduce((a, b) => a + b) / _analysisPoints.length;
+
+  double get _analysisStabilityScore {
+    final points = _analysisPoints;
+    if (points.length < 2) return 100;
+    final avg = _analysisAverage;
+    if (avg <= 0) return 100;
+    final variance = points
+            .map((p) => p.powerKw)
+            .map((value) => (value - avg) * (value - avg))
+            .reduce((a, b) => a + b) /
+        points.length;
+    final stdDev = math.sqrt(variance);
+    final score = (100 - ((stdDev / avg) * 100)).clamp(0.0, 100.0);
+    return score;
+  }
+
+  double get _forecastNextHourKw {
+    final points = _analysisPoints;
+    if (points.isEmpty) return 0;
+    if (points.length == 1) return points.last.powerKw;
+    final first = points.first;
+    final last = points.last;
+    final hours = last.recordedAt.difference(first.recordedAt).inMinutes / 60.0;
+    if (hours <= 0) return last.powerKw;
+    final slopePerHour = (last.powerKw - first.powerKw) / hours;
+    return (last.powerKw + slopePerHour).clamp(0.0, double.infinity);
+  }
+
+  String get _analysisVerdict {
+    final score = _analysisStabilityScore;
+    final value = _analysisValue;
+    final avg = _analysisAverage;
+    if (_analysisRule == EnergyAnalysisRule.max) return 'Szukasz pików — to najlepsza reguła do wykrywania skoków.';
+    if (_analysisRule == EnergyAnalysisRule.min) return 'To pokazuje bazowe obciążenie w wybranym oknie.';
+    if (_analysisRule == EnergyAnalysisRule.loadFactor) return 'Im bliżej 100%, tym bardziej równomierna praca maszyny.';
+    if (_analysisRule == EnergyAnalysisRule.peakSpread) return 'Im mniejszy rozrzut, tym spokojniejsza i bardziej przewidywalna praca.';
+    if (_analysisRule == EnergyAnalysisRule.average) return 'Średnia moc pomaga ocenić typowe obciążenie w badanym oknie.';
+    if (score >= 85) return 'Praca wygląda stabilnie, bez dużych wahań.';
+    if (value > avg * 1.15) return 'Aktualny poziom jest wyraźnie powyżej średniej — warto obserwować.';
+    return 'Widać umiarkowane wahania poboru energii.';
+  }
+
+  double _loadFactor(List<EnergyHistoryPoint> points) {
+    final values = points.map((p) => p.powerKw).toList();
+    final avg = values.reduce((a, b) => a + b) / values.length;
+    final max = values.reduce((a, b) => a > b ? a : b);
+    if (max <= 0) return 0;
+    return ((avg / max) * 100).clamp(0.0, 100.0);
+  }
+
+  double _peakSpread(List<EnergyHistoryPoint> points) {
+    final values = points.map((p) => p.powerKw).toList();
+    final max = values.reduce((a, b) => a > b ? a : b);
+    final min = values.reduce((a, b) => a < b ? a : b);
+    return (max - min).clamp(0.0, double.infinity);
+  }
+
   @override
   Widget build(BuildContext context) {
     final overview = _overview;
@@ -876,6 +967,96 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
                       value: '${overview?.peakPower30dKw.toStringAsFixed(1) ?? '0.0'} kW',
                       icon: Icons.calendar_month_outlined,
                     ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              AppCard(
+                title: 'Analiza operatora',
+                divided: true,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        SizedBox(
+                          width: 260,
+                          child: DropdownButtonFormField<EnergyAnalysisRule>(
+                            value: _analysisRule,
+                            decoration: const InputDecoration(
+                              labelText: 'Reguła',
+                              border: OutlineInputBorder(),
+                            ),
+                            isExpanded: true,
+                            items: EnergyAnalysisRule.values
+                                .map((rule) => DropdownMenuItem(value: rule, child: Text(rule.label)))
+                                .toList(),
+                            onChanged: (value) {
+                              if (value == null) return;
+                              setState(() => _analysisRule = value);
+                            },
+                          ),
+                        ),
+                        SizedBox(
+                          width: 260,
+                          child: DropdownButtonFormField<EnergyAnalysisWindow>(
+                            value: _analysisWindow,
+                            decoration: const InputDecoration(
+                              labelText: 'Okno czasu',
+                              border: OutlineInputBorder(),
+                            ),
+                            isExpanded: true,
+                            items: EnergyAnalysisWindow.values
+                                .map((window) => DropdownMenuItem(value: window, child: Text(window.label)))
+                                .toList(),
+                            onChanged: (value) {
+                              if (value == null) return;
+                              setState(() => _analysisWindow = value);
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    if (_analysisPoints.isEmpty)
+                      const Text('Brak danych do analizy w wybranym oknie.')
+                    else ...[
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          _MiniInsightCard(
+                            label: '${_analysisRule.label} • ${_analysisWindow.label}',
+                            value: '${_analysisValue.toStringAsFixed(1)} ${_analysisRule.unit}',
+                            icon: _analysisRule.icon,
+                          ),
+                          _MiniInsightCard(
+                            label: 'EnergoPulse',
+                            value: '${_analysisStabilityScore.toStringAsFixed(0)}% stabilności',
+                            icon: Icons.shield_outlined,
+                          ),
+                          _MiniInsightCard(
+                            label: 'Prognoza 60 min',
+                            value: '${_forecastNextHourKw.toStringAsFixed(1)} kW',
+                            icon: Icons.auto_graph_outlined,
+                          ),
+                          _MiniInsightCard(
+                            label: 'Werdykt',
+                            value: _analysisRule == EnergyAnalysisRule.loadFactor
+                                ? '${_analysisValue.toStringAsFixed(0)}%'
+                                : _analysisVerdict,
+                            icon: Icons.lightbulb_outline,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        _analysisVerdict,
+                        style: const TextStyle(fontSize: 12, color: Colors.black54),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -1327,6 +1508,50 @@ class _ScopeChip extends StatelessWidget {
       onSelected: (_) => onTap(),
     );
   }
+}
+
+enum EnergyAnalysisRule {
+  average,
+  max,
+  min,
+  loadFactor,
+  peakSpread;
+
+  String get label => switch (this) {
+        EnergyAnalysisRule.average => 'Średnia moc',
+        EnergyAnalysisRule.max => 'Maksimum',
+        EnergyAnalysisRule.min => 'Minimum',
+        EnergyAnalysisRule.loadFactor => 'Współczynnik obciążenia',
+        EnergyAnalysisRule.peakSpread => 'Rozrzut pików',
+      };
+
+  String get unit => switch (this) {
+        EnergyAnalysisRule.loadFactor => '%',
+        EnergyAnalysisRule.peakSpread => 'kW',
+        _ => 'kW',
+      };
+
+  IconData get icon => switch (this) {
+        EnergyAnalysisRule.average => Icons.analytics_outlined,
+        EnergyAnalysisRule.max => Icons.trending_up_outlined,
+        EnergyAnalysisRule.min => Icons.trending_down_outlined,
+        EnergyAnalysisRule.loadFactor => Icons.balance_outlined,
+        EnergyAnalysisRule.peakSpread => Icons.waterfall_chart_outlined,
+      };
+}
+
+enum EnergyAnalysisWindow {
+  last2Hours,
+  last8Hours,
+  last24Hours,
+  fullRange;
+
+  String get label => switch (this) {
+        EnergyAnalysisWindow.last2Hours => 'Ostatnie 2 godziny',
+        EnergyAnalysisWindow.last8Hours => 'Ostatnie 8 godzin',
+        EnergyAnalysisWindow.last24Hours => 'Ostatnie 24 godziny',
+        EnergyAnalysisWindow.fullRange => 'Cały zakres',
+      };
 }
 
 class _DepartmentOption {
