@@ -11,6 +11,7 @@ import '../../core/models/sekcja.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/repositories/meta_api_repository.dart';
 import '../../core/constants/naprawy_constants.dart';
+import '../../widgets/modern_date_picker.dart';
 
 /// Formularz tworzenia / edycji raportu.
 /// Możesz wejść tu:
@@ -219,8 +220,9 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
 
   Future<void> _pickDate() async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
+    final picked = await showModernDatePicker(
       context: context,
+      title: 'Data naprawy',
       initialDate: _dataNaprawy ?? now,
       firstDate: DateTime(now.year - 1),
       lastDate: DateTime(now.year + 1),

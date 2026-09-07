@@ -8,6 +8,7 @@ import '../../core/models/dzial.dart';
 import '../../core/models/osoba.dart';
 import '../raporty/raport_form_screen.dart';
 import '../../widgets/top_app_bar.dart';
+import '../../widgets/modern_date_picker.dart';
 
 // Dodane: enum musi być na poziomie top-level w Dart
 enum DayColorMode { none, dominantFrequency, gradientFrequencies, status }
@@ -212,6 +213,8 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
      int? dzialId;
      int? osobaId; // wykonujący przegląd
      bool useMaszyna = true; // toggle między maszyna / dzial
+     bool allowBackdate = false;
+     final todayStart = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
 
      await showDialog(
        context: context,
@@ -230,15 +233,18 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
                      decoration: const InputDecoration(
                        labelText: 'Data pierwszego przeglądu',
                        border: OutlineInputBorder(),
-                       helperText: 'Wybierz datę rozpoczęcia'
+                        helperText: 'Wybierz datę rozpoczęcia (mozna tez wstecz)'
                      ),
                      child: InkWell(
                        onTap: () async {
                          final now = DateTime.now();
-                         final picked = await showDatePicker(
-                           context: ctx,
+                          final picked = await showModernDatePicker(
+                            context: ctx,
+                            title: 'Data pierwszego przegladu',
                            initialDate: selectedDate,
-                           firstDate: DateTime(now.year, now.month, now.day),
+                            firstDate: allowBackdate
+                                ? DateTime(now.year - 5, 1, 1)
+                                : todayStart,
                            lastDate: DateTime(now.year + 2),
                          );
                          if (picked != null) {
@@ -265,6 +271,22 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
                        ),
                      ),
                    ),
+                    const SizedBox(height: 8),
+                    SwitchListTile.adaptive(
+                      value: allowBackdate,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Dodaj zalegly przeglad (data wsteczna)'),
+                      subtitle: const Text('Po wlaczeniu mozesz wybrac date do 5 lat wstecz.', style: TextStyle(fontSize: 12)),
+                      onChanged: (v) => setLocal(() {
+                        allowBackdate = v;
+                        if (!allowBackdate && selectedDate.isBefore(todayStart)) {
+                          selectedDate = todayStart;
+                        }
+                        if (planEndDate.isBefore(selectedDate)) {
+                          planEndDate = DateTime(selectedDate.year, 12, 31);
+                        }
+                      }),
+                    ),
                    const SizedBox(height: 16),
                    // UPROSZCZONE: Częstotliwość
                    DropdownButtonFormField<String>(
@@ -318,8 +340,9 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
                      ),
                      child: InkWell(
                        onTap: () async {
-                         final picked = await showDatePicker(
-                           context: ctx,
+                          final picked = await showModernDatePicker(
+                            context: ctx,
+                            title: 'Plan do',
                            initialDate: planEndDate,
                            firstDate: selectedDate,
                            lastDate: DateTime(2035, 12, 31),
@@ -496,8 +519,9 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
                     decoration: const InputDecoration(labelText: 'Data', border: OutlineInputBorder()),
                     child: InkWell(
                       onTap: () async {
-                        final picked = await showDatePicker(
+                        final picked = await showModernDatePicker(
                           context: ctx,
+                          title: 'Data przegladu',
                           initialDate: selectedDate,
                           firstDate: DateTime.now().subtract(const Duration(days: 365)),
                           lastDate: DateTime(2035, 12, 31),
@@ -538,8 +562,9 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
                     decoration: const InputDecoration(labelText: 'Plan do', border: OutlineInputBorder()),
                     child: InkWell(
                       onTap: () async {
-                        final picked = await showDatePicker(
+                        final picked = await showModernDatePicker(
                           context: ctx,
+                          title: 'Plan do',
                           initialDate: planEndDate,
                           firstDate: selectedDate,
                           lastDate: DateTime(2035, 12, 31),

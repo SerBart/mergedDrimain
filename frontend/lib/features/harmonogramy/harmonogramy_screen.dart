@@ -7,6 +7,7 @@ import '../../core/models/maszyna.dart';
 import '../../core/models/osoba.dart';
 import '../../core/models/dzial.dart';
 import '../../widgets/centered_scroll_card.dart';
+import '../../widgets/modern_date_picker.dart';
 import '../../widgets/top_app_bar.dart';
 
 class HarmonogramyScreen extends ConsumerStatefulWidget {
@@ -681,8 +682,9 @@ class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
                             child: InkWell(
                               onTap: () async {
                                 final now = DateTime.now();
-                                final picked = await showDatePicker(
+                                final picked = await showModernDatePicker(
                                   context: context,
+                                  title: 'Data harmonogramu',
                                   initialDate: _data ?? now,
                                   firstDate: DateTime(now.year - 5),
                                   lastDate: DateTime(now.year + 5),

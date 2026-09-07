@@ -10,6 +10,7 @@ import '../../core/providers/app_providers.dart';
 import '../../core/utils/file_download.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/energy_line_chart.dart';
+import '../../widgets/modern_date_picker.dart';
 import '../../widgets/top_app_bar.dart';
 
 class EnergiaScreen extends ConsumerStatefulWidget {
@@ -41,8 +42,11 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
   final TextEditingController _machineSearchController = TextEditingController();
   EnergyAnalysisRule _analysisRule = EnergyAnalysisRule.average;
   DateTimeRange? _analysisDateRange;
+  DateTimeRange? _historyDateRange;
+  HistoryZoomPreset _historyZoomPreset = HistoryZoomPreset.all;
   bool _analysisLoading = false;
   List<EnergyHistoryPoint> _analysisHistory = const [];
+  DateTime? _pinnedHistoryTimestamp;
 
   @override
   void initState() {
@@ -163,6 +167,8 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
         bucketMinutes: 5,
         dzialId: _scope == EnergyScope.dzial ? _selectedDzialId : null,
         maszynaId: _scope == EnergyScope.maszyna ? _selectedMaszynaId : null,
+        from: _historyDateRange?.start,
+        to: _historyDateRange?.end,
       );
       if (!mounted) return;
       setState(() {
@@ -193,8 +199,8 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
         bucketMinutes: 5,
         dzialId: _scope == EnergyScope.dzial ? _selectedDzialId : null,
         maszynaId: _scope == EnergyScope.maszyna ? _selectedMaszynaId : null,
-        from: _startOfDayUtc(_analysisDateRange!.start),
-        to: _endOfDayUtc(_analysisDateRange!.end),
+        from: _analysisDateRange!.start,
+        to: _analysisDateRange!.end,
       );
       if (!mounted) return;
       setState(() {
@@ -357,6 +363,8 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
         bucketMinutes: 5,
         dzialId: _scope == EnergyScope.dzial ? _selectedDzialId : null,
         maszynaId: _scope == EnergyScope.maszyna ? _selectedMaszynaId : null,
+        from: _historyDateRange?.start,
+        to: _historyDateRange?.end,
       );
       if (!mounted) return;
       setState(() => _history = points);
@@ -382,17 +390,12 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
         ? firstAvailable
         : lastAvailable.subtract(const Duration(days: 1));
 
-    final picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateUtils.dateOnly(firstAvailable),
-      lastDate: DateUtils.dateOnly(lastAvailable.add(const Duration(days: 1))),
-      initialDateRange: _analysisDateRange ?? DateTimeRange(
-        start: DateUtils.dateOnly(safeInitialStart),
-        end: DateUtils.dateOnly(lastAvailable),
-      ),
-      helpText: 'Wybierz zakres analizy',
-      saveText: 'Analizuj',
-      cancelText: 'Anuluj',
+    final picked = await _pickDateTimeRangeDialog(
+      title: 'Zakres analizy (data i godzina)',
+      initial: _analysisDateRange ?? DateTimeRange(start: safeInitialStart, end: lastAvailable),
+      min: firstAvailable,
+      max: lastAvailable,
+      applyLabel: 'Analizuj',
     );
     if (picked == null) return;
 
@@ -403,11 +406,224 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
     await _reloadAnalysis();
   }
 
+  Future<void> _pickHistoryDateRange() async {
+    final history = _history.isNotEmpty ? _history : _analysisHistory;
+    final now = DateTime.now();
+    final fallbackStart = now.subtract(Duration(days: _selectedDays));
+    final firstAvailable = history.isNotEmpty
+        ? history.map((p) => p.recordedAt.toLocal()).reduce((a, b) => a.isBefore(b) ? a : b)
+        : fallbackStart;
+    final lastAvailable = history.isNotEmpty
+        ? history.map((p) => p.recordedAt.toLocal()).reduce((a, b) => a.isAfter(b) ? a : b)
+        : now;
+    final safeInitialStart = lastAvailable.subtract(const Duration(days: 1)).isBefore(firstAvailable)
+        ? firstAvailable
+        : lastAvailable.subtract(const Duration(days: 1));
+
+    final picked = await _pickDateTimeRangeDialog(
+      title: 'Okres wykresu (data i godzina)',
+      initial: _historyDateRange ?? DateTimeRange(start: safeInitialStart, end: lastAvailable),
+      min: firstAvailable,
+      max: lastAvailable,
+      applyLabel: 'Zastosuj',
+    );
+    if (picked == null) return;
+
+    setState(() {
+      _historyDateRange = picked;
+      _pinnedHistoryTimestamp = null;
+    });
+    await _reloadHistory();
+    await _reloadAnalysis(silent: true);
+  }
+
+  Future<DateTimeRange?> _pickDateTimeRangeDialog({
+    required String title,
+    required DateTimeRange initial,
+    required DateTime min,
+    required DateTime max,
+    required String applyLabel,
+  }) async {
+    final normalizedMin = min.isBefore(max) ? min : max;
+    final normalizedMax = max.isAfter(min) ? max : min;
+    var start = initial.start.isBefore(normalizedMin) ? normalizedMin : initial.start;
+    var end = initial.end.isAfter(normalizedMax) ? normalizedMax : initial.end;
+    if (end.isBefore(start)) {
+      end = start;
+    }
+
+    return showDialog<DateTimeRange>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        Future<void> pickStart(StateSetter setLocal) async {
+          final picked = await showModernDatePicker(
+            context: ctx,
+            title: 'Poczatek',
+            includeTime: true,
+            initialDate: start,
+            firstDate: normalizedMin,
+            lastDate: end,
+          );
+          if (picked != null) {
+            setLocal(() {
+              start = picked;
+              if (end.isBefore(start)) {
+                end = start;
+              }
+            });
+          }
+        }
+
+        Future<void> pickEnd(StateSetter setLocal) async {
+          final picked = await showModernDatePicker(
+            context: ctx,
+            title: 'Koniec',
+            includeTime: true,
+            initialDate: end,
+            firstDate: start,
+            lastDate: normalizedMax,
+          );
+          if (picked != null) {
+            setLocal(() => end = picked);
+          }
+        }
+
+        return StatefulBuilder(
+          builder: (ctx, setLocal) => AlertDialog(
+            title: Text(title),
+            content: SizedBox(
+              width: 500,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.login_rounded),
+                    title: const Text('Od'),
+                    subtitle: Text(_formatDateTime(start)),
+                    trailing: const Icon(Icons.edit_calendar_outlined),
+                    onTap: () => pickStart(setLocal),
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.logout_rounded),
+                    title: const Text('Do'),
+                    subtitle: Text(_formatDateTime(end)),
+                    trailing: const Icon(Icons.edit_calendar_outlined),
+                    onTap: () => pickEnd(setLocal),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ActionChip(
+                        label: const Text('Ostatnie 15m'),
+                        onPressed: () => setLocal(() {
+                          end = normalizedMax;
+                          start = end.subtract(const Duration(minutes: 15));
+                          if (start.isBefore(normalizedMin)) start = normalizedMin;
+                        }),
+                      ),
+                      ActionChip(
+                        label: const Text('Ostatnia 1h'),
+                        onPressed: () => setLocal(() {
+                          end = normalizedMax;
+                          start = end.subtract(const Duration(hours: 1));
+                          if (start.isBefore(normalizedMin)) start = normalizedMin;
+                        }),
+                      ),
+                      ActionChip(
+                        label: const Text('Ostatnie 6h'),
+                        onPressed: () => setLocal(() {
+                          end = normalizedMax;
+                          start = end.subtract(const Duration(hours: 6));
+                          if (start.isBefore(normalizedMin)) start = normalizedMin;
+                        }),
+                      ),
+                      ActionChip(
+                        label: const Text('Ostatnie 24h'),
+                        onPressed: () => setLocal(() {
+                          end = normalizedMax;
+                          start = end.subtract(const Duration(hours: 24));
+                          if (start.isBefore(normalizedMin)) start = normalizedMin;
+                        }),
+                      ),
+                      ActionChip(
+                        label: const Text('Caly zakres'),
+                        onPressed: () => setLocal(() {
+                          start = normalizedMin;
+                          end = normalizedMax;
+                        }),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Anuluj')),
+              FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(DateTimeRange(start: start, end: end)),
+                child: Text(applyLabel),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  EnergyHistoryPoint? _nearestHistoryPoint(DateTime timestamp, List<EnergyHistoryPoint> points) {
+    if (points.isEmpty) return null;
+    final target = timestamp.toLocal();
+    EnergyHistoryPoint nearest = points.first;
+    Duration nearestDelta = nearest.recordedAt.toLocal().difference(target).abs();
+    for (final point in points.skip(1)) {
+      final delta = point.recordedAt.toLocal().difference(target).abs();
+      if (delta < nearestDelta) {
+        nearest = point;
+        nearestDelta = delta;
+      }
+    }
+    return nearest;
+  }
+
+  Future<void> _pickHistoryPointDateTime() async {
+    final source = _historyPointsForChart;
+    if (source.isEmpty) return;
+    final first = source.map((p) => p.recordedAt.toLocal()).reduce((a, b) => a.isBefore(b) ? a : b);
+    final last = source.map((p) => p.recordedAt.toLocal()).reduce((a, b) => a.isAfter(b) ? a : b);
+    final picked = await showModernDatePicker(
+      context: context,
+      title: 'Skocz do punktu na wykresie',
+      includeTime: true,
+      initialDate: _pinnedHistoryTimestamp?.toLocal() ?? last,
+      firstDate: first,
+      lastDate: last,
+      allowQuickActions: false,
+    );
+    if (picked == null) return;
+    final nearest = _nearestHistoryPoint(picked, source);
+    if (nearest == null) return;
+    setState(() => _pinnedHistoryTimestamp = nearest.recordedAt);
+  }
+
   Future<void> _clearAnalysisDateRange() async {
     setState(() {
       _analysisDateRange = null;
       _analysisHistory = const [];
     });
+  }
+
+  Future<void> _clearHistoryDateRange() async {
+    setState(() {
+      _historyDateRange = null;
+      _pinnedHistoryTimestamp = null;
+    });
+    await _reloadHistory();
+    await _reloadAnalysis(silent: true);
   }
 
   Future<void> _exportHistoryCsv() async {
@@ -549,6 +765,14 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
     });
   }
 
+  void _setHistoryZoom(HistoryZoomPreset preset) {
+    if (_historyZoomPreset == preset) return;
+    setState(() {
+      _historyZoomPreset = preset;
+      _pinnedHistoryTimestamp = null;
+    });
+  }
+
   void _dropSelectedMachineIfFilteredOut() {
     final selectedId = _selectedMaszynaId;
     if (selectedId == null) {
@@ -679,6 +903,34 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
     return total / _history.length;
   }
 
+  List<EnergyHistoryPoint> get _historyPointsForChart {
+    if (_history.isEmpty) return const [];
+    final sorted = [..._history]..sort((a, b) => a.recordedAt.compareTo(b.recordedAt));
+    final window = _historyZoomPreset.window;
+    if (window == null) return sorted;
+    final end = sorted.last.recordedAt;
+    final start = end.subtract(window);
+    return sorted.where((p) => !p.recordedAt.isBefore(start)).toList();
+  }
+
+  double _avgPower(List<EnergyHistoryPoint> points) {
+    if (points.isEmpty) return 0;
+    final total = points.fold<double>(0, (sum, point) => sum + point.powerKw);
+    return total / points.length;
+  }
+
+  EnergyHistoryPoint? _peakPoint(List<EnergyHistoryPoint> points) {
+    if (points.isEmpty) return null;
+    return points.reduce((a, b) => a.powerKw >= b.powerKw ? a : b);
+  }
+
+  double _energySum(List<EnergyHistoryPoint> points) {
+    final sorted = [...points]..sort((a, b) => a.recordedAt.compareTo(b.recordedAt));
+    final totals = sorted.map((point) => point.energyKwhTotal).whereType<double>().toList();
+    if (totals.length < 2) return 0;
+    return (totals.last - totals.first).clamp(0, double.infinity);
+  }
+
   EnergyHistoryPoint? get _peakHistoryPoint {
     if (_history.isEmpty) return null;
     return _history.reduce((a, b) => a.powerKw >= b.powerKw ? a : b);
@@ -737,9 +989,21 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
   String get _analysisRangeLabel {
     final range = _analysisDateRange;
     if (range == null) return 'Brak wybranego zakresu — analiza używa aktualnie załadowanej historii.';
-    final start = DateFormat('yyyy-MM-dd').format(range.start);
-    final end = DateFormat('yyyy-MM-dd').format(range.end);
+    final start = _formatDateTime(range.start);
+    final end = _formatDateTime(range.end);
     return 'Zakres analizy: $start → $end';
+  }
+
+  String get _historyRangeLabel {
+    final range = _historyDateRange;
+    if (range == null) return 'Okres wykresu: wg szybkiego zakresu (1/7/30 dni).';
+    return 'Okres wykresu: ${_formatDateTime(range.start)} → ${_formatDateTime(range.end)}';
+  }
+
+  String get _pinnedPointLabel {
+    final ts = _pinnedHistoryTimestamp;
+    if (ts == null) return 'Brak przypietego punktu.';
+    return 'Wybrany punkt: ${_formatDateTime(ts.toLocal())}';
   }
 
   double get _analysisPreviousAverage {
@@ -821,9 +1085,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
     return (max - min).clamp(0.0, double.infinity);
   }
 
-  DateTime _startOfDayUtc(DateTime value) => DateTime(value.year, value.month, value.day);
-
-  DateTime _endOfDayUtc(DateTime value) => DateTime(value.year, value.month, value.day, 23, 59, 59, 999, 999);
+  String _formatDateTime(DateTime value) => DateFormat('yyyy-MM-dd HH:mm').format(value.toLocal());
 
   @override
   Widget build(BuildContext context) {
@@ -832,6 +1094,10 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
     final selectedDepartment = _selectedDepartment;
     final isEmpty = overview == null || overview.machines.isEmpty;
     final selectedScopeLabel = overview?.scopeLabel ?? _scope.label;
+    final chartPoints = _historyPointsForChart;
+    final chartAveragePower = _avgPower(chartPoints);
+    final chartPeakPoint = _peakPoint(chartPoints);
+    final chartEnergySum = _energySum(chartPoints);
 
     return Scaffold(
       appBar: const TopAppBar(title: 'Zużycie energii', showBack: true),
@@ -1127,8 +1393,8 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
                           width: 360,
                           child: OutlinedButton.icon(
                             onPressed: _analysisLoading ? null : _pickAnalysisDateRange,
-                            icon: const Icon(Icons.date_range_outlined),
-                            label: Text(_analysisDateRange == null ? 'Wybierz zakres dat od–do' : _analysisRangeLabel),
+                            icon: const Icon(Icons.schedule_outlined),
+                            label: Text(_analysisDateRange == null ? 'Wybierz zakres dat i godzin od-do' : _analysisRangeLabel),
                           ),
                         ),
                         if (_analysisDateRange != null)
@@ -1220,12 +1486,60 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: _historyLoading ? null : _pickHistoryDateRange,
+                          icon: const Icon(Icons.date_range_outlined),
+                          label: Text(_historyDateRange == null ? 'Wybierz okres wykresu (data + godzina)' : 'Edytuj okres wykresu'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: _historyLoading || _history.isEmpty ? null : _pickHistoryPointDateTime,
+                          icon: const Icon(Icons.pin_drop_outlined),
+                          label: const Text('Wybierz konkretna date na wykresie'),
+                        ),
+                        if (_historyDateRange != null)
+                          TextButton.icon(
+                            onPressed: _historyLoading ? null : _clearHistoryDateRange,
+                            icon: const Icon(Icons.close),
+                            label: const Text('Wyczysc okres wykresu'),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: HistoryZoomPreset.values
+                            .map(
+                              (preset) => Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: ChoiceChip(
+                                  label: Text(preset.label),
+                                  selected: _historyZoomPreset == preset,
+                                  onSelected: (_) => _setHistoryZoom(preset),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(_historyRangeLabel, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_pinnedPointLabel}  Przeciagnij po wykresie, aby plynnie wskazywac punkty.',
+                      style: const TextStyle(fontSize: 12, color: Colors.black54),
+                    ),
+                    const SizedBox(height: 12),
                     if (_historyLoading)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 24),
                         child: Center(child: CircularProgressIndicator()),
                       )
-                    else if (_history.isEmpty)
+                    else if (chartPoints.isEmpty)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         child: Text(
@@ -1242,8 +1556,10 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
                             : _scope == EnergyScope.dzial
                                 ? 'Suma poboru w wybranym dziale'
                                 : 'Pobór wybranej maszyny',
-                        points: _history,
+                        points: chartPoints,
                         accentColor: Colors.green.shade600,
+                        pinnedTimestamp: _pinnedHistoryTimestamp,
+                        onPointSelected: (point) => setState(() => _pinnedHistoryTimestamp = point.recordedAt),
                       ),
                       const SizedBox(height: 12),
                       Wrap(
@@ -1252,17 +1568,17 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> {
                         children: [
                           _MiniInsightCard(
                             label: 'Średnia moc',
-                            value: '${_historyAveragePower.toStringAsFixed(1)} kW',
+                            value: '${chartAveragePower.toStringAsFixed(1)} kW',
                             icon: Icons.auto_graph_outlined,
                           ),
                           _MiniInsightCard(
                             label: 'Szczyt',
-                            value: '${_peakHistoryPoint?.powerKw.toStringAsFixed(1) ?? '0.0'} kW',
+                            value: '${chartPeakPoint?.powerKw.toStringAsFixed(1) ?? '0.0'} kW',
                             icon: Icons.trending_up_outlined,
                           ),
                           _MiniInsightCard(
                             label: 'Suma energii',
-                            value: '${_historyEnergySum.toStringAsFixed(1)} kWh',
+                            value: '${chartEnergySum.toStringAsFixed(1)} kWh',
                             icon: Icons.battery_charging_full_outlined,
                           ),
                         ],
@@ -1679,6 +1995,30 @@ enum EnergyAnalysisRule {
         EnergyAnalysisRule.min => Icons.trending_down_outlined,
         EnergyAnalysisRule.loadFactor => Icons.balance_outlined,
         EnergyAnalysisRule.peakSpread => Icons.waterfall_chart_outlined,
+      };
+}
+
+enum HistoryZoomPreset {
+  m15,
+  h1,
+  h6,
+  h24,
+  all;
+
+  String get label => switch (this) {
+        HistoryZoomPreset.m15 => '15m',
+        HistoryZoomPreset.h1 => '1h',
+        HistoryZoomPreset.h6 => '6h',
+        HistoryZoomPreset.h24 => '24h',
+        HistoryZoomPreset.all => 'Calosc',
+      };
+
+  Duration? get window => switch (this) {
+        HistoryZoomPreset.m15 => const Duration(minutes: 15),
+        HistoryZoomPreset.h1 => const Duration(hours: 1),
+        HistoryZoomPreset.h6 => const Duration(hours: 6),
+        HistoryZoomPreset.h24 => const Duration(hours: 24),
+        HistoryZoomPreset.all => null,
       };
 }
 

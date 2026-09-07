@@ -11,6 +11,8 @@ class EnergyLineChart extends StatefulWidget {
   final Color accentColor;
   final String title;
   final String subtitle;
+  final DateTime? pinnedTimestamp;
+  final ValueChanged<EnergyHistoryPoint>? onPointSelected;
 
   const EnergyLineChart({
     super.key,
@@ -18,14 +20,47 @@ class EnergyLineChart extends StatefulWidget {
     required this.accentColor,
     required this.title,
     required this.subtitle,
+    this.pinnedTimestamp,
+    this.onPointSelected,
   });
 
   @override
   State<EnergyLineChart> createState() => _EnergyLineChartState();
 }
 
-class _EnergyLineChartState extends State<EnergyLineChart> {
+class _EnergyLineChartState extends State<EnergyLineChart> with SingleTickerProviderStateMixin {
   int? _hoveredIndex;
+  late final AnimationController _pulseController;
+
+  int? get _pinnedIndex {
+    final ts = widget.pinnedTimestamp;
+    if (ts == null || widget.points.isEmpty) return null;
+    var bestIndex = 0;
+    var bestDelta = widget.points.first.recordedAt.difference(ts).abs();
+    for (var i = 1; i < widget.points.length; i++) {
+      final delta = widget.points[i].recordedAt.difference(ts).abs();
+      if (delta < bestDelta) {
+        bestDelta = delta;
+        bestIndex = i;
+      }
+    }
+    return bestIndex;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -73,15 +108,19 @@ class _EnergyLineChartState extends State<EnergyLineChart> {
                   widget.points,
                   Size(constraints.maxWidth, 220),
                 );
-                final hoveredPoint = _hoveredIndex != null ? widget.points[_hoveredIndex!] : null;
-                final hoveredOffset = _hoveredIndex != null ? layout.offsetForIndex(_hoveredIndex!) : null;
+                final activeIndex = _hoveredIndex ?? _pinnedIndex;
+                final hoveredPoint = activeIndex != null ? widget.points[activeIndex] : null;
+                final hoveredOffset = activeIndex != null ? layout.offsetForIndex(activeIndex) : null;
 
-                return MouseRegion(
-                  onExit: (_) => setState(() => _hoveredIndex = null),
-                  onHover: (event) => _updateHoveredIndex(event.localPosition, layout),
-                  child: GestureDetector(
+                return AnimatedBuilder(
+                  animation: _pulseController,
+                  builder: (context, _) => MouseRegion(
+                    onExit: (_) => setState(() => _hoveredIndex = null),
+                    onHover: (event) => _updateHoveredIndex(event.localPosition, layout),
+                    child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTapDown: (details) => _updateHoveredIndex(details.localPosition, layout),
+                    onTapDown: (details) => _selectPointAtPosition(details.localPosition, layout),
+                    onHorizontalDragUpdate: (details) => _selectPointAtPosition(details.localPosition, layout),
                     onTapCancel: () => setState(() => _hoveredIndex = null),
                     child: Stack(
                       clipBehavior: Clip.none,
@@ -90,7 +129,8 @@ class _EnergyLineChartState extends State<EnergyLineChart> {
                           painter: _EnergyChartPainter(
                             points: widget.points,
                             accentColor: widget.accentColor,
-                            hoveredIndex: _hoveredIndex,
+                            hoveredIndex: activeIndex,
+                            highlightPulse: _pulseController.value,
                           ),
                           child: const SizedBox.expand(),
                         ),
@@ -103,6 +143,7 @@ class _EnergyLineChartState extends State<EnergyLineChart> {
                             ),
                           ),
                       ],
+                    ),
                     ),
                   ),
                 );
@@ -120,6 +161,17 @@ class _EnergyLineChartState extends State<EnergyLineChart> {
       return;
     }
     setState(() => _hoveredIndex = nextIndex);
+  }
+
+  void _selectPointAtPosition(Offset localPosition, _EnergyChartLayout layout) {
+    final nextIndex = layout.indexForPosition(localPosition);
+    if (nextIndex == null) return;
+    if (nextIndex != _hoveredIndex) {
+      setState(() => _hoveredIndex = nextIndex);
+    }
+    if (nextIndex != null) {
+      widget.onPointSelected?.call(widget.points[nextIndex]);
+    }
   }
 
   double _tooltipLeft(double pointDx, double chartWidth) {
@@ -298,8 +350,14 @@ class _EnergyChartPainter extends CustomPainter {
   final List<EnergyHistoryPoint> points;
   final Color accentColor;
   final int? hoveredIndex;
+  final double highlightPulse;
 
-  _EnergyChartPainter({required this.points, required this.accentColor, this.hoveredIndex});
+  _EnergyChartPainter({
+    required this.points,
+    required this.accentColor,
+    this.hoveredIndex,
+    this.highlightPulse = 0,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -416,7 +474,9 @@ class _EnergyChartPainter extends CustomPainter {
         Offset(hoveredOffset.dx, top + drawHeight),
         guidePaint,
       );
-      canvas.drawCircle(hoveredOffset, 7.5, Paint()..color = accentColor.withOpacity(.18));
+      final pulseRadius = 7.5 + (highlightPulse * 5.0);
+      final pulseOpacity = (0.20 - (highlightPulse * 0.12)).clamp(0.06, 0.20);
+      canvas.drawCircle(hoveredOffset, pulseRadius, Paint()..color = accentColor.withOpacity(pulseOpacity));
       canvas.drawCircle(hoveredOffset, 5.0, Paint()..color = accentColor);
       canvas.drawCircle(hoveredOffset, 2.2, Paint()..color = Colors.white);
     }
@@ -468,7 +528,10 @@ class _EnergyChartPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _EnergyChartPainter oldDelegate) {
-    return oldDelegate.points != points || oldDelegate.accentColor != accentColor || oldDelegate.hoveredIndex != hoveredIndex;
+    return oldDelegate.points != points ||
+        oldDelegate.accentColor != accentColor ||
+        oldDelegate.hoveredIndex != hoveredIndex ||
+        oldDelegate.highlightPulse != highlightPulse;
   }
 }
 
