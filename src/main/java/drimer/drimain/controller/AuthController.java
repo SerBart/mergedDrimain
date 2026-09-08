@@ -136,28 +136,23 @@ public class AuthController {
                     .build();
             response.addHeader("Set-Cookie", jwtCookie.toString());
 
-            // Remember-me: set persistent refresh token cookie if creation succeeded
-            if (request.isRememberMe() && refreshToken != null) {
-                Duration ttl = Duration.between(LocalDateTime.now(), refreshToken.getExpiry());
-                if (ttl.isNegative()) ttl = Duration.ofDays(7); // fallback
-                ResponseCookie refreshCookie = ResponseCookie.from("REFRESH_TOKEN", refreshToken.getToken())
+            // REFRESH_TOKEN cookie is always set if token creation succeeded:
+            // - rememberMe=true  -> persistent cookie (DB expiry aligned)
+            // - rememberMe=false -> session cookie (removed when browser closes)
+            if (refreshToken != null) {
+                ResponseCookie.ResponseCookieBuilder refreshBuilder = ResponseCookie.from("REFRESH_TOKEN", refreshToken.getToken())
                         .httpOnly(true)
                         .secure(isHttps)
                         .path("/")
-                        .maxAge(ttl)
-                        .sameSite(sameSite)
-                        .build();
-                response.addHeader("Set-Cookie", refreshCookie.toString());
-            } else {
-                // Clear any existing refresh cookie from previous sessions
-                ResponseCookie clearRefresh = ResponseCookie.from("REFRESH_TOKEN", "")
-                        .httpOnly(true)
-                        .secure(isHttps)
-                        .path("/")
-                        .maxAge(Duration.ZERO)
-                        .sameSite(sameSite)
-                        .build();
-                response.addHeader("Set-Cookie", clearRefresh.toString());
+                        .sameSite(sameSite);
+
+                if (request.isRememberMe()) {
+                    Duration ttl = Duration.between(LocalDateTime.now(), refreshToken.getExpiry());
+                    if (ttl.isNegative()) ttl = Duration.ofDays(7); // fallback
+                    refreshBuilder.maxAge(ttl);
+                }
+
+                response.addHeader("Set-Cookie", refreshBuilder.build().toString());
             }
 
             log.info("User {} logged in successfully (rememberMe={})", userDetails.getUsername(), request.isRememberMe());
