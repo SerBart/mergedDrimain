@@ -30,6 +30,7 @@ app:
     refresh-expiration: 604800000 # 7 days in milliseconds
   energy:
     ingest-key: ${ENERGY_INGEST_KEY:}
+    zone-id: ${APP_ENERGY_ZONE_ID:Europe/Warsaw}
   
   # CORS configuration
   cors:

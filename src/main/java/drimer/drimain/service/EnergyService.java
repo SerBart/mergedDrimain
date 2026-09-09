@@ -22,7 +22,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -52,6 +54,9 @@ public class EnergyService {
     @Value("${app.energy.sse.client-timeout-ms:180000}")
     private long energySseClientTimeoutMs;
 
+    @Value("${app.energy.zone-id:Europe/Warsaw}")
+    private String energyZoneId;
+
     @Transactional
     public EnergyReading ingest(EnergyReadingIngestRequest req) {
         Maszyna maszyna = maszynaRepository.findById(req.getMaszynaId())
@@ -79,10 +84,12 @@ public class EnergyService {
     public EnergyOverviewDTO overview(EnergyScopeType scope, Long dzialId, Long maszynaId, int days) {
         int normalizedDays = normalizeDays(days);
         EnergyScopeType normalizedScope = scope == null ? EnergyScopeType.TOTAL : scope;
-        LocalDate today = LocalDate.now();
+        ZoneId zone = resolveEnergyZone();
+        LocalDate today = LocalDate.now(zone);
         LocalDate startDate = today.minusDays(normalizedDays - 1L);
-        LocalDateTime start = startDate.atStartOfDay();
-        LocalDateTime endExclusive = today.plusDays(1).atStartOfDay();
+        LocalDateTime start = toUtc(startDate.atStartOfDay(), zone);
+        LocalDateTime todayStart = toUtc(today.atStartOfDay(), zone);
+        LocalDateTime endExclusive = toUtc(today.plusDays(1).atStartOfDay(), zone);
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         LocalDateTime activeThreshold = now.minusMinutes(30);
 
@@ -111,9 +118,15 @@ public class EnergyService {
                     .max(Comparator.comparing(EnergyReading::getRecordedAt))
                     .orElse(machineReadings.get(machineReadings.size() - 1));
             List<EnergyReading> todayReadings = machineReadings.stream()
-                    .filter(r -> r.getRecordedAt() != null && !r.getRecordedAt().isBefore(start))
+                    .filter(r -> r.getRecordedAt() != null
+                            && !r.getRecordedAt().isBefore(todayStart)
+                            && r.getRecordedAt().isBefore(endExclusive))
                     .toList();
-            BigDecimal deltaToday = EnergyAggregationUtils.calculateEnergyDelta(todayReadings);
+            List<EnergyReading> todayReadingsWithBaseline = new ArrayList<>();
+            energyReadingRepository.findTopByMaszyna_IdAndRecordedAtLessThanOrderByRecordedAtDesc(entry.getKey(), todayStart)
+                    .ifPresent(todayReadingsWithBaseline::add);
+            todayReadingsWithBaseline.addAll(todayReadings);
+            BigDecimal deltaToday = EnergyAggregationUtils.calculateEnergyDelta(todayReadingsWithBaseline);
 
             EnergyMachineSummaryDTO dto = new EnergyMachineSummaryDTO();
             dto.setMaszynaId(entry.getKey());
@@ -225,10 +238,10 @@ public class EnergyService {
     public List<EnergyHistoryPointDTO> history(Long maszynaId, int days, int bucketMinutes) {
         int normalizedDays = normalizeDays(days);
         int normalizedBucketMinutes = normalizeBucketMinutes(bucketMinutes);
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(resolveEnergyZone());
         LocalDate startDate = today.minusDays(normalizedDays - 1L);
-        LocalDateTime start = startDate.atStartOfDay();
-        LocalDateTime endExclusive = today.plusDays(1).atStartOfDay();
+        LocalDateTime start = toUtc(startDate.atStartOfDay(), resolveEnergyZone());
+        LocalDateTime endExclusive = toUtc(today.plusDays(1).atStartOfDay(), resolveEnergyZone());
 
         List<EnergyReading> readings = energyReadingRepository.findByMaszyna_IdAndRecordedAtBetweenOrderByRecordedAtAsc(maszynaId, start, endExclusive);
         return EnergyAggregationUtils.aggregateHistory(readings, normalizedBucketMinutes);
@@ -457,20 +470,41 @@ public class EnergyService {
     }
 
     private LocalDateTime[] resolveRange(LocalDateTime from, LocalDateTime to, int normalizedDays) {
+        ZoneId zone = resolveEnergyZone();
         if (from != null && to != null) {
-            LocalDateTime start = from.isBefore(to) ? from : to;
-            LocalDateTime endExclusive = from.isBefore(to) ? to : from;
-            if (start.isEqual(endExclusive)) {
-                endExclusive = endExclusive.plusMinutes(5);
+            LocalDateTime startLocal = from.isBefore(to) ? from : to;
+            LocalDateTime endLocal = from.isBefore(to) ? to : from;
+            if (startLocal.isEqual(endLocal)) {
+                endLocal = endLocal.plusMinutes(5);
             }
+            LocalDateTime start = toUtc(startLocal, zone);
+            LocalDateTime endExclusive = toUtc(endLocal, zone);
             return new LocalDateTime[]{start, endExclusive};
         }
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(zone);
         LocalDate startDate = today.minusDays(normalizedDays - 1L);
-        LocalDateTime start = startDate.atStartOfDay();
-        LocalDateTime endExclusive = today.plusDays(1).atStartOfDay();
+        LocalDateTime start = toUtc(startDate.atStartOfDay(), zone);
+        LocalDateTime endExclusive = toUtc(today.plusDays(1).atStartOfDay(), zone);
         return new LocalDateTime[]{start, endExclusive};
+    }
+
+    private ZoneId resolveEnergyZone() {
+        try {
+            return ZoneId.of(energyZoneId == null || energyZoneId.isBlank() ? "Europe/Warsaw" : energyZoneId.trim());
+        } catch (Exception ex) {
+            log.warn("Invalid app.energy.zone-id='{}', falling back to Europe/Warsaw", energyZoneId);
+            return ZoneId.of("Europe/Warsaw");
+        }
+    }
+
+    private LocalDateTime toUtc(LocalDateTime localDateTime, ZoneId zone) {
+        if (localDateTime == null) {
+            return null;
+        }
+        return ZonedDateTime.of(localDateTime, zone)
+                .withZoneSameInstant(ZoneOffset.UTC)
+                .toLocalDateTime();
     }
 }
 

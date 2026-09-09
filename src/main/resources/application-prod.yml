@@ -67,6 +67,7 @@ app:
     refresh-expiration: ${JWT_REFRESH_TTL_MS:604800000}
   energy:
     ingest-key: ${ENERGY_INGEST_KEY:}
+    zone-id: ${APP_ENERGY_ZONE_ID:Europe/Warsaw}
   cors:
     allowed-origins: "https://app.drimain.com,https://mergeddrimain-production.up.railway.app,https://*.up.railway.app"
   security:

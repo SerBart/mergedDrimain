@@ -23,6 +23,9 @@ Future<DateTime?> showModernDatePicker({
       initialDate: normalizedInitial,
       firstDate: normalizedFirst,
       lastDate: normalizedLast,
+      initialDateTime: initialDate,
+      firstDateTime: firstDate,
+      lastDateTime: lastDate,
       allowQuickActions: allowQuickActions,
       includeTime: includeTime,
       selectableDayPredicate: selectableDayPredicate,
@@ -35,6 +38,9 @@ class _ModernDatePickerDialog extends StatefulWidget {
   final DateTime initialDate;
   final DateTime firstDate;
   final DateTime lastDate;
+  final DateTime initialDateTime;
+  final DateTime firstDateTime;
+  final DateTime lastDateTime;
   final bool allowQuickActions;
   final bool includeTime;
   final SelectableDayPredicate? selectableDayPredicate;
@@ -44,6 +50,9 @@ class _ModernDatePickerDialog extends StatefulWidget {
     required this.initialDate,
     required this.firstDate,
     required this.lastDate,
+    required this.initialDateTime,
+    required this.firstDateTime,
+    required this.lastDateTime,
     required this.allowQuickActions,
     required this.includeTime,
     this.selectableDayPredicate,
@@ -60,8 +69,9 @@ class _ModernDatePickerDialogState extends State<_ModernDatePickerDialog> {
   @override
   void initState() {
     super.initState();
-    _selectedDate = _clamp(widget.initialDate);
-    _selectedTime = TimeOfDay.fromDateTime(widget.initialDate);
+    final initialDateTime = _clampDateTime(widget.initialDateTime);
+    _selectedDate = DateUtils.dateOnly(initialDateTime);
+    _selectedTime = TimeOfDay.fromDateTime(initialDateTime);
   }
 
   DateTime _selectedDateTime() => DateTime(
@@ -71,6 +81,18 @@ class _ModernDatePickerDialogState extends State<_ModernDatePickerDialog> {
         _selectedTime.hour,
         _selectedTime.minute,
       );
+
+  DateTime _clampDateTime(DateTime value) {
+    if (value.isBefore(widget.firstDateTime)) return widget.firstDateTime;
+    if (value.isAfter(widget.lastDateTime)) return widget.lastDateTime;
+    return value;
+  }
+
+  void _clampSelectionToBounds() {
+    final clamped = _clampDateTime(_selectedDateTime());
+    _selectedDate = DateUtils.dateOnly(clamped);
+    _selectedTime = TimeOfDay.fromDateTime(clamped);
+  }
 
   DateTime _clamp(DateTime date) {
     if (date.isBefore(widget.firstDate)) return widget.firstDate;
@@ -102,20 +124,10 @@ class _ModernDatePickerDialogState extends State<_ModernDatePickerDialog> {
   }
 
   void _applyQuickDate(DateTime date) {
-    setState(() => _selectedDate = _findSelectable(date));
-  }
-
-  Future<void> _pickTime() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: _selectedTime,
-      helpText: 'Wybierz godzine',
-      cancelText: 'Anuluj',
-      confirmText: 'OK',
-    );
-    if (picked != null) {
-      setState(() => _selectedTime = picked);
-    }
+    setState(() {
+      _selectedDate = _findSelectable(date);
+      _clampSelectionToBounds();
+    });
   }
 
   Widget _quickChip(String label, DateTime value) {
@@ -124,6 +136,34 @@ class _ModernDatePickerDialogState extends State<_ModernDatePickerDialog> {
       label: Text(label),
       onPressed: () => _applyQuickDate(value),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    );
+  }
+
+  String _pad2(int value) => value.toString().padLeft(2, '0');
+
+  void _updateHour(int? hour) {
+    if (hour == null) return;
+    setState(() {
+      _selectedTime = TimeOfDay(hour: hour, minute: _selectedTime.minute);
+      _clampSelectionToBounds();
+    });
+  }
+
+  void _updateMinute(int? minute) {
+    if (minute == null) return;
+    setState(() {
+      _selectedTime = TimeOfDay(hour: _selectedTime.hour, minute: minute);
+      _clampSelectionToBounds();
+    });
+  }
+
+  Widget _minuteChip(int minute) {
+    final selected = _selectedTime.minute == minute;
+    return ChoiceChip(
+      label: Text(_pad2(minute)),
+      selected: selected,
+      onSelected: (_) => _updateMinute(minute),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     );
   }
 
@@ -201,23 +241,87 @@ class _ModernDatePickerDialogState extends State<_ModernDatePickerDialog> {
                     firstDate: widget.firstDate,
                     lastDate: widget.lastDate,
                     selectableDayPredicate: widget.selectableDayPredicate,
-                    onDateChanged: (date) => setState(() => _selectedDate = date),
+                    onDateChanged: (date) => setState(() {
+                      _selectedDate = date;
+                      _clampSelectionToBounds();
+                    }),
                   ),
                 ),
                 if (widget.includeTime) ...[
                   const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      const Icon(Icons.schedule_rounded, size: 18),
-                      const SizedBox(width: 8),
-                      Text('Godzina: ${_selectedTime.format(context)}'),
-                      const Spacer(),
-                      OutlinedButton.icon(
-                        onPressed: _pickTime,
-                        icon: const Icon(Icons.edit_calendar_outlined),
-                        label: const Text('Zmien'),
-                      ),
-                    ],
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: theme.colorScheme.outlineVariant),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.schedule_rounded, size: 18),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Godzina: ${_pad2(_selectedTime.hour)}:${_pad2(_selectedTime.minute)}',
+                              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: DropdownButtonFormField<int>(
+                                value: _selectedTime.hour,
+                                decoration: const InputDecoration(
+                                  labelText: 'Godzina',
+                                  border: OutlineInputBorder(),
+                                ),
+                                items: List.generate(
+                                  24,
+                                  (hour) => DropdownMenuItem<int>(
+                                    value: hour,
+                                    child: Text(_pad2(hour)),
+                                  ),
+                                ),
+                                onChanged: _updateHour,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: DropdownButtonFormField<int>(
+                                value: _selectedTime.minute,
+                                decoration: const InputDecoration(
+                                  labelText: 'Minuta',
+                                  border: OutlineInputBorder(),
+                                ),
+                                items: List.generate(
+                                  60,
+                                  (minute) => DropdownMenuItem<int>(
+                                    value: minute,
+                                    child: Text(_pad2(minute)),
+                                  ),
+                                ),
+                                onChanged: _updateMinute,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _minuteChip(0),
+                            _minuteChip(15),
+                            _minuteChip(30),
+                            _minuteChip(45),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ],
                 const SizedBox(height: 12),
@@ -234,7 +338,7 @@ class _ModernDatePickerDialogState extends State<_ModernDatePickerDialog> {
                       onPressed: _isSelectable(_selectedDate)
                           ? () => Navigator.of(context).pop(
                                 widget.includeTime
-                                    ? _selectedDateTime()
+                                    ? _clampDateTime(_selectedDateTime())
                                     : DateUtils.dateOnly(_selectedDate),
                               )
                           : null,

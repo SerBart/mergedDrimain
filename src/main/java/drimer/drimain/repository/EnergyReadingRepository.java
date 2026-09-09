@@ -22,6 +22,9 @@ public interface EnergyReadingRepository extends JpaRepository<EnergyReading, Lo
     @EntityGraph(attributePaths = {"maszyna", "maszyna.dzial", "maszyna.sekcja"})
     Optional<EnergyReading> findTopByMaszyna_IdOrderByRecordedAtDesc(Long maszynaId);
 
+    @EntityGraph(attributePaths = {"maszyna", "maszyna.dzial", "maszyna.sekcja"})
+    Optional<EnergyReading> findTopByMaszyna_IdAndRecordedAtLessThanOrderByRecordedAtDesc(Long maszynaId, LocalDateTime recordedAt);
+
     @Modifying
     @Transactional
     @Query("delete from EnergyReading e where e.maszyna.id = :maszynaId")
