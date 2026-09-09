@@ -6,7 +6,8 @@ import 'web_visibility_observer.dart';
 class _BrowserVisibilityObserver implements WebVisibilityObserver {
   _BrowserVisibilityObserver() {
     _controller.add(_isVisible);
-    _subscription = _document.onVisibilityChange.listen((_) {
+    final visibilityProvider = html.EventStreamProvider<html.Event>('visibilitychange');
+    _subscription = visibilityProvider.forTarget(_document).listen((_) {
       _controller.add(_isVisible);
     });
   }
