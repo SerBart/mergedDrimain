@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:dio/dio.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/constants/app_roles.dart';
 import '../../widgets/dialogs.dart';
@@ -193,6 +194,15 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
       _maszynaCtrl.clear();
       _maszynaSekcjaIds = <int>{};
       await _loadAll();
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      if (data is Map && data['message'] != null) {
+        final details = data['details']?.toString();
+        final message = data['message'].toString();
+        _showError(details != null && details.isNotEmpty ? '$message\n$details' : message);
+      } else {
+        _showError('Błąd dodawania maszyny (HTTP ${e.response?.statusCode ?? 'nieznany'}).');
+      }
     } catch (e) {
       _showError('Błąd dodawania maszyny: $e');
     }
