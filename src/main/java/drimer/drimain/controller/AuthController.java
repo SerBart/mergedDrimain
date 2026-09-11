@@ -38,6 +38,7 @@ import java.time.LocalDateTime;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.transaction.annotation.Transactional;
 import java.util.stream.Collectors;
 
 @RestController
@@ -168,6 +169,7 @@ public class AuthController {
 
     // NOTE: Refresh token endpoint for JWT token refresh flow
     @PostMapping("/refresh")
+    @Transactional
     public ResponseEntity<?> refresh(@RequestBody(required = false) RefreshRequest request,
                                      HttpServletRequest httpRequest,
                                      HttpServletResponse httpResponse) {

@@ -14,18 +14,19 @@ import java.util.Optional;
 @Repository
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
 
-    Optional<RefreshToken> findByToken(String token);
-    
+    @Query("SELECT rt FROM RefreshToken rt JOIN FETCH rt.user WHERE rt.token = :token")
+    Optional<RefreshToken> findByToken(@Param("token") String token);
+
     Optional<RefreshToken> findByUserAndRevokedFalse(User user);
-    
+
     @Modifying
     @Query("UPDATE RefreshToken rt SET rt.revoked = true WHERE rt.user = :user")
     void revokeAllByUser(@Param("user") User user);
-    
+
     @Modifying
     @Query("DELETE FROM RefreshToken rt WHERE rt.expiry < :now")
     void deleteExpiredTokens(@Param("now") LocalDateTime now);
-    
+
     @Modifying
     @Query("UPDATE RefreshToken rt SET rt.revoked = true WHERE rt.token = :token")
     void revokeByToken(@Param("token") String token);

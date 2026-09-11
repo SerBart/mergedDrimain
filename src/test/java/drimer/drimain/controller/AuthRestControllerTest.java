@@ -156,4 +156,32 @@ class AuthRestControllerTest {
                         .header("Authorization", "Bearer invalid.token.here"))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void shouldRefreshAccessTokenWithValidRefreshToken() throws Exception {
+        // Given - login to obtain refresh token
+        Map<String, String> loginRequest = new HashMap<>();
+        loginRequest.put("username", testUsername);
+        loginRequest.put("password", testPassword);
+
+        MvcResult loginResult = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String loginResponse = loginResult.getResponse().getContentAsString();
+        String refreshToken = objectMapper.readTree(loginResponse).get("refreshToken").asText();
+
+        Map<String, String> refreshRequest = new HashMap<>();
+        refreshRequest.put("refreshToken", refreshToken);
+
+        // When & Then
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(refreshRequest)))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.token", notNullValue()));
+    }
 }

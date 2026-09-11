@@ -38,6 +38,7 @@ public class RefreshTokenService {
         return saved;
     }
 
+    @Transactional(readOnly = true)
     public Optional<RefreshToken> findByToken(String token) {
         return refreshTokenRepository.findByToken(token);
     }

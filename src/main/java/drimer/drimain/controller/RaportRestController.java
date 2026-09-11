@@ -36,11 +36,14 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 import java.util.Base64;
+import java.util.Map;
+import java.util.function.Function;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -154,7 +157,25 @@ public class RaportRestController {
         }
 
         Page<Raport> pageData = raportRepository.findAll(spec, pageable);
-        return pageData.map(raportMapper::toDto);
+        if (pageData.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        // Drugi krok: dociagnij kolekcje tylko dla elementow z aktualnej strony.
+        List<Long> orderedIds = pageData.getContent().stream()
+                .map(Raport::getId)
+                .toList();
+        List<Raport> hydrated = raportRepository.findAllWithCollectionsByIdIn(orderedIds);
+        Map<Long, Raport> byId = hydrated.stream()
+                .collect(Collectors.toMap(Raport::getId, Function.identity(), (left, right) -> left));
+
+        List<RaportDTO> content = orderedIds.stream()
+                .map(byId::get)
+                .filter(java.util.Objects::nonNull)
+                .map(raportMapper::toDto)
+                .toList();
+
+        return new PageImpl<>(content, pageable, pageData.getTotalElements());
     }
 
     @GetMapping("/{id}")
