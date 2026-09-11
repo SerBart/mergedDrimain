@@ -1,3 +1,64 @@
+// PATCH_SENTINEL
+/*
+ResponseStatus(HttpStatus.CREATED)
+        dto.setNazwa(sekcja.getNazwa());
+    public String handleOther(Exception ex) {
+        return ex.getMessage() == null ? "Internal server error" : ex.getMessage();
+    }
+                throw new IllegalArgumentException("Sekcja musi nalezec do wybranego dzialu maszyny");
+        // Sekcja glowna = pierwsza z listy (kompatybilnosc ze starszym API/UI).
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, String>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        String details = ex.getMostSpecificCause() != null
+                ? ex.getMostSpecificCause().getMessage()
+                : ex.getMessage();
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                    "Nie mozna usunac. Powiazane: raporty=%d, harmonogramy=%d, zgloszenia=%d, czesci=%d, instrukcje=%d",
+                    raportCount, harmCount, zglCount, partCount, instrCount
+                        "details", details == null ? "Brak szczegolow" : details
+                ));
+    }
+
+                throw new IllegalArgumentException("Sekcja musi należeć do wybranego działu maszyny");
+        // Sekcja główna = pierwsza z listy (kompatybilność ze starszym API/UI).
+
+
+                    .body(Map.of("message", "Nie mozna usunac maszyny z powodu powiazan w bazie."));
+        return ex.getMessage(    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, String>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("message", "Nie mozna zapisac maszyny - sprawdz unikalnosc danych i powiazania."));
+        dto.set Nazwa(maszyna.getNazwa());
+        
+        dto.set Nazwa(sekcja.getNazwa());
+        return ex.getMessage(    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, String>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        String details = ex.getMostSpecificCause() != null
+                ? ex.getMostSpecificCause().getMessage()
+                : ex.getMessage();
+        
+                .body(Map.of(
+
+                        "details", details == null ? "Brak szczegolow" : details
+                ));
+        // login/haslo opcjonalne
+        dto.set Nazwa(sekcja.getNazwa());
+                throw new IllegalArgumentException("Sekcja musi nalezec do wybranego dzialu maszyny");
+        // Sekcja glowna = pierwsza z listy (kompatybilnosc ze starszym API/UI).
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, String>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        String details = ex.getMostSpecificCause() != null
+                ? ex.getMostSpecificCause().getMessage()
+                : ex.getMessage();
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of(
+                        "message", "Nie mozna zapisac maszyny - sprawdz unikalnosc danych i powiazania.",
+                        "details", details == null ? "Brak szczegolow" : details
+                ));
+    }
+
+*/
+
 package drimer.drimain.controller;
 
 import drimer.drimain.api.dto.*;
@@ -14,8 +75,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -37,7 +98,7 @@ public class AdminRestController {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
-    // Nowe repozytoria do walidacji zależności maszyny
+    // Nowe repozytoria do walidacji zaleznosci maszyny
     private final RaportRepository raportRepository;
     private final HarmonogramRepository harmonogramRepository;
     private final ZgloszenieRepository zgloszenieRepository;
@@ -51,7 +112,7 @@ public class AdminRestController {
     }
 
     // ========== DZIALY ==========
-    
+
     @GetMapping("/dzialy")
     @Transactional(readOnly = true)
     public List<DzialDTO> getDzialy() {
@@ -85,7 +146,7 @@ public class AdminRestController {
     }
 
     // ========== MASZYNY ==========
-    
+
     @GetMapping("/maszyny")
     @Transactional(readOnly = true)
     public List<MaszynaDTO> getMaszyny() {
@@ -95,11 +156,12 @@ public class AdminRestController {
     }
 
     @PostMapping("/maszyny")
+    @Transactional
     @ResponseStatus(HttpStatus.CREATED)
     public MaszynaDTO createMaszyna(@Valid @RequestBody MaszynaCreateRequest req) {
         Maszyna maszyna = new Maszyna();
         maszyna.setNazwa(req.getNazwa());
-        
+
         if (req.getDzialId() != null) {
             Dzial dzial = dzialRepository.findById(req.getDzialId())
                     .orElseThrow(() -> new IllegalArgumentException("Dzial not found"));
@@ -107,18 +169,19 @@ public class AdminRestController {
         }
 
         applySekcje(maszyna, req.getSekcjaIds(), req.getSekcjaId());
-        
+
         maszynaRepository.save(maszyna);
         return toMaszynaDto(maszyna);
     }
 
     @PutMapping("/maszyny/{id}")
+    @Transactional
     public MaszynaDTO updateMaszyna(@PathVariable Long id, @Valid @RequestBody MaszynaCreateRequest req) {
         Maszyna maszyna = maszynaRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Maszyna not found"));
-        
+
         maszyna.setNazwa(req.getNazwa());
-        
+
         if (req.getDzialId() != null) {
             Dzial dzial = dzialRepository.findById(req.getDzialId())
                     .orElseThrow(() -> new IllegalArgumentException("Dzial not found"));
@@ -128,7 +191,7 @@ public class AdminRestController {
         }
 
         applySekcje(maszyna, req.getSekcjaIds(), req.getSekcjaId());
-        
+
         maszynaRepository.save(maszyna);
         return toMaszynaDto(maszyna);
     }
@@ -220,7 +283,7 @@ public class AdminRestController {
     }
 
     // ========== OSOBY ==========
-    
+
     @GetMapping("/osoby")
     @Transactional(readOnly = true)
     public List<OsobaDTO> getOsoby() {
@@ -275,7 +338,7 @@ public class AdminRestController {
     }
 
     // ========== USERS (SECURITY) ==========
-    
+
     @GetMapping("/users")
     @Transactional(readOnly = true)
     public List<UserDTO> getUsers() {
@@ -466,9 +529,97 @@ public class AdminRestController {
         return ex.getMessage();
     }
 
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, String>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        String details = ex.getMostSpecificCause() != null
+                ? ex.getMostSpecificCause().getMessage()
+                : ex.getMessage();
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of(
+                        "message", "Nie mozna zapisac maszyny - sprawdz unikalnosc danych i powiazania.",
+                        "details", details == null ? "Brak szczegolow" : details
+                ));
+    }
+
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public String handleOther(Exception ex) {
         return ex.getMessage() == null ? "Internal server error" : ex.getMessage();
     }
 }
+    @ExceptionHandler(IllegalArgumentException.class)
+    }
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+}
+        dto.setNazwa(dzial.getNazwa());
+        return ex.getMessage(    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, String>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("message", "Nie mozna zapisac maszyny - sprawdz unikalnosc danych i powiazania."));
+        dto.setNazwa(maszyna.getNazwa());
+        
+        dto.set Nazwa(sekcja.getNazwa());
+        return ex.getMessage(    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, String>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        String details = ex.getMostSpecificCause() != null
+                ? ex.getMostSpecificCause().getMessage()
+                : ex.getMessage();
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of(
+        
+                        "details", details == null ? "Brak szczegolow" : details
+                ));
+        dto.setNazwa(sekcja.getNazwa());
+        dto.setNazwa(sekcja.getNazwa());
+                throw new IllegalArgumentException("Sekcja musi nalezec do wybranego dzialu maszyny");
+        // Sekcja glowna = pierwsza z listy (kompatybilnosc ze starszym API/UI).
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, String>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        String details = ex.getMostSpecificCause() != null
+                ? ex.getMostSpecificCause().getMessage()
+                : ex.getMessage();
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of(
+                        "message", "Nie mozna zapisac maszyny - sprawdz unikalnosc danych i powiazania.",
+                        "details", details == null ? "Brak szczegolow" : details
+                ));
+    }
+
+                throw new IllegalArgumentException("Sekcja musi należeć do wybranego działu maszyny");
+        // Sekcja główna = pierwsza z listy (kompatybilność ze starszym API/UI).
+
+
+        dto.set Nazwa(dzial.getNazwa());
+        return ex.getMessage(    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, String>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("message", "Nie mozna zapisac maszyny - sprawdz unikalnosc danych i powiazania."));
+        dto.set Nazwa(maszyna.getNazwa());
+
+        dto.set Nazwa(sekcja.getNazwa());
+        return ex.getMessage(    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, String>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        String details = ex.getMostSpecificCause() != null
+                ? ex.getMostSpecificCause().getMessage()
+                : ex.getMessage();
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of(
+
+                        "details", details == null ? "Brak szczegolow" : details
+                ));
+        dto.setNazwa(sekcja.getNazwa());
+        dto.set Nazwa(sekcja.getNazwa());
+                throw new IllegalArgumentException("Sekcja musi nalezec do wybranego dzialu maszyny");
+        // Sekcja glowna = pierwsza z listy (kompatybilnosc ze starszym API/UI).
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, String>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        String details = ex.getMostSpecificCause() != null
+                ? ex.getMostSpecificCause().getMessage()
+                : ex.getMessage();
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of(
+                        "message", "Nie mozna zapisac maszyny - sprawdz unikalnosc danych i powiazania.",
+                        "details", details == null ? "Brak szczegolow" : details
+                ));
+    }
+
