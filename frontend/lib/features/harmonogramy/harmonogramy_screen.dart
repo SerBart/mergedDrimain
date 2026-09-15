@@ -8,6 +8,7 @@ import '../../core/models/osoba.dart';
 import '../../core/models/dzial.dart';
 import '../../widgets/centered_scroll_card.dart';
 import '../../widgets/modern_date_picker.dart';
+import '../../widgets/pagination_controls.dart';
 import '../../widgets/top_app_bar.dart';
 
 class HarmonogramyScreen extends ConsumerStatefulWidget {
@@ -34,6 +35,11 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
   // Sortowanie
   int _sortCol = 0;
   bool _asc = true;
+
+  // Paginacja (jak w częściach)
+  int _page = 0;
+  int _pageSize = 25;
+  static const List<int> _pageSizes = [10, 25, 50, 100];
 
   @override
   void initState() {
@@ -128,6 +134,14 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
     });
     return list;
   }
+
+  List<Harmonogram> _pageSlice(List<Harmonogram> all) {
+    final start = _page * _pageSize;
+    final end = (start + _pageSize) > all.length ? all.length : (start + _pageSize);
+    if (start >= all.length) return const <Harmonogram>[];
+    return all.sublist(start, end);
+  }
+
 
   Future<void> _addNew() async {
     final created = await _openFormDialog();
@@ -269,6 +283,11 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
   Widget build(BuildContext context) {
     final filtered = _sorted(_applyFilters());
     final theme = Theme.of(context);
+    final totalPages = filtered.isEmpty ? 1 : (filtered.length / _pageSize).ceil();
+    if (_page >= totalPages) {
+      _page = totalPages - 1;
+    }
+    final visible = _pageSlice(filtered);
 
     return Scaffold(
       appBar: const TopAppBar(title: 'Harmonogramy', showBack: true),
@@ -298,7 +317,10 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                                   .map((y) => DropdownMenuItem(value: y, child: Text(y.toString())))
                                   .toList(),
                               onChanged: (v) async {
-                                setState(() => _year = v);
+                                setState(() {
+                                  _year = v;
+                                  _page = 0;
+                                });
                                 await _loadAll();
                               },
                             ),
@@ -317,7 +339,10 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                                       ))
                                   .toList(),
                               onChanged: (v) async {
-                                setState(() => _month = v);
+                                setState(() {
+                                  _month = v;
+                                  _page = 0;
+                                });
                                 await _loadAll();
                               },
                             ),
@@ -336,11 +361,15 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                                         onPressed: () => setState(() {
                                           _searchCtrl.clear();
                                           _query = '';
+                                          _page = 0;
                                         }),
                                       )
                                     : null,
                               ),
-                              onChanged: (v) => setState(() => _query = v),
+                              onChanged: (v) => setState(() {
+                                _query = v;
+                                _page = 0;
+                              }),
                             ),
                           ),
                         ],
@@ -409,7 +438,7 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                             const DataColumn(label: Text('Opis')),
                             const DataColumn(label: Text('Akcje')),
                           ],
-                          rows: filtered.map((h) {
+                          rows: visible.map((h) {
                             final dateStr = _fmtDate(h.data);
                             return DataRow(
                               cells: [
@@ -463,6 +492,17 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                     ),
                   ),
                 ),
+                PaginationControls(
+                  totalItems: filtered.length,
+                  currentPage: _page,
+                  pageSize: _pageSize,
+                  pageSizes: _pageSizes,
+                  onPageChanged: (page) => setState(() => _page = page),
+                  onPageSizeChanged: (size) => setState(() {
+                    _pageSize = size;
+                    _page = 0;
+                  }),
+                ),
               ],
             ),
     );
@@ -475,7 +515,10 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
       label: Text(_statusLabel(status)),
       selected: selected,
       selectedColor: color.withOpacity(.15),
-      onSelected: (_) => setState(() => _statusFilter = status),
+      onSelected: (_) => setState(() {
+        _statusFilter = status;
+        _page = 0;
+      }),
       labelStyle: TextStyle(color: selected ? color : null),
       side: selected ? BorderSide(color: color) : null,
     );

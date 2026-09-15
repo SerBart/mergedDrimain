@@ -9,6 +9,7 @@ import '../../core/models/part.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/utils/file_download.dart';
 import '../../widgets/centered_scroll_card.dart';
+import '../../widgets/pagination_controls.dart';
 import '../../widgets/top_app_bar.dart';
 
 class CzesciListScreen extends ConsumerStatefulWidget {
@@ -31,7 +32,7 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
 
   int _page = 0;
   int _pageSize = 10;
-  static const List<int> _pageSizes = [10, 15, 20];
+  static const List<int> _pageSizes = [10, 25, 50, 100];
 
   List<Part> _items = <Part>[];
   List<Maszyna> _maszyny = <Maszyna>[];
@@ -277,39 +278,6 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
     return all.sublist(start, end);
   }
 
-  List<int?> _visiblePageTokens(int totalPages) {
-    if (totalPages <= 7) {
-      return List<int?>.generate(totalPages, (i) => i);
-    }
-
-    final tokens = <int?>[0];
-    final start = (_page - 1).clamp(1, totalPages - 2);
-    final end = (_page + 1).clamp(1, totalPages - 2);
-
-    if (start > 1) tokens.add(null);
-    for (int i = start; i <= end; i++) {
-      tokens.add(i);
-    }
-    if (end < totalPages - 2) tokens.add(null);
-
-    tokens.add(totalPages - 1);
-    return tokens;
-  }
-
-  Widget _buildPageButton(int pageIndex, bool active) {
-    return FilledButton.tonal(
-      onPressed: active
-          ? null
-          : () => setState(() {
-                _page = pageIndex;
-              }),
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(36, 34),
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-      ),
-      child: Text('${pageIndex + 1}'),
-    );
-  }
 
   bool _canAccessPrice() {
     final auth = ref.read(authStateProvider);
@@ -992,66 +960,16 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                     ),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                  child: Center(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text('Pozycje: ${filteredParts.length} | Strona ${_page + 1} z $totalPages'),
-                          const SizedBox(width: 12),
-                          const Text('Na stronę:'),
-                          const SizedBox(width: 8),
-                          DropdownButton<int>(
-                            value: _pageSize,
-                            items: _pageSizes.map((s) => DropdownMenuItem<int>(value: s, child: Text('$s'))).toList(),
-                            onChanged: (v) {
-                              if (v == null) return;
-                              setState(() {
-                                _pageSize = v;
-                                _page = 0;
-                              });
-                            },
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            tooltip: 'Pierwsza strona',
-                            onPressed: _page > 0 ? () => setState(() => _page = 0) : null,
-                            icon: const Icon(Icons.first_page),
-                          ),
-                          IconButton(
-                            tooltip: 'Poprzednia strona',
-                            onPressed: _page > 0 ? () => setState(() => _page--) : null,
-                            icon: const Icon(Icons.chevron_left),
-                          ),
-                          ..._visiblePageTokens(totalPages).map((token) {
-                            if (token == null) {
-                              return const Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 4),
-                                child: Text('...'),
-                              );
-                            }
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 2),
-                              child: _buildPageButton(token, token == _page),
-                            );
-                          }),
-                          IconButton(
-                            tooltip: 'Następna strona',
-                            onPressed: (_page + 1) < totalPages ? () => setState(() => _page++) : null,
-                            icon: const Icon(Icons.chevron_right),
-                          ),
-                          IconButton(
-                            tooltip: 'Ostatnia strona',
-                            onPressed: (_page + 1) < totalPages ? () => setState(() => _page = totalPages - 1) : null,
-                            icon: const Icon(Icons.last_page),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                PaginationControls(
+                  totalItems: filteredParts.length,
+                  currentPage: _page,
+                  pageSize: _pageSize,
+                  pageSizes: _pageSizes,
+                  onPageChanged: (page) => setState(() => _page = page),
+                  onPageSizeChanged: (size) => setState(() {
+                    _pageSize = size;
+                    _page = 0;
+                  }),
                 ),
               ],
             ),

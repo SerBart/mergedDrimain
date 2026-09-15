@@ -15,6 +15,7 @@ import '../../core/models/maszyna.dart';
 import '../../core/models/osoba.dart';
 import '../../core/models/part_usage.dart';
 import '../../widgets/centered_scroll_card.dart';
+import '../../widgets/pagination_controls.dart';
 import 'raport_form_screen.dart';
 import '../../core/constants/naprawy_constants.dart';
 import '../../core/constants/app_roles.dart';
@@ -219,39 +220,6 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
     return all.sublist(start, end);
   }
 
-  List<int?> _visiblePageTokens(int totalPages) {
-    if (totalPages <= 7) {
-      return List<int?>.generate(totalPages, (i) => i);
-    }
-
-    final tokens = <int?>[0];
-    final start = (_page - 1).clamp(1, totalPages - 2);
-    final end = (_page + 1).clamp(1, totalPages - 2);
-
-    if (start > 1) tokens.add(null);
-    for (int i = start; i <= end; i++) {
-      tokens.add(i);
-    }
-    if (end < totalPages - 2) tokens.add(null);
-
-    tokens.add(totalPages - 1);
-    return tokens;
-  }
-
-  Widget _buildPageButton(int pageIndex, bool active) {
-    return FilledButton.tonal(
-      onPressed: active
-          ? null
-          : () => setState(() {
-                _page = pageIndex;
-              }),
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(36, 34),
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-      ),
-      child: Text('${pageIndex + 1}'),
-    );
-  }
 
   // NOWE: eksport CSV aktualnie filtrowanych danych (pełna lista, nie tylko bieżąca strona)
   void _exportCsv(List<Raport> all) async {
@@ -580,6 +548,7 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
   Widget build(BuildContext context) {
     final repo = ref.watch(mockRepoProvider);
     final raporty = _apply(repo.getRaporty());
+    final totalPages = raporty.isEmpty ? 1 : (raporty.length / _pageSize).ceil();
     final isAdmin = ref.watch(authStateProvider)?.role == AppRoles.admin;
 
     return Scaffold(
@@ -615,63 +584,6 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                           final repoAll = _apply(ref.read(mockRepoProvider).getRaporty());
                           _exportCsv(repoAll);
                         },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text('Pozycje: ${raporty.length} | Strona ${_page + 1} z ${raporty.isEmpty ? 1 : (raporty.length / _pageSize).ceil()}'),
-                      const Text('Rozmiar strony:'),
-                      const SizedBox(width: 8),
-                      DropdownButton<int>(
-                        value: _pageSize,
-                        items: _pageSizes.map((s) => DropdownMenuItem(value: s, child: Text(s.toString()))).toList(),
-                        onChanged: (v) => setState(() {
-                          if (v != null) {
-                            _pageSize = v;
-                            _page = 0;
-                          }
-                        }),
-                      ),
-                      IconButton(
-                        tooltip: 'Pierwsza strona',
-                        onPressed: _page > 0 ? () => setState(() => _page = 0) : null,
-                        icon: const Icon(Icons.first_page),
-                      ),
-                      IconButton(
-                        tooltip: 'Poprzednia strona',
-                        onPressed: _page > 0 ? () => setState(() => _page -= 1) : null,
-                        icon: const Icon(Icons.chevron_left),
-                      ),
-                      ..._visiblePageTokens(raporty.isEmpty ? 1 : (raporty.length / _pageSize).ceil()).map((token) {
-                        if (token == null) {
-                          return const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 4),
-                            child: Text('...'),
-                          );
-                        }
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 2),
-                          child: _buildPageButton(token, token == _page),
-                        );
-                      }),
-                      IconButton(
-                        tooltip: 'Następna strona',
-                        onPressed: (_page + 1) < (raporty.isEmpty ? 1 : (raporty.length / _pageSize).ceil())
-                            ? () => setState(() => _page += 1)
-                            : null,
-                        icon: const Icon(Icons.chevron_right),
-                      ),
-                      IconButton(
-                        tooltip: 'Ostatnia strona',
-                        onPressed: (_page + 1) < (raporty.isEmpty ? 1 : (raporty.length / _pageSize).ceil())
-                            ? () => setState(() => _page = (raporty.length / _pageSize).ceil() - 1)
-                            : null,
-                        icon: const Icon(Icons.last_page),
                       ),
                     ],
                   ),
@@ -813,6 +725,17 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                   ),
                 ),
               ),
+            ),
+            PaginationControls(
+              totalItems: raporty.length,
+              currentPage: _page,
+              pageSize: _pageSize,
+              pageSizes: _pageSizes,
+              onPageChanged: (page) => setState(() => _page = page),
+              onPageSizeChanged: (size) => setState(() {
+                _pageSize = size;
+                _page = 0;
+              }),
             ),
             const SizedBox(height: 8),
           ],

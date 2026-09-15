@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/providers/app_providers.dart';
 import '../../core/models/zgloszenie.dart';
+import '../../widgets/pagination_controls.dart';
 import '../../widgets/top_app_bar.dart';
 
 class MojeZgloszeniaScreen extends ConsumerStatefulWidget {
@@ -140,39 +141,6 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
     return all.sublist(start, end);
   }
 
-  List<int?> _visiblePageTokens(int totalPages) {
-    if (totalPages <= 7) {
-      return List<int?>.generate(totalPages, (i) => i);
-    }
-
-    final tokens = <int?>[0];
-    final start = (_page - 1).clamp(1, totalPages - 2);
-    final end = (_page + 1).clamp(1, totalPages - 2);
-
-    if (start > 1) tokens.add(null);
-    for (int i = start; i <= end; i++) {
-      tokens.add(i);
-    }
-    if (end < totalPages - 2) tokens.add(null);
-
-    tokens.add(totalPages - 1);
-    return tokens;
-  }
-
-  Widget _buildPageButton(int pageIndex, bool active) {
-    return FilledButton.tonal(
-      onPressed: active
-          ? null
-          : () => setState(() {
-                _page = pageIndex;
-              }),
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(36, 34),
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-      ),
-      child: Text('${pageIndex + 1}'),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -359,74 +327,18 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
                             )
                           : Column(
                               children: [
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                                  child: Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    crossAxisAlignment: WrapCrossAlignment.center,
-                                    children: [
-                                      Text('Pozycje: ${sorted.length} | Strona ${_page + 1} z $totalPages'),
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const Text('Rozmiar strony:'),
-                                          const SizedBox(width: 8),
-                                          DropdownButton<int>(
-                                            value: _pageSize,
-                                            items: _pageSizes
-                                                .map((s) => DropdownMenuItem(value: s, child: Text('$s')))
-                                                .toList(),
-                                            onChanged: (v) {
-                                              if (v == null) return;
-                                              setState(() {
-                                                _pageSize = v;
-                                                _page = 0;
-                                              });
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                      IconButton(
-                                        tooltip: 'Pierwsza strona',
-                                        onPressed: _page > 0 ? () => setState(() => _page = 0) : null,
-                                        icon: const Icon(Icons.first_page),
-                                      ),
-                                      IconButton(
-                                        tooltip: 'Poprzednia strona',
-                                        onPressed: _page > 0 ? () => setState(() => _page -= 1) : null,
-                                        icon: const Icon(Icons.chevron_left),
-                                      ),
-                                      ..._visiblePageTokens(totalPages).map((token) {
-                                        if (token == null) {
-                                          return const Padding(
-                                            padding: EdgeInsets.symmetric(horizontal: 4),
-                                            child: Text('...'),
-                                          );
-                                        }
-                                        return Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 2),
-                                          child: _buildPageButton(token, token == _page),
-                                        );
-                                      }),
-                                      IconButton(
-                                        tooltip: 'Następna strona',
-                                        onPressed: (_page + 1) < totalPages
-                                            ? () => setState(() => _page += 1)
-                                            : null,
-                                        icon: const Icon(Icons.chevron_right),
-                                      ),
-                                      IconButton(
-                                        tooltip: 'Ostatnia strona',
-                                        onPressed: (_page + 1) < totalPages
-                                            ? () => setState(() => _page = totalPages - 1)
-                                            : null,
-                                        icon: const Icon(Icons.last_page),
-                                      ),
-                                    ],
-                                  ),
-                                ),
                                 Expanded(child: _buildTable(visible, scheme)),
+                                PaginationControls(
+                                  totalItems: sorted.length,
+                                  currentPage: _page,
+                                  pageSize: _pageSize,
+                                  pageSizes: _pageSizes,
+                                  onPageChanged: (page) => setState(() => _page = page),
+                                  onPageSizeChanged: (size) => setState(() {
+                                    _pageSize = size;
+                                    _page = 0;
+                                  }),
+                                ),
                               ],
                             ),
             ),
