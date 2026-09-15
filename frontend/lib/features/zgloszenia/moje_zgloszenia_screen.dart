@@ -327,7 +327,14 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
                             )
                           : Column(
                               children: [
-                                Expanded(child: _buildTable(visible, scheme)),
+                                Expanded(
+                                  child: ListView(
+                                    physics: const AlwaysScrollableScrollPhysics(),
+                                    children: [
+                                      _buildTable(visible, scheme),
+                                    ],
+                                  ),
+                                ),
                                 PaginationControls(
                                   totalItems: sorted.length,
                                   currentPage: _page,

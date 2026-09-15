@@ -399,10 +399,12 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                 Expanded(
                   child: RefreshIndicator(
                     onRefresh: _loadAll,
-                    child: Padding(
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.all(12),
-                      child: CenteredScrollableCard(
-                        child: DataTable(
+                      children: [
+                        CenteredScrollableCard(
+                          child: DataTable(
                           sortColumnIndex: _sortCol,
                           sortAscending: _asc,
                           columns: [
@@ -487,8 +489,9 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                               ],
                             );
                           }).toList(),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
                 ),
