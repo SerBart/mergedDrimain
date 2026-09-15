@@ -4,6 +4,7 @@ import drimer.drimain.api.dto.PartExcelImportResultDTO;
 import drimer.drimain.model.Part;
 import drimer.drimain.repository.PartRepository;
 import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.ByteArrayInputStream;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -77,6 +79,41 @@ class PartExcelImportServiceIntegrationTest {
             assertThatThrownBy(() -> service.importFile(broken))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Brak wymaganych kolumn");
+        }
+    }
+
+    @Test
+    void shouldExportExcelInExpectedSchema() throws Exception {
+        Part p = new Part();
+        p.setNazwa("ZAWOR");
+        p.setKod("IMP-ABC123");
+        p.setOpis("ZWROTNO-DLAWIACY FI6");
+        p.setKategoria("WARSZTAT");
+        p.setIlosc(12);
+        p.setMinIlosc(0);
+        p.setJednostka("szt.");
+        partRepository.save(p);
+
+        byte[] bytes = service.exportFile(partRepository.findAll());
+        assertThat(bytes).isNotEmpty();
+
+        try (var wb = WorkbookFactory.create(new ByteArrayInputStream(bytes))) {
+            var sheet = wb.getSheetAt(0);
+            Row header = sheet.getRow(0);
+            Row row = sheet.getRow(1);
+
+            assertThat(header.getCell(0).getStringCellValue()).isEqualTo("PRIORYTET");
+            assertThat(header.getCell(1).getStringCellValue()).isEqualTo("NAZWA");
+            assertThat(header.getCell(2).getStringCellValue()).isEqualTo("OPIS");
+            assertThat(header.getCell(3).getStringCellValue()).isEqualTo("ILOŚĆ");
+            assertThat(header.getCell(4).getStringCellValue()).isEqualTo("JEDNOSTA");
+            assertThat(header.getCell(9).getStringCellValue()).isEqualTo("DZIAŁ");
+
+            assertThat(row.getCell(1).getStringCellValue()).isEqualTo("ZAWOR");
+            assertThat(row.getCell(2).getStringCellValue()).isEqualTo("ZWROTNO-DLAWIACY FI6");
+            assertThat(row.getCell(3).getStringCellValue()).isEqualTo("12");
+            assertThat(row.getCell(4).getStringCellValue()).isEqualTo("szt.");
+            assertThat(row.getCell(9).getStringCellValue()).isEqualTo("WARSZTAT");
         }
     }
 

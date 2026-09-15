@@ -7,3 +7,9 @@ void navigateToDashboardWeb() {
   } catch (_) {}
 }
 
+void reloadCurrentPage() {
+  try {
+    html.window.location.reload();
+  } catch (_) {}
+}
+

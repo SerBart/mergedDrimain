@@ -3,3 +3,5 @@ import 'web_nav_stub.dart'
 
 void navigateToDashboardWeb() => web_nav.navigateToDashboardWeb();
 
+void reloadCurrentPage() => web_nav.reloadCurrentPage();
+

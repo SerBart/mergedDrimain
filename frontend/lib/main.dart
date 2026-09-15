@@ -13,6 +13,7 @@ import 'core/utils/notification_router.dart';
 import 'core/models/notification.dart';
 import 'core/providers/app_providers.dart';
 import 'core/services/web_visibility_observer.dart';
+import 'core/utils/web_nav.dart';
 import 'widgets/quick_module_overlay.dart';
 
 void main() {
@@ -58,6 +59,8 @@ class _TPMAppState extends ConsumerState<TPMApp> with WidgetsBindingObserver {
   Timer? _sessionWatchdog;
   WebVisibilityObserver? _webVisibilityObserver;
   StreamSubscription<bool>? _webVisibilitySub;
+  bool _sessionDialogOpen = false;
+  int _lastSessionCounterHandled = 0;
 
   @override
   void initState() {
@@ -166,6 +169,12 @@ class _TPMAppState extends ConsumerState<TPMApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(sessionExpiredCounterProvider, (prev, next) {
+      if (next <= 0 || next == _lastSessionCounterHandled || _sessionDialogOpen) return;
+      _lastSessionCounterHandled = next;
+      _showSessionExpiredDialog();
+    });
+
     final router = ref.watch(appRouterProvider); // Provider<GoRouter>
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
@@ -185,5 +194,57 @@ class _TPMAppState extends ConsumerState<TPMApp> with WidgetsBindingObserver {
         );
       },
     );
+  }
+
+  Future<void> _showSessionExpiredDialog() async {
+    if (!mounted || _sessionDialogOpen) return;
+    _sessionDialogOpen = true;
+
+    bool refreshing = false;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setStateDialog) => AlertDialog(
+            title: const Text('Sesja wygasla'),
+            content: const Text('Aplikacja utracila sesje. Kliknij "Odswiez sesje", aby kontynuowac.'),
+            actions: [
+              TextButton(
+                onPressed: refreshing
+                    ? null
+                    : () async {
+                        await ref.read(authStateProvider.notifier).logout();
+                        if (ctx.mounted) Navigator.of(ctx).pop();
+                      },
+                child: const Text('Wyloguj'),
+              ),
+              FilledButton(
+                onPressed: refreshing
+                    ? null
+                    : () async {
+                        setStateDialog(() => refreshing = true);
+                        final ok = await ref.read(authStateProvider.notifier).refreshAfterExpiry();
+                        if (!ctx.mounted) return;
+                        if (!ok) {
+                          setStateDialog(() => refreshing = false);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Nie udalo sie odswiezyc sesji. Zaloguj sie ponownie.')),
+                          );
+                          return;
+                        }
+                        Navigator.of(ctx).pop();
+                        reloadCurrentPage();
+                      },
+                child: Text(refreshing ? 'Odswiezanie...' : 'Odswiez sesje'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    _sessionDialogOpen = false;
   }
 }

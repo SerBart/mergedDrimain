@@ -40,6 +40,9 @@ final refreshCoordinatorProvider = Provider<_RefreshCoordinator>((ref) {
   return _RefreshCoordinator(auth);
 });
 
+// Licznik zdarzen wygaśniecia sesji (do globalnego popupu)
+final sessionExpiredCounterProvider = StateProvider<int>((ref) => 0);
+
 // Globalny klient HTTP do API biznesowego, z bezpiecznym auto-refresh
 final apiClientProvider = Provider<ApiClient>((ref) {
   final refresh = ref.watch(refreshCoordinatorProvider);
@@ -49,7 +52,7 @@ final apiClientProvider = Provider<ApiClient>((ref) {
       ref.read(authStateProvider.notifier).onTokenRefreshed(token);
     },
     onSessionExpired: () {
-      ref.read(authStateProvider.notifier).handleSessionExpired();
+      ref.read(authStateProvider.notifier).markSessionExpired();
     },
   );
 });
@@ -234,13 +237,13 @@ class AuthController extends StateNotifier<User?> {
       final auth = _ref.read(authServiceProvider);
       final refreshedToken = await auth.refresh();
       if (refreshedToken == null || refreshedToken.isEmpty) {
-        await handleSessionExpired();
+        markSessionExpired();
         return;
       }
 
       final me = await auth.me(refreshedToken);
       if (me == null) {
-        await handleSessionExpired();
+        markSessionExpired();
         return;
       }
 
@@ -263,6 +266,34 @@ class AuthController extends StateNotifier<User?> {
     if (state == null) return;
     await _ref.read(secureStorageProvider).clear();
     state = null;
+  }
+
+  void markSessionExpired() {
+    _ref.read(sessionExpiredCounterProvider.notifier).state++;
+  }
+
+  Future<bool> refreshAfterExpiry() async {
+    try {
+      final auth = _ref.read(authServiceProvider);
+      final refreshedToken = await auth.refresh();
+      if (refreshedToken == null || refreshedToken.isEmpty) {
+        return false;
+      }
+
+      final me = await auth.me(refreshedToken);
+      if (me == null) {
+        return false;
+      }
+
+      final roles = (me['roles'] as List<dynamic>? ?? const []).cast<String>();
+      final role = roles.contains('ROLE_ADMIN') ? 'ADMIN' : 'USER';
+      final merged = <String, dynamic>{...me, 'token': refreshedToken, 'role': role};
+      state = User.fromJson(merged);
+      _ref.read(sessionExpiredCounterProvider.notifier).state = 0;
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   bool get isAdmin => state?.role == 'ADMIN';

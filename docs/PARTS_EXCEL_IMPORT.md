@@ -36,6 +36,10 @@ Import szuka rekordu po kluczu naturalnym:
 
 Pole formularza: `file`
 
+`GET /api/czesci/export` zwraca plik `.xlsx` z tym samym układem kolumn.
+
+W eksporcie pola niedostępne w modelu `Part` (`PRIORYTET`, `DATA ZGŁOSZENIA`, `DATA REALIZACJI`, `STATUS`, `OSOBA`) są obecnie zwracane jako puste wartości.
+
 ## Odpowiedz API
 JSON zawiera:
 - `importedCount`

@@ -11,12 +11,14 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -41,6 +43,54 @@ public class PartExcelImportService {
     private static final String COL_DZIAL = "DZIAL";
 
     private final PartRepository partRepository;
+
+    public byte[] exportFile(List<Part> parts) {
+        try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("Czesci");
+
+            Row header = sheet.createRow(0);
+            String[] headers = {
+                    "PRIORYTET",
+                    "NAZWA",
+                    "OPIS",
+                    "ILOŚĆ",
+                    "JEDNOSTA",
+                    "DATA ZGŁOSZENIA",
+                    "DATA REALIZACJI",
+                    "STATUS",
+                    "OSOBA",
+                    "DZIAŁ"
+            };
+            for (int i = 0; i < headers.length; i++) {
+                header.createCell(i).setCellValue(headers[i]);
+            }
+
+            int rowIndex = 1;
+            for (Part part : parts) {
+                Row row = sheet.createRow(rowIndex++);
+                row.createCell(0).setCellValue("");
+                row.createCell(1).setCellValue(safe(part.getNazwa()));
+                row.createCell(2).setCellValue(safe(part.getOpis()));
+                row.createCell(3).setCellValue(part.getIlosc() == null ? "" : String.valueOf(part.getIlosc()));
+                row.createCell(4).setCellValue(safe(part.getJednostka()));
+                row.createCell(5).setCellValue("");
+                row.createCell(6).setCellValue("");
+                row.createCell(7).setCellValue("");
+                row.createCell(8).setCellValue("");
+                row.createCell(9).setCellValue(safe(part.getKategoria()));
+            }
+
+            for (int i = 0; i < headers.length; i++) {
+                sheet.autoSizeColumn(i);
+            }
+            sheet.createFreezePane(0, 1);
+
+            workbook.write(bos);
+            return bos.toByteArray();
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Nie udalo sie wygenerowac pliku Excel.");
+        }
+    }
 
     @Transactional
     public PartExcelImportResultDTO importFile(MultipartFile file) {

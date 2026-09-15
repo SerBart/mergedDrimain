@@ -24,7 +24,6 @@ class PartsApiRepository {
 
   PartsApiRepository(this._dio, this._storage);
 
-  // Lekki model do pickerow
   Future<List<PartRefModel>> listAll() async {
     final t = await _token();
     final resp = await _dio.get(
@@ -35,7 +34,6 @@ class PartsApiRepository {
     return list.map(PartRefModel.fromJson).toList();
   }
 
-  // Pelna lista do widoku tabeli
   Future<List<Part>> listFull() async {
     final t = await _token();
     final resp = await _dio.get(
@@ -118,9 +116,7 @@ class PartsApiRepository {
     final t = await _token();
     await _dio.put(
       '/api/czesci/$partId',
-      data: {
-        'maszynaId': maszynaId ?? 0,
-      },
+      data: {'maszynaId': maszynaId ?? 0},
       options: Options(headers: {'Authorization': 'Bearer $t'}),
     );
   }
@@ -150,6 +146,18 @@ class PartsApiRepository {
       }),
     );
     return (resp.data as Map).cast<String, dynamic>();
+  }
+
+  Future<List<int>> exportExcel() async {
+    final t = await _token();
+    final resp = await _dio.get<List<int>>(
+      '/api/czesci/export',
+      options: Options(
+        headers: {'Authorization': 'Bearer $t'},
+        responseType: ResponseType.bytes,
+      ),
+    );
+    return resp.data ?? const <int>[];
   }
 
   Future<String> _token() async {
