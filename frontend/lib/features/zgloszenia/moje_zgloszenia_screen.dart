@@ -379,6 +379,7 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(22),
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
