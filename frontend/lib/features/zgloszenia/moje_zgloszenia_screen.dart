@@ -36,6 +36,11 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
   String? _error;
   List<Zgloszenie> _zgloszenia = [];
 
+  // Paginacja (jak w częściach)
+  int _page = 0;
+  int _pageSize = 25;
+  static const List<int> _pageSizes = [10, 25, 50, 100];
+
   static const statusy = ['WSZYSTKIE', 'NOWE', 'W TOKU', 'WERYFIKACJA', 'ZAMKNIĘTE'];
   static const types = ['WSZYSTKIE', 'Usterka', 'Awaria', 'Przezbrojenie', 'Modernizacja'];
   final _dtf = DateFormat('yyyy-MM-dd HH:mm');
@@ -89,6 +94,7 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
   }
 
   void _applyFilters() {
+    setState(() => _page = 0);
     _loadData();
   }
 
@@ -127,10 +133,56 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
     return sorted;
   }
 
+  List<Zgloszenie> _pageSlice(List<Zgloszenie> all) {
+    final start = _page * _pageSize;
+    final end = (start + _pageSize) > all.length ? all.length : (start + _pageSize);
+    if (start >= all.length) return const <Zgloszenie>[];
+    return all.sublist(start, end);
+  }
+
+  List<int?> _visiblePageTokens(int totalPages) {
+    if (totalPages <= 7) {
+      return List<int?>.generate(totalPages, (i) => i);
+    }
+
+    final tokens = <int?>[0];
+    final start = (_page - 1).clamp(1, totalPages - 2);
+    final end = (_page + 1).clamp(1, totalPages - 2);
+
+    if (start > 1) tokens.add(null);
+    for (int i = start; i <= end; i++) {
+      tokens.add(i);
+    }
+    if (end < totalPages - 2) tokens.add(null);
+
+    tokens.add(totalPages - 1);
+    return tokens;
+  }
+
+  Widget _buildPageButton(int pageIndex, bool active) {
+    return FilledButton.tonal(
+      onPressed: active
+          ? null
+          : () => setState(() {
+                _page = pageIndex;
+              }),
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(36, 34),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+      ),
+      child: Text('${pageIndex + 1}'),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final sorted = _getSortedData();
+    final totalPages = sorted.isEmpty ? 1 : (sorted.length / _pageSize).ceil();
+    if (_page >= totalPages) {
+      _page = totalPages - 1;
+    }
+    final visible = _pageSlice(sorted);
     final width = MediaQuery.of(context).size.width;
     final compact = width < 720;
 
@@ -186,7 +238,10 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
                             onSelectionChanged: (value) {
                               final selectedTasks = value.first;
                               if (selectedTasks == _showTasks) return;
-                              setState(() => _showTasks = selectedTasks);
+                              setState(() {
+                                _showTasks = selectedTasks;
+                                _page = 0;
+                              });
                               _loadData();
                             },
                           ),
@@ -302,7 +357,78 @@ class _MojeZgloszeniaScreenState extends ConsumerState<MojeZgloszeniaScreen> {
                                 _showTasks ? 'Brak zadań do obsługi' : 'Brak zgłoszeń',
                               ),
                             )
-                          : _buildTable(sorted, scheme),
+                          : Column(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                                  child: Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    crossAxisAlignment: WrapCrossAlignment.center,
+                                    children: [
+                                      Text('Pozycje: ${sorted.length} | Strona ${_page + 1} z $totalPages'),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Text('Rozmiar strony:'),
+                                          const SizedBox(width: 8),
+                                          DropdownButton<int>(
+                                            value: _pageSize,
+                                            items: _pageSizes
+                                                .map((s) => DropdownMenuItem(value: s, child: Text('$s')))
+                                                .toList(),
+                                            onChanged: (v) {
+                                              if (v == null) return;
+                                              setState(() {
+                                                _pageSize = v;
+                                                _page = 0;
+                                              });
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Pierwsza strona',
+                                        onPressed: _page > 0 ? () => setState(() => _page = 0) : null,
+                                        icon: const Icon(Icons.first_page),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Poprzednia strona',
+                                        onPressed: _page > 0 ? () => setState(() => _page -= 1) : null,
+                                        icon: const Icon(Icons.chevron_left),
+                                      ),
+                                      ..._visiblePageTokens(totalPages).map((token) {
+                                        if (token == null) {
+                                          return const Padding(
+                                            padding: EdgeInsets.symmetric(horizontal: 4),
+                                            child: Text('...'),
+                                          );
+                                        }
+                                        return Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                                          child: _buildPageButton(token, token == _page),
+                                        );
+                                      }),
+                                      IconButton(
+                                        tooltip: 'Następna strona',
+                                        onPressed: (_page + 1) < totalPages
+                                            ? () => setState(() => _page += 1)
+                                            : null,
+                                        icon: const Icon(Icons.chevron_right),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Ostatnia strona',
+                                        onPressed: (_page + 1) < totalPages
+                                            ? () => setState(() => _page = totalPages - 1)
+                                            : null,
+                                        icon: const Icon(Icons.last_page),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Expanded(child: _buildTable(visible, scheme)),
+                              ],
+                            ),
             ),
           ],
         ),

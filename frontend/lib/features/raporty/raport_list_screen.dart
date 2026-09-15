@@ -219,6 +219,40 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
     return all.sublist(start, end);
   }
 
+  List<int?> _visiblePageTokens(int totalPages) {
+    if (totalPages <= 7) {
+      return List<int?>.generate(totalPages, (i) => i);
+    }
+
+    final tokens = <int?>[0];
+    final start = (_page - 1).clamp(1, totalPages - 2);
+    final end = (_page + 1).clamp(1, totalPages - 2);
+
+    if (start > 1) tokens.add(null);
+    for (int i = start; i <= end; i++) {
+      tokens.add(i);
+    }
+    if (end < totalPages - 2) tokens.add(null);
+
+    tokens.add(totalPages - 1);
+    return tokens;
+  }
+
+  Widget _buildPageButton(int pageIndex, bool active) {
+    return FilledButton.tonal(
+      onPressed: active
+          ? null
+          : () => setState(() {
+                _page = pageIndex;
+              }),
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(36, 34),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+      ),
+      child: Text('${pageIndex + 1}'),
+    );
+  }
+
   // NOWE: eksport CSV aktualnie filtrowanych danych (pełna lista, nie tylko bieżąca strona)
   void _exportCsv(List<Raport> all) async {
     final header = ['ID','Maszyna','Dzial','Sekcja','Typ','Status','Data','CzasOd','CzasDo','Osoba','Opis'];
@@ -567,7 +601,10 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                             labelText: 'Szukaj (maszyna / typ / status / osoba / dział / sekcja / opis)',
                             prefixIcon: Icon(Icons.search),
                           ),
-                          onChanged: (v) => setState(() => _query = v),
+                          onChanged: (v) => setState(() {
+                            _query = v;
+                            _page = 0;
+                          }),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -582,21 +619,59 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
+                      Text('Pozycje: ${raporty.length} | Strona ${_page + 1} z ${raporty.isEmpty ? 1 : (raporty.length / _pageSize).ceil()}'),
                       const Text('Rozmiar strony:'),
                       const SizedBox(width: 8),
                       DropdownButton<int>(
                         value: _pageSize,
                         items: _pageSizes.map((s) => DropdownMenuItem(value: s, child: Text(s.toString()))).toList(),
-                        onChanged: (v) => setState(() { if (v != null) { _pageSize = v; _page = 0; } }),
+                        onChanged: (v) => setState(() {
+                          if (v != null) {
+                            _pageSize = v;
+                            _page = 0;
+                          }
+                        }),
                       ),
-                      const SizedBox(width: 24),
-                      _PageControls(
-                        page: _page,
-                        totalItems: _apply(ref.read(mockRepoProvider).getRaporty()).length,
-                        pageSize: _pageSize,
-                        onPageChanged: (p) => setState(() => _page = p),
+                      IconButton(
+                        tooltip: 'Pierwsza strona',
+                        onPressed: _page > 0 ? () => setState(() => _page = 0) : null,
+                        icon: const Icon(Icons.first_page),
+                      ),
+                      IconButton(
+                        tooltip: 'Poprzednia strona',
+                        onPressed: _page > 0 ? () => setState(() => _page -= 1) : null,
+                        icon: const Icon(Icons.chevron_left),
+                      ),
+                      ..._visiblePageTokens(raporty.isEmpty ? 1 : (raporty.length / _pageSize).ceil()).map((token) {
+                        if (token == null) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 4),
+                            child: Text('...'),
+                          );
+                        }
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                          child: _buildPageButton(token, token == _page),
+                        );
+                      }),
+                      IconButton(
+                        tooltip: 'Następna strona',
+                        onPressed: (_page + 1) < (raporty.isEmpty ? 1 : (raporty.length / _pageSize).ceil())
+                            ? () => setState(() => _page += 1)
+                            : null,
+                        icon: const Icon(Icons.chevron_right),
+                      ),
+                      IconButton(
+                        tooltip: 'Ostatnia strona',
+                        onPressed: (_page + 1) < (raporty.isEmpty ? 1 : (raporty.length / _pageSize).ceil())
+                            ? () => setState(() => _page = (raporty.length / _pageSize).ceil() - 1)
+                            : null,
+                        icon: const Icon(Icons.last_page),
                       ),
                     ],
                   ),
@@ -774,36 +849,3 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
   }
 }
 
-// NOWE: widget kontroli stron
-class _PageControls extends StatelessWidget {
-  final int page;
-  final int totalItems;
-  final int pageSize;
-  final ValueChanged<int> onPageChanged;
-  const _PageControls({required this.page, required this.totalItems, required this.pageSize, required this.onPageChanged});
-  @override
-  Widget build(BuildContext context) {
-    final totalPages = (totalItems / pageSize).ceil();
-    return Row(
-      children: [
-        Text('Strona ${totalPages == 0 ? 0 : page + 1}/$totalPages'),
-        IconButton(
-          icon: const Icon(Icons.first_page),
-          onPressed: page > 0 ? () => onPageChanged(0) : null,
-        ),
-        IconButton(
-          icon: const Icon(Icons.chevron_left),
-          onPressed: page > 0 ? () => onPageChanged(page - 1) : null,
-        ),
-        IconButton(
-          icon: const Icon(Icons.chevron_right),
-          onPressed: (page + 1) < totalPages ? () => onPageChanged(page + 1) : null,
-        ),
-        IconButton(
-          icon: const Icon(Icons.last_page),
-          onPressed: (page + 1) < totalPages ? () => onPageChanged(totalPages - 1) : null,
-        ),
-      ],
-    );
-  }
-}

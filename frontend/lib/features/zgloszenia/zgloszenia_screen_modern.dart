@@ -53,6 +53,11 @@ class _ZgloszeniaScreenModernState
 
   bool _busy = false;
 
+  // Paginacja (jak w częściach)
+  int _page = 0;
+  int _pageSize = 25;
+  static const List<int> _pageSizes = [10, 25, 50, 100];
+
   static const types = ['Usterka', 'Awaria', 'Przezbrojenie', 'Modernizacja'];
   static const statusy = ['NOWE', 'W TOKU', 'WERYFIKACJA', 'ZAMKNIĘTE'];
   static const double _dialogWidth = 480; // jednolita szerokość dialogów
@@ -220,6 +225,47 @@ class _ZgloszeniaScreenModernState
       _sortCol = i;
       _asc = asc;
     });
+  }
+
+  List<Zgloszenie> _pageSlice(List<Zgloszenie> all) {
+    final start = _page * _pageSize;
+    final end = (start + _pageSize) > all.length ? all.length : (start + _pageSize);
+    if (start >= all.length) return const <Zgloszenie>[];
+    return all.sublist(start, end);
+  }
+
+  List<int?> _visiblePageTokens(int totalPages) {
+    if (totalPages <= 7) {
+      return List<int?>.generate(totalPages, (i) => i);
+    }
+
+    final tokens = <int?>[0];
+    final start = (_page - 1).clamp(1, totalPages - 2);
+    final end = (_page + 1).clamp(1, totalPages - 2);
+
+    if (start > 1) tokens.add(null);
+    for (int i = start; i <= end; i++) {
+      tokens.add(i);
+    }
+    if (end < totalPages - 2) tokens.add(null);
+
+    tokens.add(totalPages - 1);
+    return tokens;
+  }
+
+  Widget _buildPageButton(int pageIndex, bool active) {
+    return FilledButton.tonal(
+      onPressed: active
+          ? null
+          : () => setState(() {
+                _page = pageIndex;
+              }),
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(36, 34),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+      ),
+      child: Text('${pageIndex + 1}'),
+    );
   }
 
   void _resetForm() {
@@ -690,12 +736,18 @@ class _ZgloszeniaScreenModernState
         ChoiceChip(
           label: const Text('WSZYSTKIE'),
           selected: _statusFilter == 'WSZYSTKIE',
-          onSelected: (_) => setState(() => _statusFilter = 'WSZYSTKIE'),
+          onSelected: (_) => setState(() {
+            _statusFilter = 'WSZYSTKIE';
+            _page = 0;
+          }),
         ),
         ...statusy.map((s) => ChoiceChip(
           label: Text(s),
           selected: _statusFilter == s,
-          onSelected: (_) => setState(() => _statusFilter = s),
+          onSelected: (_) => setState(() {
+            _statusFilter = s;
+            _page = 0;
+          }),
         )),
       ],
     );
@@ -1336,6 +1388,11 @@ class _ZgloszeniaScreenModernState
   Widget build(BuildContext context) {
     final repo = ref.watch(mockRepoProvider);
     final data = _filtered(repo.getZgloszenia());
+    final totalPages = data.isEmpty ? 1 : (data.length / _pageSize).ceil();
+    if (_page >= totalPages) {
+      _page = totalPages - 1;
+    }
+    final visible = _pageSlice(data);
 
     return Scaffold(
       appBar: const TopAppBar(title: 'Zgłoszenia', showBack: true),
@@ -1382,12 +1439,18 @@ class _ZgloszeniaScreenModernState
                                   icon: const Icon(Icons.clear, size: 20),
                                   onPressed: () {
                                     _search.clear();
-                                    setState(() => _query = '');
+                                    setState(() {
+                                      _query = '';
+                                      _page = 0;
+                                    });
                                   },
                                 )
                                 : null,
                           ),
-                          onChanged: (v) => setState(() => _query = v.trim()),
+                          onChanged: (v) => setState(() {
+                            _query = v.trim();
+                            _page = 0;
+                          }),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -1414,11 +1477,76 @@ class _ZgloszeniaScreenModernState
                   ),
                 ),
                 const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text('Pozycje: ${data.length} | Strona ${_page + 1} z $totalPages'),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('Rozmiar strony:'),
+                        const SizedBox(width: 8),
+                        DropdownButton<int>(
+                          value: _pageSize,
+                          items: _pageSizes
+                              .map((s) => DropdownMenuItem(value: s, child: Text('$s')))
+                              .toList(),
+                          onChanged: (v) {
+                            if (v == null) return;
+                            setState(() {
+                              _pageSize = v;
+                              _page = 0;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      tooltip: 'Pierwsza strona',
+                      onPressed: _page > 0 ? () => setState(() => _page = 0) : null,
+                      icon: const Icon(Icons.first_page),
+                    ),
+                    IconButton(
+                      tooltip: 'Poprzednia strona',
+                      onPressed: _page > 0 ? () => setState(() => _page -= 1) : null,
+                      icon: const Icon(Icons.chevron_left),
+                    ),
+                    ..._visiblePageTokens(totalPages).map((token) {
+                      if (token == null) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 4),
+                          child: Text('...'),
+                        );
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: _buildPageButton(token, token == _page),
+                      );
+                    }),
+                    IconButton(
+                      tooltip: 'Następna strona',
+                      onPressed: (_page + 1) < totalPages
+                          ? () => setState(() => _page += 1)
+                          : null,
+                      icon: const Icon(Icons.chevron_right),
+                    ),
+                    IconButton(
+                      tooltip: 'Ostatnia strona',
+                      onPressed: (_page + 1) < totalPages
+                          ? () => setState(() => _page = totalPages - 1)
+                          : null,
+                      icon: const Icon(Icons.last_page),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
                 // Tabela wyników
                 Expanded(
                   child: LayoutBuilder(
                     builder: (ctx, constraints) {
-                      final rowCount = data.length;
+                      final rowCount = visible.length;
                       const headerHeight = 56.0;
                       const dataRowHeight = 56.0;
                       final desiredHeight = headerHeight + (rowCount * dataRowHeight) + 32;
@@ -1434,9 +1562,9 @@ class _ZgloszeniaScreenModernState
                         table = ListView.separated(
                           shrinkWrap: true,
                           physics: needsVerticalScroll ? const AlwaysScrollableScrollPhysics() : const NeverScrollableScrollPhysics(),
-                          itemCount: data.length,
+                          itemCount: visible.length,
                           itemBuilder: (ctx, idx) {
-                            final z = data[idx];
+                            final z = visible[idx];
                             final typeColor = _typeColor(z.typ);
                             return Card(
                               margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 6),
@@ -1541,8 +1669,7 @@ class _ZgloszeniaScreenModernState
                               label: Text('Zdjęcie'),
                             ),
                           ],
-                          rows: data.map((z) {
-                            String fmt(DateTime? d) => d == null ? '-' : _dtf.format(d);
+                          rows: visible.map((z) {
                             final typeColor = _typeColor(z.typ);
                             final hasPhoto = z.photoBase64 != null && z.photoBase64!.isNotEmpty;
                             return DataRow(

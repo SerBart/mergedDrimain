@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface PartRepository extends JpaRepository<Part, Long> {
@@ -19,4 +20,13 @@ public interface PartRepository extends JpaRepository<Part, Long> {
     Optional<Part> findByNaturalKey(@Param("nazwa") String nazwa,
                                     @Param("opis") String opis,
                                     @Param("kategoria") String kategoria);
+
+    @Query("""
+            select p from Part p
+            where lower(trim(p.nazwa)) = lower(trim(:nazwa))
+              and lower(trim(coalesce(p.kategoria, ''))) = lower(trim(coalesce(:kategoria, '')))
+            order by p.id asc
+            """)
+    List<Part> findAllByMergeKey(@Param("nazwa") String nazwa,
+                                 @Param("kategoria") String kategoria);
 }

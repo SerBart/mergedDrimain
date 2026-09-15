@@ -181,12 +181,27 @@ public class PartRestController {
     }
 
     @PostMapping(path = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public PartExcelImportResultDTO importExcel(@RequestPart("file") MultipartFile file) {
+    public PartExcelImportResultDTO importExcel(@RequestPart("file") MultipartFile file,
+                                                @RequestParam(name = "mode", defaultValue = "upsert") String mode) {
         try {
-            return partExcelImportService.importFile(file);
+            PartExcelImportService.ImportMode importMode = parseImportMode(mode);
+            return partExcelImportService.importFile(file, importMode);
         } catch (IllegalArgumentException ex) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage(), ex);
         }
+    }
+
+    private PartExcelImportService.ImportMode parseImportMode(String mode) {
+        if (mode == null || mode.isBlank()) {
+            return PartExcelImportService.ImportMode.UPSERT;
+        }
+        if ("merge".equalsIgnoreCase(mode)) {
+            return PartExcelImportService.ImportMode.MERGE;
+        }
+        if ("upsert".equalsIgnoreCase(mode)) {
+            return PartExcelImportService.ImportMode.UPSERT;
+        }
+        throw new IllegalArgumentException("Niepoprawny tryb importu. Dozwolone: upsert, merge.");
     }
 
     @GetMapping(value = "/export", produces = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")

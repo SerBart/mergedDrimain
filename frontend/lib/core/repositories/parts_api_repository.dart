@@ -130,6 +130,7 @@ class PartsApiRepository {
   Future<Map<String, dynamic>> importExcel({
     required List<int> bytes,
     required String fileName,
+    String mode = 'upsert',
   }) async {
     final t = await _token();
     final form = FormData.fromMap({
@@ -137,6 +138,7 @@ class PartsApiRepository {
     });
     final resp = await _dio.post(
       '/api/czesci/import',
+      queryParameters: {'mode': mode},
       data: form,
       options: Options(headers: {
         'Authorization': 'Bearer $t',

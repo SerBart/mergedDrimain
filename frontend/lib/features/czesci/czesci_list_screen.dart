@@ -108,7 +108,7 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
     } catch (_) {}
   }
 
-  Future<void> _importFromExcel() async {
+  Future<void> _importFromExcel({required bool merge}) async {
     if (_importing) return;
 
     final picked = await FilePicker.platform.pickFiles(
@@ -134,6 +134,7 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
       final result = await ref.read(partsApiRepositoryProvider).importExcel(
             bytes: bytes,
             fileName: file.name,
+            mode: merge ? 'merge' : 'upsert',
           );
 
       final imported = (result['importedCount'] as num?)?.toInt() ?? 0;
@@ -148,7 +149,7 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Import: $imported, utworzono: $created, zaktualizowano: $updated, pominięto: $skipped, ostrzeżeń: $warnings.',
+              '${merge ? 'Merge' : 'Import'}: $imported, utworzono: $created, zaktualizowano: $updated, pominięto: $skipped, ostrzeżeń: $warnings.',
             ),
           ),
         );
@@ -730,11 +731,19 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                       Row(
                         children: [
                           OutlinedButton.icon(
-                            onPressed: (_loading || _importing) ? null : _importFromExcel,
+                            onPressed: (_loading || _importing) ? null : () => _importFromExcel(merge: false),
                             icon: _importing
                                 ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                                 : const Icon(Icons.upload_file),
                             label: Text(_importing ? 'Importowanie...' : 'Import Excel'),
+                          ),
+                          const SizedBox(width: 8),
+                          OutlinedButton.icon(
+                            onPressed: (_loading || _importing) ? null : () => _importFromExcel(merge: true),
+                            icon: _importing
+                                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                : const Icon(Icons.merge_type),
+                            label: const Text('Merge Excel'),
                           ),
                           const SizedBox(width: 8),
                           OutlinedButton.icon(

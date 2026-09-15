@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -26,10 +27,18 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 
 @Service
 @RequiredArgsConstructor
 public class PartExcelImportService {
+
+    public enum ImportMode {
+        UPSERT,
+        MERGE
+    }
 
     private static final String COL_PRIORYTET = "PRIORYTET";
     private static final String COL_NAZWA = "NAZWA";
@@ -41,6 +50,12 @@ public class PartExcelImportService {
     private static final String COL_STATUS = "STATUS";
     private static final String COL_OSOBA = "OSOBA";
     private static final String COL_DZIAL = "DZIAL";
+    private static final List<DateTimeFormatter> DATE_FORMATTERS = List.of(
+            DateTimeFormatter.ISO_LOCAL_DATE,
+            DateTimeFormatter.ofPattern("d.M.uuuu"),
+            DateTimeFormatter.ofPattern("d-M-uuuu"),
+            DateTimeFormatter.ofPattern("d/M/uuuu")
+    );
 
     private final PartRepository partRepository;
 
@@ -94,9 +109,16 @@ public class PartExcelImportService {
 
     @Transactional
     public PartExcelImportResultDTO importFile(MultipartFile file) {
+        return importFile(file, ImportMode.UPSERT);
+    }
+
+    @Transactional
+    public PartExcelImportResultDTO importFile(MultipartFile file, ImportMode mode) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Plik jest pusty.");
         }
+
+        ImportMode effectiveMode = mode == null ? ImportMode.UPSERT : mode;
 
         try (InputStream inputStream = file.getInputStream(); Workbook workbook = WorkbookFactory.create(inputStream)) {
             Sheet sheet = workbook.getNumberOfSheets() > 0 ? workbook.getSheetAt(0) : null;
@@ -130,6 +152,8 @@ public class PartExcelImportService {
                 Integer ilosc = getInteger(row, columnIndex.get(COL_ILOSC), formatter);
                 String jednostka = clean(getString(row, columnIndex.get(COL_JEDNOSTKA), formatter));
                 String dzial = clean(getString(row, columnIndex.get(COL_DZIAL), formatter));
+                LocalDate dataZakupu = getDate(row, columnIndex.get(COL_DATA_ZGLOSZENIA), formatter);
+                LocalDate dataRealizacji = getDate(row, columnIndex.get(COL_DATA_REALIZACJI), formatter);
 
                 if (isBlank(nazwa) && isBlank(opis) && ilosc == null && isBlank(jednostka) && isBlank(dzial)) {
                     skipped++;
@@ -150,7 +174,7 @@ public class PartExcelImportService {
                 String kategoria = isBlank(dzial) ? null : limit(dzial, 255);
                 String finalOpis = isBlank(opis) ? null : limit(opis, 2000);
 
-                Optional<Part> existing = partRepository.findByNaturalKey(nazwa, finalOpis, kategoria);
+                Optional<Part> existing = findExistingPart(effectiveMode, nazwa, finalOpis, kategoria);
                 Part part = existing.orElseGet(Part::new);
 
                 if (part.getId() == null) {
@@ -166,6 +190,8 @@ public class PartExcelImportService {
                 part.setKategoria(kategoria);
                 part.setIlosc(ilosc);
                 part.setJednostka(isBlank(jednostka) ? "szt." : limit(jednostka, 50));
+                part.setDataZakupu(dataZakupu);
+                part.setDataRealizacji(dataRealizacji);
 
                 // W aktualnym imporcie kolumna maszyna ma pozostac pusta.
                 part.setMaszyna(null);
@@ -182,6 +208,14 @@ public class PartExcelImportService {
         } catch (RuntimeException e) {
             throw new IllegalArgumentException("Niepoprawny format pliku Excel.");
         }
+    }
+
+    private Optional<Part> findExistingPart(ImportMode mode, String nazwa, String opis, String kategoria) {
+        Optional<Part> naturalKeyMatch = partRepository.findByNaturalKey(nazwa, opis, kategoria);
+        if (naturalKeyMatch.isPresent() || mode != ImportMode.MERGE) {
+            return naturalKeyMatch;
+        }
+        return partRepository.findAllByMergeKey(nazwa, kategoria).stream().findFirst();
     }
 
     private void validateHeader(Map<String, Integer> headerIndex) {
@@ -255,6 +289,38 @@ public class PartExcelImportService {
             if (cleaned.isBlank()) return null;
             return (int) Math.round(Double.parseDouble(cleaned));
         } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private LocalDate getDate(Row row, Integer idx, DataFormatter formatter) {
+        if (idx == null) return null;
+
+        Cell cell = row.getCell(idx, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+        if (cell == null) return null;
+
+        if (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
+            try {
+                return cell.getLocalDateTimeCellValue().toLocalDate();
+            } catch (RuntimeException ex) {
+                return null;
+            }
+        }
+
+        String raw = clean(formatter.formatCellValue(cell));
+        if (isBlank(raw)) return null;
+
+        String normalized = raw.replace('/', '-').replace('.', '-');
+        for (DateTimeFormatter formatterItem : DATE_FORMATTERS) {
+            try {
+                return LocalDate.parse(normalized, formatterItem);
+            } catch (DateTimeParseException ignored) {
+                // try next format
+            }
+        }
+        try {
+            return LocalDate.parse(raw);
+        } catch (DateTimeParseException ignored) {
             return null;
         }
     }

@@ -17,6 +17,10 @@ class _InstrukcjeListScreenState extends ConsumerState<InstrukcjeListScreen> {
   bool _loading = false;
   List<InstructionModel> _items = [];
 
+  int _page = 0;
+  int _pageSize = 25;
+  static const List<int> _pageSizes = [10, 25, 50, 100];
+
   // sort state for parts table (shared across tiles)
   int _partsSortColumn = 0; // 0: nazwa, 1: ilosc
   bool _partsSortAsc = true;
@@ -42,6 +46,47 @@ class _InstrukcjeListScreenState extends ConsumerState<InstrukcjeListScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  List<InstructionModel> _pageSlice(List<InstructionModel> all) {
+    final start = _page * _pageSize;
+    final end = (start + _pageSize) > all.length ? all.length : (start + _pageSize);
+    if (start >= all.length) return const <InstructionModel>[];
+    return all.sublist(start, end);
+  }
+
+  List<int?> _visiblePageTokens(int totalPages) {
+    if (totalPages <= 7) {
+      return List<int?>.generate(totalPages, (i) => i);
+    }
+
+    final tokens = <int?>[0];
+    final start = (_page - 1).clamp(1, totalPages - 2);
+    final end = (_page + 1).clamp(1, totalPages - 2);
+
+    if (start > 1) tokens.add(null);
+    for (int i = start; i <= end; i++) {
+      tokens.add(i);
+    }
+    if (end < totalPages - 2) tokens.add(null);
+
+    tokens.add(totalPages - 1);
+    return tokens;
+  }
+
+  Widget _buildPageButton(int pageIndex, bool active) {
+    return FilledButton.tonal(
+      onPressed: active
+          ? null
+          : () => setState(() {
+                _page = pageIndex;
+              }),
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(36, 34),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+      ),
+      child: Text('${pageIndex + 1}'),
+    );
   }
 
   Future<void> _openAdd() async {
@@ -94,6 +139,11 @@ class _InstrukcjeListScreenState extends ConsumerState<InstrukcjeListScreen> {
   @override
   Widget build(BuildContext context) {
     final isAdmin = ref.watch(authStateProvider.select((u) => u?.role == 'ADMIN'));
+    final totalPages = _items.isEmpty ? 1 : (_items.length / _pageSize).ceil();
+    if (_page >= totalPages) {
+      _page = totalPages - 1;
+    }
+    final visible = _pageSlice(_items);
     return Scaffold(
       appBar: TopAppBar(
         title: 'Instrukcje napraw',
@@ -111,148 +161,216 @@ class _InstrukcjeListScreenState extends ConsumerState<InstrukcjeListScreen> {
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 900),
-                  child: ListView.builder(
-                    itemCount: _items.length,
-                    itemBuilder: (_, i) {
-                      final it = _items[i];
-                      return Card(
-                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        child: ExpansionTile(
-                          title: Text(it.title, style: const TextStyle(fontWeight: FontWeight.w600)),
-                          subtitle: Text(it.maszynaNazwa ?? '-', maxLines: 1, overflow: TextOverflow.ellipsis),
+                  child: ListView(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            if ((it.description ?? '').isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                                child: Text(it.description!),
-                              ),
-                            const SizedBox(height: 6),
-                            FutureBuilder<InstructionModel>(
-                              future: ref.read(instructionsApiRepositoryProvider).getById(it.id),
-                              builder: (ctx, snap) {
-                                final data = snap.data;
-                                if (snap.connectionState != ConnectionState.done) {
-                                  return const Padding(
-                                    padding: EdgeInsets.all(12),
-                                    child: LinearProgressIndicator(minHeight: 2),
-                                  );
-                                }
-                                if (data == null) {
-                                  return const Padding(
-                                    padding: EdgeInsets.all(12),
-                                    child: Text('Nie udało się załadować szczegółów'),
-                                  );
-                                }
-                                final parts = [...data.parts];
-                                // apply sort for parts
-                                parts.sort((a, b) {
-                                  int cmp;
-                                  switch (_partsSortColumn) {
-                                    case 0:
-                                      cmp = a.partNazwa.compareTo(b.partNazwa);
-                                      break;
-                                    case 1:
-                                      cmp = (a.ilosc ?? 0).compareTo(b.ilosc ?? 0);
-                                      break;
-                                    default:
-                                      cmp = a.partNazwa.compareTo(b.partNazwa);
-                                  }
-                                  return _partsSortAsc ? cmp : -cmp;
-                                });
-
-                                final attachments = data.attachments;
-                                return Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Padding(
-                                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                                      child: Text('Części zamienne:', style: TextStyle(fontWeight: FontWeight.w600)),
-                                    ),
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                                      child: CenteredScrollableCard(
-                                        child: parts.isEmpty
-                                            ? const Padding(
-                                                padding: EdgeInsets.all(12),
-                                                child: Text('Brak części'),
-                                              )
-                                            : DataTableTheme(
-                                                data: const DataTableThemeData(
-                                                  headingRowHeight: 36,
-                                                  dataRowMinHeight: 30,
-                                                  dataRowMaxHeight: 34,
-                                                  horizontalMargin: 12,
-                                                ),
-                                                child: DataTable(
-                                                  sortColumnIndex: _partsSortColumn,
-                                                  sortAscending: _partsSortAsc,
-                                                  columns: [
-                                                    DataColumn(
-                                                      label: const Text('Nazwa'),
-                                                      onSort: (i, asc) => setState(() {
-                                                        _partsSortColumn = i;
-                                                        _partsSortAsc = asc;
-                                                      }),
-                                                    ),
-                                                    DataColumn(
-                                                      numeric: true,
-                                                      label: const Text('Ilość'),
-                                                      onSort: (i, asc) => setState(() {
-                                                        _partsSortColumn = i;
-                                                        _partsSortAsc = asc;
-                                                      }),
-                                                    ),
-                                                  ],
-                                                  rows: parts.map((p) => DataRow(cells: [
-                                                    DataCell(Text(p.partNazwa)),
-                                                    DataCell(Text((p.ilosc ?? 0).toString())),
-                                                  ])).toList(),
-                                                ),
-                                              ),
-                                      ),
-                                    ),
-
-                                    const Padding(
-                                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                                      child: Text('Pliki:', style: TextStyle(fontWeight: FontWeight.w600)),
-                                    ),
-                                    if (attachments.isEmpty)
-                                      const Padding(
-                                        padding: EdgeInsets.all(12),
-                                        child: Text('Brak załączników'),
-                                      )
-                                    else
-                                      ...attachments.map((a) => ListTile(
-                                            leading: Icon(a.contentType.contains('pdf') ? Icons.picture_as_pdf : Icons.image_outlined, color: Colors.blueGrey),
-                                            title: Text(a.originalFilename, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                            trailing: const Icon(Icons.open_in_new),
-                                            onTap: () => _openAttachment('/api/instrukcje/attachments/${a.id}/download'),
-                                          )),
-                                  ],
-                                );
-                              },
-                            ),
-                            if (isAdmin == true) ...[
-                              const SizedBox(height: 4),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 8),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    TextButton.icon(
-                                      onPressed: () => _confirmDelete(it.id, it.title),
-                                      icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                                      label: const Text('Usuń', style: TextStyle(color: Colors.redAccent)),
-                                    ),
-                                  ],
+                            Text('Pozycje: ${_items.length} | Strona ${_page + 1} z $totalPages'),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text('Rozmiar strony:'),
+                                const SizedBox(width: 8),
+                                DropdownButton<int>(
+                                  value: _pageSize,
+                                  items: _pageSizes
+                                      .map((s) => DropdownMenuItem(value: s, child: Text('$s')))
+                                      .toList(),
+                                  onChanged: (v) {
+                                    if (v == null) return;
+                                    setState(() {
+                                      _pageSize = v;
+                                      _page = 0;
+                                    });
+                                  },
                                 ),
-                              ),
-                            ],
-                            const SizedBox(height: 8),
+                              ],
+                            ),
+                            IconButton(
+                              tooltip: 'Pierwsza strona',
+                              onPressed: _page > 0 ? () => setState(() => _page = 0) : null,
+                              icon: const Icon(Icons.first_page),
+                            ),
+                            IconButton(
+                              tooltip: 'Poprzednia strona',
+                              onPressed: _page > 0 ? () => setState(() => _page -= 1) : null,
+                              icon: const Icon(Icons.chevron_left),
+                            ),
+                            ..._visiblePageTokens(totalPages).map((token) {
+                              if (token == null) {
+                                return const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 4),
+                                  child: Text('...'),
+                                );
+                              }
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 2),
+                                child: _buildPageButton(token, token == _page),
+                              );
+                            }),
+                            IconButton(
+                              tooltip: 'Następna strona',
+                              onPressed: (_page + 1) < totalPages
+                                  ? () => setState(() => _page += 1)
+                                  : null,
+                              icon: const Icon(Icons.chevron_right),
+                            ),
+                            IconButton(
+                              tooltip: 'Ostatnia strona',
+                              onPressed: (_page + 1) < totalPages
+                                  ? () => setState(() => _page = totalPages - 1)
+                                  : null,
+                              icon: const Icon(Icons.last_page),
+                            ),
                           ],
                         ),
-                      );
-                    },
+                      ),
+                      ...List.generate(visible.length, (i) {
+                        final it = visible[i];
+                        return Card(
+                          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          child: ExpansionTile(
+                            title: Text(it.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                            subtitle: Text(it.maszynaNazwa ?? '-', maxLines: 1, overflow: TextOverflow.ellipsis),
+                            children: [
+                              if ((it.description ?? '').isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                                  child: Text(it.description!),
+                                ),
+                              const SizedBox(height: 6),
+                              FutureBuilder<InstructionModel>(
+                                future: ref.read(instructionsApiRepositoryProvider).getById(it.id),
+                                builder: (ctx, snap) {
+                                  final data = snap.data;
+                                  if (snap.connectionState != ConnectionState.done) {
+                                    return const Padding(
+                                      padding: EdgeInsets.all(12),
+                                      child: LinearProgressIndicator(minHeight: 2),
+                                    );
+                                  }
+                                  if (data == null) {
+                                    return const Padding(
+                                      padding: EdgeInsets.all(12),
+                                      child: Text('Nie udało się załadować szczegółów'),
+                                    );
+                                  }
+                                  final parts = [...data.parts];
+                                  // apply sort for parts
+                                  parts.sort((a, b) {
+                                    int cmp;
+                                    switch (_partsSortColumn) {
+                                      case 0:
+                                        cmp = a.partNazwa.compareTo(b.partNazwa);
+                                        break;
+                                      case 1:
+                                        cmp = (a.ilosc ?? 0).compareTo(b.ilosc ?? 0);
+                                        break;
+                                      default:
+                                        cmp = a.partNazwa.compareTo(b.partNazwa);
+                                    }
+                                    return _partsSortAsc ? cmp : -cmp;
+                                  });
+
+                                  final attachments = data.attachments;
+                                  return Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Padding(
+                                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                        child: Text('Części zamienne:', style: TextStyle(fontWeight: FontWeight.w600)),
+                                      ),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                                        child: CenteredScrollableCard(
+                                          child: parts.isEmpty
+                                              ? const Padding(
+                                                  padding: EdgeInsets.all(12),
+                                                  child: Text('Brak części'),
+                                                )
+                                              : DataTableTheme(
+                                                  data: const DataTableThemeData(
+                                                    headingRowHeight: 36,
+                                                    dataRowMinHeight: 30,
+                                                    dataRowMaxHeight: 34,
+                                                    horizontalMargin: 12,
+                                                  ),
+                                                  child: DataTable(
+                                                    sortColumnIndex: _partsSortColumn,
+                                                    sortAscending: _partsSortAsc,
+                                                    columns: [
+                                                      DataColumn(
+                                                        label: const Text('Nazwa'),
+                                                        onSort: (i, asc) => setState(() {
+                                                          _partsSortColumn = i;
+                                                          _partsSortAsc = asc;
+                                                        }),
+                                                      ),
+                                                      DataColumn(
+                                                        numeric: true,
+                                                        label: const Text('Ilość'),
+                                                        onSort: (i, asc) => setState(() {
+                                                          _partsSortColumn = i;
+                                                          _partsSortAsc = asc;
+                                                        }),
+                                                      ),
+                                                    ],
+                                                    rows: parts.map((p) => DataRow(cells: [
+                                                      DataCell(Text(p.partNazwa)),
+                                                      DataCell(Text((p.ilosc ?? 0).toString())),
+                                                    ])).toList(),
+                                                  ),
+                                                ),
+                                        ),
+                                      ),
+
+                                      const Padding(
+                                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                        child: Text('Pliki:', style: TextStyle(fontWeight: FontWeight.w600)),
+                                      ),
+                                      if (attachments.isEmpty)
+                                        const Padding(
+                                          padding: EdgeInsets.all(12),
+                                          child: Text('Brak załączników'),
+                                        )
+                                      else
+                                        ...attachments.map((a) => ListTile(
+                                              leading: Icon(a.contentType.contains('pdf') ? Icons.picture_as_pdf : Icons.image_outlined, color: Colors.blueGrey),
+                                              title: Text(a.originalFilename, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                              trailing: const Icon(Icons.open_in_new),
+                                              onTap: () => _openAttachment('/api/instrukcje/attachments/${a.id}/download'),
+                                            )),
+                                    ],
+                                  );
+                                },
+                              ),
+                              if (isAdmin == true) ...[
+                                const SizedBox(height: 4),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      TextButton.icon(
+                                        onPressed: () => _confirmDelete(it.id, it.title),
+                                        icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                                        label: const Text('Usuń', style: TextStyle(color: Colors.redAccent)),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 8),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
                   ),
                 ),
               ),
