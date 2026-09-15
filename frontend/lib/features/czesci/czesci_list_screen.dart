@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -16,7 +17,6 @@ class CzesciListScreen extends ConsumerStatefulWidget {
 }
 
 class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
-  // Dodawanie (kontrolki formularza)
   final _nazwaCtrl = TextEditingController();
   final _kodCtrl = TextEditingController();
   final _iloscCtrl = TextEditingController();
@@ -24,21 +24,18 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
   final _jednCtrl = TextEditingController(text: 'szt');
   final _katCtrl = TextEditingController();
 
-  // Wyszukiwanie
   String _query = '';
   final _searchCtrl = TextEditingController();
 
-  // Sortowanie
   int _sortColumn = 0;
   bool _sortAsc = true;
 
-  // Dane z backendu
   bool _loading = false;
+  bool _importing = false;
   List<Part> _items = [];
   List<Maszyna> _maszyny = [];
-  int? _filterMaszynaId; // null=wszystkie, 0=Inne, >0=konkretna
+  int? _filterMaszynaId;
 
-  // Minimalne szerokości kolumn, aby uniknąć przycinania i pustej przestrzeni
   static const double _wName = 260;
   static const double _wCode = 140;
   static const double _wCategory = 180;
@@ -77,6 +74,65 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
       final list = await ref.read(adminApiRepositoryProvider).getMaszyny();
       if (mounted) setState(() => _maszyny = list);
     } catch (_) {}
+  }
+
+  Future<void> _importFromExcel() async {
+    if (_importing) return;
+
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['xlsx'],
+      withData: true,
+    );
+    if (picked == null || picked.files.isEmpty) return;
+
+    final file = picked.files.first;
+    final bytes = file.bytes;
+    if (bytes == null || bytes.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nie udało się odczytać pliku.')),
+        );
+      }
+      return;
+    }
+
+    setState(() => _importing = true);
+    try {
+      final result = await ref.read(partsApiRepositoryProvider).importExcel(
+        bytes: bytes,
+        fileName: file.name,
+      );
+
+      final imported = (result['importedCount'] as num?)?.toInt() ?? 0;
+      final skipped = (result['skippedCount'] as num?)?.toInt() ?? 0;
+      final warningsRaw = result['warnings'];
+      final warnings = warningsRaw is List ? warningsRaw.length : 0;
+
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Import zakończony: dodano $imported, pominięto $skipped, ostrzeżeń: $warnings.'),
+          ),
+        );
+      }
+    } on DioException catch (e) {
+      final String msg = e.response?.data is Map && (e.response?.data['message'] != null)
+          ? e.response?.data['message'].toString()
+          : (e.message ?? 'Błąd importu pliku Excel.');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Błąd importu pliku Excel: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _importing = false);
+    }
   }
 
   @override
@@ -447,7 +503,10 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
         extraActions: [
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: _loading ? null : () async { await _load(); await _loadMaszyny(); },
+            onPressed: _loading ? null : () async {
+              await _load();
+              await _loadMaszyny();
+            },
             tooltip: 'Odśwież',
           ),
         ],
@@ -463,43 +522,64 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
               children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-                  child: Row(
+                  child: Column(
                     children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _searchCtrl,
-                          decoration: InputDecoration(
-                            labelText: 'Szukaj (nazwa / kod / kategoria / maszyna)',
-                            prefixIcon: const Icon(Icons.search),
-                            suffixIcon: _query.isNotEmpty
-                                ? IconButton(
-                                    icon: const Icon(Icons.clear),
-                                    onPressed: () {
-                                      _searchCtrl.clear();
-                                      setState(() => _query = '');
-                                    },
+                      Row(
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: (_loading || _importing) ? null : _importFromExcel,
+                            icon: _importing
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
                                   )
-                                : null,
+                                : const Icon(Icons.upload_file),
+                            label: Text(_importing ? 'Importowanie...' : 'Import Excel'),
                           ),
-                          onChanged: (v) => setState(() => _query = v),
-                        ),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      SizedBox(
-                        width: 260,
-                        child: DropdownButtonFormField<int?>(
-                          value: _filterMaszynaId,
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Maszyna', border: OutlineInputBorder(),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _searchCtrl,
+                              decoration: InputDecoration(
+                                labelText: 'Szukaj (nazwa / kod / kategoria / maszyna)',
+                                prefixIcon: const Icon(Icons.search),
+                                suffixIcon: _query.isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(Icons.clear),
+                                        onPressed: () {
+                                          _searchCtrl.clear();
+                                          setState(() => _query = '');
+                                        },
+                                      )
+                                    : null,
+                              ),
+                              onChanged: (v) => setState(() => _query = v),
+                            ),
                           ),
-                          items: [
-                            const DropdownMenuItem<int?>(value: null, child: Text('Wszystkie')),
-                            const DropdownMenuItem<int?>(value: 0, child: Text('Inne')),
-                            ..._maszyny.map((m) => DropdownMenuItem<int?>(value: m.id, child: Text(m.nazwa))),
-                          ],
-                          onChanged: (v) => setState(() => _filterMaszynaId = v),
-                        ),
+                          const SizedBox(width: 12),
+                          SizedBox(
+                            width: 260,
+                            child: DropdownButtonFormField<int?>(
+                              value: _filterMaszynaId,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Maszyna',
+                                border: OutlineInputBorder(),
+                              ),
+                              items: [
+                                const DropdownMenuItem<int?>(value: null, child: Text('Wszystkie')),
+                                const DropdownMenuItem<int?>(value: 0, child: Text('Inne')),
+                                ..._maszyny.map((m) => DropdownMenuItem<int?>(value: m.id, child: Text(m.nazwa))),
+                              ],
+                              onChanged: (v) => setState(() => _filterMaszynaId = v),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -517,28 +597,40 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                             constraints: const BoxConstraints(minWidth: _wName),
                             child: const Text('Nazwa'),
                           ),
-                          onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
+                          onSort: (i, asc) => setState(() {
+                            _sortColumn = i;
+                            _sortAsc = asc;
+                          }),
                         ),
                         DataColumn(
                           label: ConstrainedBox(
                             constraints: const BoxConstraints(minWidth: _wCode),
                             child: const Text('Kod'),
                           ),
-                          onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
+                          onSort: (i, asc) => setState(() {
+                            _sortColumn = i;
+                            _sortAsc = asc;
+                          }),
                         ),
                         DataColumn(
                           label: ConstrainedBox(
                             constraints: const BoxConstraints(minWidth: _wCategory),
                             child: const Text('Kategoria'),
                           ),
-                          onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
+                          onSort: (i, asc) => setState(() {
+                            _sortColumn = i;
+                            _sortAsc = asc;
+                          }),
                         ),
                         DataColumn(
                           label: ConstrainedBox(
                             constraints: const BoxConstraints(minWidth: _wMachine),
                             child: const Text('Maszyna'),
                           ),
-                          onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
+                          onSort: (i, asc) => setState(() {
+                            _sortColumn = i;
+                            _sortAsc = asc;
+                          }),
                         ),
                         DataColumn(
                           numeric: true,
@@ -546,7 +638,10 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                             constraints: const BoxConstraints(minWidth: _wQty),
                             child: const Text('Stan'),
                           ),
-                          onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
+                          onSort: (i, asc) => setState(() {
+                            _sortColumn = i;
+                            _sortAsc = asc;
+                          }),
                         ),
                         DataColumn(
                           numeric: true,
@@ -554,7 +649,10 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                             constraints: const BoxConstraints(minWidth: _wMin),
                             child: const Text('Min'),
                           ),
-                          onSort: (i, asc) => setState(() { _sortColumn = i; _sortAsc = asc; }),
+                          onSort: (i, asc) => setState(() {
+                            _sortColumn = i;
+                            _sortAsc = asc;
+                          }),
                         ),
                         DataColumn(
                           label: ConstrainedBox(
@@ -655,7 +753,7 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                                         } on DioException catch (e) {
                                           final code = e.response?.statusCode;
                                           final msg = code == 409
-                                              ? 'Nie można usunąć części – jest używana w innych rekordach.'
+                                              ? 'Nie można usunąć części - jest używana w innych rekordach.'
                                               : 'Błąd usuwania: ${e.message}';
                                           if (mounted) {
                                             ScaffoldMessenger.of(context).showSnackBar(

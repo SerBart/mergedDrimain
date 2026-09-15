@@ -7,6 +7,7 @@ public class PartDTO {
     private Long id;
     private String nazwa;
     private String kod;
+    private String opis;
     private String kategoria;
     private Integer ilosc;
     private Integer minIlosc;

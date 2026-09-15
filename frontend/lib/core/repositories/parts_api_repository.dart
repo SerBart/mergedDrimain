@@ -3,8 +3,13 @@ import '../services/secure_storage_service.dart';
 import '../models/part.dart';
 
 class PartRefModel {
-  final int id; final String nazwa; final String kod; final String? jednostka;
+  final int id;
+  final String nazwa;
+  final String kod;
+  final String? jednostka;
+
   PartRefModel({required this.id, required this.nazwa, required this.kod, this.jednostka});
+
   factory PartRefModel.fromJson(Map<String, dynamic> j) => PartRefModel(
     id: (j['id'] as num).toInt(),
     nazwa: (j['nazwa'] ?? '').toString(),
@@ -14,10 +19,12 @@ class PartRefModel {
 }
 
 class PartsApiRepository {
-  final Dio _dio; final SecureStorageService _storage;
+  final Dio _dio;
+  final SecureStorageService _storage;
+
   PartsApiRepository(this._dio, this._storage);
 
-  // Lekki model do pickerów
+  // Lekki model do pickerow
   Future<List<PartRefModel>> listAll() async {
     final t = await _token();
     final resp = await _dio.get(
@@ -28,7 +35,7 @@ class PartsApiRepository {
     return list.map(PartRefModel.fromJson).toList();
   }
 
-  // Pełna lista do widoku tabeli
+  // Pelna lista do widoku tabeli
   Future<List<Part>> listFull() async {
     final t = await _token();
     final resp = await _dio.get(
@@ -57,7 +64,7 @@ class PartsApiRepository {
     final t = await _token();
     await _dio.patch(
       '/api/czesci/$partId/ilosc',
-      data: { 'delta': delta },
+      data: {'delta': delta},
       options: Options(headers: {'Authorization': 'Bearer $t'}),
     );
   }
@@ -112,7 +119,7 @@ class PartsApiRepository {
     await _dio.put(
       '/api/czesci/$partId',
       data: {
-        'maszynaId': maszynaId ?? 0, // 0 => grupa "Inne"
+        'maszynaId': maszynaId ?? 0,
       },
       options: Options(headers: {'Authorization': 'Bearer $t'}),
     );
@@ -126,9 +133,28 @@ class PartsApiRepository {
     );
   }
 
+  Future<Map<String, dynamic>> importExcel({
+    required List<int> bytes,
+    required String fileName,
+  }) async {
+    final t = await _token();
+    final form = FormData.fromMap({
+      'file': MultipartFile.fromBytes(bytes, filename: fileName),
+    });
+    final resp = await _dio.post(
+      '/api/czesci/import',
+      data: form,
+      options: Options(headers: {
+        'Authorization': 'Bearer $t',
+        'Content-Type': 'multipart/form-data',
+      }),
+    );
+    return (resp.data as Map).cast<String, dynamic>();
+  }
+
   Future<String> _token() async {
     final t = await _storage.readToken();
-    if (t == null || t.isEmpty) throw Exception('Brak tokenu – zaloguj się.');
+    if (t == null || t.isEmpty) throw Exception('Brak tokenu - zaloguj sie.');
     return t;
   }
 }

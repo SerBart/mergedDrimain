@@ -17,6 +17,9 @@ public class Part {
     @Column(nullable=false)
     private String kod;
 
+    @Column(length = 2000)
+    private String opis;
+
     private String kategoria;
 
     private Integer ilosc;
