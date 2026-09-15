@@ -2,12 +2,13 @@ import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../widgets/top_app_bar.dart';
-import '../../core/providers/app_providers.dart';
-import '../../core/models/part.dart';
+
 import '../../core/models/maszyna.dart';
-import '../../widgets/centered_scroll_card.dart';
+import '../../core/models/part.dart';
+import '../../core/providers/app_providers.dart';
 import '../../core/utils/file_download.dart';
+import '../../widgets/centered_scroll_card.dart';
+import '../../widgets/top_app_bar.dart';
 
 class CzesciListScreen extends ConsumerStatefulWidget {
   const CzesciListScreen({super.key});
@@ -17,28 +18,22 @@ class CzesciListScreen extends ConsumerStatefulWidget {
 }
 
 class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
-  final _nazwaCtrl = TextEditingController();
-  final _kodCtrl = TextEditingController();
-  final _iloscCtrl = TextEditingController();
-  final _minCtrl = TextEditingController();
-  final _jednCtrl = TextEditingController(text: 'szt');
-  final _katCtrl = TextEditingController();
-
-  String _query = '';
-  final _searchCtrl = TextEditingController();
-
-  int _sortColumn = 0;
-  bool _sortAsc = true;
+  final TextEditingController _searchCtrl = TextEditingController();
 
   bool _loading = false;
   bool _importing = false;
   bool _exporting = false;
+
+  String _query = '';
+  int _sortColumn = 0;
+  bool _sortAsc = true;
+
   List<Part> _items = [];
   List<Maszyna> _maszyny = [];
-  int? _filterMaszynaId;
+  int? _filterMaszynaId; // null = wszystkie, 0 = Inne, >0 = konkretna maszyna
 
-  static const double _wName = 260;
-  static const double _wCode = 140;
+  static const double _wName = 220;
+  static const double _wCode = 160;
   static const double _wCategory = 180;
   static const double _wMachine = 200;
   static const double _wQty = 90;
@@ -53,12 +48,20 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
     _loadMaszyny();
   }
 
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
       final api = ref.read(partsApiRepositoryProvider);
       final list = await api.listFull();
-      setState(() => _items = list);
+      if (mounted) {
+        setState(() => _items = list);
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -66,14 +69,18 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   Future<void> _loadMaszyny() async {
     try {
       final list = await ref.read(adminApiRepositoryProvider).getMaszyny();
-      if (mounted) setState(() => _maszyny = list);
+      if (mounted) {
+        setState(() => _maszyny = list);
+      }
     } catch (_) {}
   }
 
@@ -101,9 +108,9 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
     setState(() => _importing = true);
     try {
       final result = await ref.read(partsApiRepositoryProvider).importExcel(
-        bytes: bytes,
-        fileName: file.name,
-      );
+            bytes: bytes,
+            fileName: file.name,
+          );
 
       final imported = (result['importedCount'] as num?)?.toInt() ?? 0;
       final created = (result['createdCount'] as num?)?.toInt() ?? 0;
@@ -116,16 +123,21 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Import: $imported, utworzono: $created, zaktualizowano: $updated, pominięto: $skipped, ostrzeżeń: $warnings.'),
+            content: Text(
+              'Import: $imported, utworzono: $created, zaktualizowano: $updated, pominięto: $skipped, ostrzeżeń: $warnings.',
+            ),
           ),
         );
       }
     } on DioException catch (e) {
-      final String msg = e.response?.data is Map && (e.response?.data['message'] != null)
-          ? e.response?.data['message'].toString()
+      final dynamic data = e.response?.data;
+      final String msg = (data is Map && data['message'] != null)
+          ? data['message'].toString()
           : (e.message ?? 'Błąd importu pliku Excel.');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg)),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -134,16 +146,20 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _importing = false);
+      if (mounted) {
+        setState(() => _importing = false);
+      }
     }
   }
 
   Future<void> _exportToExcel() async {
     if (_exporting) return;
+
     setState(() => _exporting = true);
     try {
       final bytes = await ref.read(partsApiRepositoryProvider).exportExcel();
       if (!mounted) return;
+
       if (bytes.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Eksport zwrócił pusty plik.')),
@@ -153,13 +169,16 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
 
       final downloaded = downloadBytesAsFile(
         fileName: 'czesci.xlsx',
-        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        mimeType:
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         bytes: bytes,
       );
 
       if (!downloaded) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Pobieranie pliku jest wspierane w wersji web aplikacji.')),
+          const SnackBar(
+            content: Text('Pobieranie pliku jest wspierane w wersji web aplikacji.'),
+          ),
         );
       }
     } catch (e) {
@@ -169,25 +188,16 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _exporting = false);
+      if (mounted) {
+        setState(() => _exporting = false);
+      }
     }
-  }
-
-  @override
-  void dispose() {
-    _nazwaCtrl.dispose();
-    _kodCtrl.dispose();
-    _iloscCtrl.dispose();
-    _minCtrl.dispose();
-    _jednCtrl.dispose();
-    _katCtrl.dispose();
-    _searchCtrl.dispose();
-    super.dispose();
   }
 
   List<Part> _filtered(List<Part> parts) {
     final q = _query.trim().toLowerCase();
     List<Part> base = parts;
+
     if (_filterMaszynaId != null) {
       if (_filterMaszynaId == 0) {
         base = base.where((p) => p.maszynaId == null).toList();
@@ -195,15 +205,18 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
         base = base.where((p) => p.maszynaId == _filterMaszynaId).toList();
       }
     }
+
     if (q.isEmpty) return _sorted([...base]);
-    final f = base.where((p) {
+
+    final filtered = base.where((p) {
       return p.nazwa.toLowerCase().contains(q) ||
           p.kod.toLowerCase().contains(q) ||
           (p.kategoria?.toLowerCase().contains(q) ?? false) ||
           (p.maszynaNazwa?.toLowerCase().contains(q) ?? false) ||
           (p.maszynaId == null && 'inne'.contains(q));
     }).toList();
-    return _sorted(f);
+
+    return _sorted(filtered);
   }
 
   List<Part> _sorted(List<Part> list) {
@@ -233,38 +246,49 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
       }
       return _sortAsc ? cmp : -cmp;
     });
+
     return list;
   }
 
-  void _editPartDialog(Part part) {
+  Future<void> _editPartDialog(Part part) async {
     final nazwa = TextEditingController(text: part.nazwa);
     final kod = TextEditingController(text: part.kod);
     final min = TextEditingController(text: part.minIlosc.toString());
     final jedn = TextEditingController(text: part.jednostka);
     final kat = TextEditingController(text: part.kategoria ?? '');
 
-    showDialog(
+    final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         title: Text('Edytuj część #${part.id}'),
         content: SizedBox(
           width: 560,
           child: SingleChildScrollView(
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: nazwa,
-                  decoration: const InputDecoration(labelText: 'Nazwa', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                    labelText: 'Nazwa',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: kod,
-                  decoration: const InputDecoration(labelText: 'Kod', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                    labelText: 'Kod',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: kat,
-                  decoration: const InputDecoration(labelText: 'Kategoria / typ', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                    labelText: 'Kategoria / typ',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -272,15 +296,21 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                     Expanded(
                       child: TextField(
                         controller: min,
-                        decoration: const InputDecoration(labelText: 'Min. ilość', border: OutlineInputBorder()),
                         keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Min. ilość',
+                          border: OutlineInputBorder(),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: TextField(
                         controller: jedn,
-                        decoration: const InputDecoration(labelText: 'Jednostka', border: OutlineInputBorder()),
+                        decoration: const InputDecoration(
+                          labelText: 'Jednostka',
+                          border: OutlineInputBorder(),
+                        ),
                       ),
                     ),
                   ],
@@ -290,31 +320,43 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Anuluj')),
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                await ref.read(partsApiRepositoryProvider).updatePart(
-                  id: part.id,
-                  nazwa: nazwa.text.trim(),
-                  kod: kod.text.trim(),
-                  kategoria: kat.text.trim().isEmpty ? null : kat.text.trim(),
-                  minIlosc: int.tryParse(min.text),
-                  jednostka: jedn.text.trim().isEmpty ? null : jedn.text.trim(),
-                );
-                if (mounted) Navigator.pop(context);
-                await _load();
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Błąd zapisu: $e')));
-                }
-              }
-            },
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Anuluj'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('Zapisz'),
           ),
         ],
       ),
     );
+
+    if (ok == true) {
+      try {
+        await ref.read(partsApiRepositoryProvider).updatePart(
+              id: part.id,
+              nazwa: nazwa.text.trim(),
+              kod: kod.text.trim(),
+              kategoria: kat.text.trim().isEmpty ? null : kat.text.trim(),
+              minIlosc: int.tryParse(min.text.trim()),
+              jednostka: jedn.text.trim().isEmpty ? null : jedn.text.trim(),
+            );
+        await _load();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Błąd zapisu: $e')),
+          );
+        }
+      }
+    }
+
+    nazwa.dispose();
+    kod.dispose();
+    min.dispose();
+    jedn.dispose();
+    kat.dispose();
   }
 
   Future<void> _openAddPartDialog() async {
@@ -337,17 +379,26 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
               children: [
                 TextField(
                   controller: nazwa,
-                  decoration: const InputDecoration(labelText: 'Nazwa (wymagane)', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                    labelText: 'Nazwa (wymagane)',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: kod,
-                  decoration: const InputDecoration(labelText: 'Kod (wymagane)', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                    labelText: 'Kod (wymagane)',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: kat,
-                  decoration: const InputDecoration(labelText: 'Kategoria / typ (opcjonalne)', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                    labelText: 'Kategoria / typ (opcjonalne)',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -355,16 +406,22 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                     Expanded(
                       child: TextField(
                         controller: iloscCtrl,
-                        decoration: const InputDecoration(labelText: 'Ilość startowa', border: OutlineInputBorder()),
                         keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Ilość startowa',
+                          border: OutlineInputBorder(),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: TextField(
                         controller: minCtrl,
-                        decoration: const InputDecoration(labelText: 'Min. ilość', border: OutlineInputBorder()),
                         keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Min. ilość',
+                          border: OutlineInputBorder(),
+                        ),
                       ),
                     ),
                   ],
@@ -372,15 +429,24 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                 const SizedBox(height: 8),
                 TextField(
                   controller: jednCtrl,
-                  decoration: const InputDecoration(labelText: 'Jednostka', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                    labelText: 'Jednostka',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
               ],
             ),
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Anuluj')),
-          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Dodaj')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Anuluj'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Dodaj'),
+          ),
         ],
       ),
     );
@@ -388,20 +454,29 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
     if (ok == true) {
       try {
         await ref.read(partsApiRepositoryProvider).createPart(
-          nazwa: nazwa.text.trim(),
-          kod: kod.text.trim(),
-          ilosc: int.tryParse(iloscCtrl.text.trim()) ?? 0,
-          minIlosc: int.tryParse(minCtrl.text.trim()) ?? 0,
-          jednostka: jednCtrl.text.trim().isEmpty ? 'szt' : jednCtrl.text.trim(),
-          kategoria: kat.text.trim().isEmpty ? null : kat.text.trim(),
-        );
+              nazwa: nazwa.text.trim(),
+              kod: kod.text.trim(),
+              ilosc: int.tryParse(iloscCtrl.text.trim()) ?? 0,
+              minIlosc: int.tryParse(minCtrl.text.trim()) ?? 0,
+              jednostka: jednCtrl.text.trim().isEmpty ? 'szt' : jednCtrl.text.trim(),
+              kategoria: kat.text.trim().isEmpty ? null : kat.text.trim(),
+            );
         await _load();
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Błąd dodawania: $e')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Błąd dodawania: $e')),
+          );
         }
       }
     }
+
+    nazwa.dispose();
+    kod.dispose();
+    kat.dispose();
+    iloscCtrl.dispose();
+    minCtrl.dispose();
+    jednCtrl.dispose();
   }
 
   Future<void> _assignPartDialog(Part part) async {
@@ -430,15 +505,24 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
             children: [
               const Align(
                 alignment: Alignment.centerLeft,
-                child: Text('Wybierz maszynę lub "Inne"', style: TextStyle(fontWeight: FontWeight.w600)),
+                child: Text(
+                  'Wybierz maszynę lub "Inne"',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<int?>(
                 value: selectedMaszynaId,
+                isExpanded: true,
                 decoration: const InputDecoration(border: OutlineInputBorder()),
                 items: [
                   const DropdownMenuItem<int?>(value: 0, child: Text('Inne')),
-                  ...maszyny.map((m) => DropdownMenuItem<int?>(value: m.id, child: Text(m.nazwa))),
+                  ...maszyny.map(
+                    (m) => DropdownMenuItem<int?>(
+                      value: m.id,
+                      child: Text(m.nazwa),
+                    ),
+                  ),
                 ],
                 onChanged: (v) => selectedMaszynaId = v,
               ),
@@ -446,21 +530,35 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Anuluj')),
-          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Zapisz')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Anuluj'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Zapisz'),
+          ),
         ],
       ),
     );
 
     if (ok == true) {
       try {
-        await ref.read(partsApiRepositoryProvider).assignToMaszyna(partId: part.id, maszynaId: selectedMaszynaId);
+        await ref.read(partsApiRepositoryProvider).assignToMaszyna(
+              partId: part.id,
+              maszynaId: selectedMaszynaId,
+            );
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Przypisano część.')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Przypisano część.')),
+          );
         }
+        await _load();
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Błąd przypisywania: $e')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Błąd przypisywania: $e')),
+          );
         }
       }
     }
@@ -468,11 +566,16 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
 
   Future<void> _adjustQty(Part p, int delta) async {
     try {
-      await ref.read(partsApiRepositoryProvider).adjustQuantity(partId: p.id, delta: delta);
+      await ref.read(partsApiRepositoryProvider).adjustQuantity(
+            partId: p.id,
+            delta: delta,
+          );
       await _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Błąd zmiany ilości: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Błąd zmiany ilości: $e')),
+        );
       }
     }
   }
@@ -487,12 +590,14 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
         showBack: false,
         extraActions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: _loading ? null : () async {
-              await _load();
-              await _loadMaszyny();
-            },
             tooltip: 'Odśwież',
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            onPressed: _loading
+                ? null
+                : () async {
+                    await _load();
+                    await _loadMaszyny();
+                  },
           ),
         ],
       ),
@@ -512,17 +617,35 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                       Row(
                         children: [
                           OutlinedButton.icon(
-                            onPressed: (_loading || _importing) ? null : _importFromExcel,
+                            onPressed: (_loading || _importing)
+                                ? null
+                                : _importFromExcel,
                             icon: _importing
-                                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
                                 : const Icon(Icons.upload_file),
-                            label: Text(_importing ? 'Importowanie...' : 'Import Excel'),
+                            label: Text(
+                              _importing ? 'Importowanie...' : 'Import Excel',
+                            ),
                           ),
                           const SizedBox(width: 8),
                           OutlinedButton.icon(
-                            onPressed: (_loading || _exporting) ? null : _exportToExcel,
+                            onPressed: (_loading || _exporting)
+                                ? null
+                                : _exportToExcel,
                             icon: _exporting
-                                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
                                 : const Icon(Icons.download),
                             label: Text(_exporting ? 'Eksport...' : 'Eksport Excel'),
                           ),
@@ -535,7 +658,8 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                             child: TextField(
                               controller: _searchCtrl,
                               decoration: InputDecoration(
-                                labelText: 'Szukaj (nazwa / kod / kategoria / maszyna)',
+                                labelText:
+                                    'Szukaj (nazwa / kod / kategoria / maszyna)',
                                 prefixIcon: const Icon(Icons.search),
                                 suffixIcon: _query.isNotEmpty
                                     ? IconButton(
@@ -561,9 +685,20 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                                 border: OutlineInputBorder(),
                               ),
                               items: [
-                                const DropdownMenuItem<int?>(value: null, child: Text('Wszystkie')),
-                                const DropdownMenuItem<int?>(value: 0, child: Text('Inne')),
-                                ..._maszyny.map((m) => DropdownMenuItem<int?>(value: m.id, child: Text(m.nazwa))),
+                                const DropdownMenuItem<int?>(
+                                  value: null,
+                                  child: Text('Wszystkie'),
+                                ),
+                                const DropdownMenuItem<int?>(
+                                  value: 0,
+                                  child: Text('Inne'),
+                                ),
+                                ..._maszyny.map(
+                                  (m) => DropdownMenuItem<int?>(
+                                    value: m.id,
+                                    child: Text(m.nazwa),
+                                  ),
+                                ),
                               ],
                               onChanged: (v) => setState(() => _filterMaszynaId = v),
                             ),
@@ -582,28 +717,41 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                       sortAscending: _sortAsc,
                       columns: [
                         DataColumn(
-                          label: ConstrainedBox(constraints: const BoxConstraints(minWidth: _wName), child: const Text('Nazwa')),
+                          label: ConstrainedBox(
+                            constraints: const BoxConstraints(minWidth: _wName),
+                            child: const Text('Nazwa'),
+                          ),
                           onSort: (i, asc) => setState(() {
                             _sortColumn = i;
                             _sortAsc = asc;
                           }),
                         ),
                         DataColumn(
-                          label: ConstrainedBox(constraints: const BoxConstraints(minWidth: _wCode), child: const Text('Kod')),
+                          label: ConstrainedBox(
+                            constraints: const BoxConstraints(minWidth: _wCode),
+                            child: const Text('Kod'),
+                          ),
                           onSort: (i, asc) => setState(() {
                             _sortColumn = i;
                             _sortAsc = asc;
                           }),
                         ),
                         DataColumn(
-                          label: ConstrainedBox(constraints: const BoxConstraints(minWidth: _wCategory), child: const Text('Kategoria')),
+                          label: ConstrainedBox(
+                            constraints:
+                                const BoxConstraints(minWidth: _wCategory),
+                            child: const Text('Kategoria'),
+                          ),
                           onSort: (i, asc) => setState(() {
                             _sortColumn = i;
                             _sortAsc = asc;
                           }),
                         ),
                         DataColumn(
-                          label: ConstrainedBox(constraints: const BoxConstraints(minWidth: _wMachine), child: const Text('Maszyna')),
+                          label: ConstrainedBox(
+                            constraints: const BoxConstraints(minWidth: _wMachine),
+                            child: const Text('Maszyna'),
+                          ),
                           onSort: (i, asc) => setState(() {
                             _sortColumn = i;
                             _sortAsc = asc;
@@ -611,7 +759,10 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                         ),
                         DataColumn(
                           numeric: true,
-                          label: ConstrainedBox(constraints: const BoxConstraints(minWidth: _wQty), child: const Text('Stan')),
+                          label: ConstrainedBox(
+                            constraints: const BoxConstraints(minWidth: _wQty),
+                            child: const Text('Stan'),
+                          ),
                           onSort: (i, asc) => setState(() {
                             _sortColumn = i;
                             _sortAsc = asc;
@@ -619,96 +770,198 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                         ),
                         DataColumn(
                           numeric: true,
-                          label: ConstrainedBox(constraints: const BoxConstraints(minWidth: _wMin), child: const Text('Min')),
+                          label: ConstrainedBox(
+                            constraints: const BoxConstraints(minWidth: _wMin),
+                            child: const Text('Min'),
+                          ),
                           onSort: (i, asc) => setState(() {
                             _sortColumn = i;
                             _sortAsc = asc;
                           }),
                         ),
                         DataColumn(
-                          label: ConstrainedBox(constraints: const BoxConstraints(minWidth: _wUnit), child: const Text('Jedn.')),
+                          label: ConstrainedBox(
+                            constraints: const BoxConstraints(minWidth: _wUnit),
+                            child: const Text('Jedn.'),
+                          ),
                         ),
                         DataColumn(
-                          label: ConstrainedBox(constraints: const BoxConstraints(minWidth: _wActions), child: const Text('Akcje')),
+                          label: ConstrainedBox(
+                            constraints:
+                                const BoxConstraints(minWidth: _wActions),
+                            child: const Text('Akcje'),
+                          ),
                         ),
                       ],
                       rows: parts.map((p) {
                         return DataRow(
-                          color: p.belowMin ? WidgetStatePropertyAll(Colors.red.withOpacity(.08)) : null,
+                          color: p.belowMin
+                              ? WidgetStatePropertyAll(
+                                  Colors.red.withOpacity(.08),
+                                )
+                              : null,
                           cells: [
-                            DataCell(ConstrainedBox(constraints: const BoxConstraints(minWidth: _wName), child: Text(p.nazwa))),
-                            DataCell(ConstrainedBox(constraints: const BoxConstraints(minWidth: _wCode), child: Text(p.kod))),
-                            DataCell(ConstrainedBox(constraints: const BoxConstraints(minWidth: _wCategory), child: Text(p.kategoria ?? '-'))),
-                            DataCell(ConstrainedBox(constraints: const BoxConstraints(minWidth: _wMachine), child: Text(p.maszynaNazwa ?? 'Inne'))),
-                            DataCell(ConstrainedBox(constraints: const BoxConstraints(minWidth: _wQty), child: Text(p.iloscMagazyn.toString()))),
-                            DataCell(ConstrainedBox(constraints: const BoxConstraints(minWidth: _wMin), child: Text(p.minIlosc.toString()))),
-                            DataCell(ConstrainedBox(constraints: const BoxConstraints(minWidth: _wUnit), child: Text(p.jednostka))),
-                            DataCell(ConstrainedBox(
-                              constraints: const BoxConstraints(minWidth: _wActions),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    tooltip: 'Zwiększ',
-                                    icon: const Icon(Icons.add_circle_outline, color: Colors.green),
-                                    onPressed: () => _adjustQty(p, 1),
-                                  ),
-                                  IconButton(
-                                    tooltip: 'Zmniejsz',
-                                    icon: const Icon(Icons.remove_circle_outline, color: Colors.orange),
-                                    onPressed: () => _adjustQty(p, -1),
-                                  ),
-                                  IconButton(
-                                    tooltip: 'Edytuj',
-                                    icon: const Icon(Icons.edit, color: Colors.blue),
-                                    onPressed: () => _editPartDialog(p),
-                                  ),
-                                  IconButton(
-                                    tooltip: 'Przypisz do maszyny / Inne',
-                                    icon: const Icon(Icons.link, color: Colors.purple),
-                                    onPressed: () => _assignPartDialog(p),
-                                  ),
-                                  IconButton(
-                                    tooltip: 'Usuń część',
-                                    icon: const Icon(Icons.delete, color: Colors.red),
-                                    onPressed: () async {
-                                      final confirm = await showDialog<bool>(
-                                        context: context,
-                                        builder: (ctx) => AlertDialog(
-                                          title: const Text('Usuń część'),
-                                          content: Text('Czy na pewno chcesz usunąć część "${p.nazwa}" (ID: ${p.id})?'),
-                                          actions: [
-                                            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Anuluj')),
-                                            FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Usuń')),
-                                          ],
-                                        ),
-                                      );
-                                      if (confirm == true) {
-                                        try {
-                                          await ref.read(partsApiRepositoryProvider).deletePart(p.id);
-                                          if (mounted) {
-                                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Usunięto część.')));
-                                          }
-                                          await _load();
-                                        } on DioException catch (e) {
-                                          final code = e.response?.statusCode;
-                                          final msg = code == 409
-                                              ? 'Nie można usunąć części - jest używana w innych rekordach.'
-                                              : 'Błąd usuwania: ${e.message}';
-                                          if (mounted) {
-                                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-                                          }
-                                        } catch (e) {
-                                          if (mounted) {
-                                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Błąd usuwania: $e')));
+                            DataCell(
+                              ConstrainedBox(
+                                constraints:
+                                    const BoxConstraints(minWidth: _wName),
+                                child: Text(p.nazwa),
+                              ),
+                            ),
+                            DataCell(
+                              ConstrainedBox(
+                                constraints:
+                                    const BoxConstraints(minWidth: _wCode),
+                                child: Text(p.kod),
+                              ),
+                            ),
+                            DataCell(
+                              ConstrainedBox(
+                                constraints:
+                                    const BoxConstraints(minWidth: _wCategory),
+                                child: Text(p.kategoria ?? '-'),
+                              ),
+                            ),
+                            DataCell(
+                              ConstrainedBox(
+                                constraints:
+                                    const BoxConstraints(minWidth: _wMachine),
+                                child: Text(p.maszynaNazwa ?? 'Inne'),
+                              ),
+                            ),
+                            DataCell(
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(minWidth: _wQty),
+                                child: Text(p.iloscMagazyn.toString()),
+                              ),
+                            ),
+                            DataCell(
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(minWidth: _wMin),
+                                child: Text(p.minIlosc.toString()),
+                              ),
+                            ),
+                            DataCell(
+                              ConstrainedBox(
+                                constraints:
+                                    const BoxConstraints(minWidth: _wUnit),
+                                child: Text(p.jednostka),
+                              ),
+                            ),
+                            DataCell(
+                              ConstrainedBox(
+                                constraints:
+                                    const BoxConstraints(minWidth: _wActions),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      tooltip: 'Zwiększ',
+                                      icon: const Icon(
+                                        Icons.add_circle_outline,
+                                        color: Colors.green,
+                                      ),
+                                      onPressed: () => _adjustQty(p, 1),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Zmniejsz',
+                                      icon: const Icon(
+                                        Icons.remove_circle_outline,
+                                        color: Colors.orange,
+                                      ),
+                                      onPressed: () => _adjustQty(p, -1),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Edytuj',
+                                      icon: const Icon(
+                                        Icons.edit,
+                                        color: Colors.blue,
+                                      ),
+                                      onPressed: () => _editPartDialog(p),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Przypisz do maszyny / Inne',
+                                      icon: const Icon(
+                                        Icons.link,
+                                        color: Colors.purple,
+                                      ),
+                                      onPressed: () => _assignPartDialog(p),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Usuń część',
+                                      icon: const Icon(
+                                        Icons.delete,
+                                        color: Colors.red,
+                                      ),
+                                      onPressed: () async {
+                                        final confirm = await showDialog<bool>(
+                                          context: context,
+                                          builder: (ctx) => AlertDialog(
+                                            title: const Text('Usuń część'),
+                                            content: Text(
+                                              'Czy na pewno chcesz usunąć część "${p.nazwa}" (ID: ${p.id})?',
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () =>
+                                                    Navigator.of(ctx).pop(false),
+                                                child: const Text('Anuluj'),
+                                              ),
+                                              FilledButton(
+                                                onPressed: () =>
+                                                    Navigator.of(ctx).pop(true),
+                                                child: const Text('Usuń'),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+
+                                        if (confirm == true) {
+                                          try {
+                                            await ref
+                                                .read(partsApiRepositoryProvider)
+                                                .deletePart(p.id);
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                    'Usunięto część.',
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                            await _load();
+                                          } on DioException catch (e) {
+                                            final code = e.response?.statusCode;
+                                            final msg = code == 409
+                                                ? 'Nie można usunąć części - jest używana w innych rekordach.'
+                                                : 'Błąd usuwania: ${e.message}';
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
+                                                SnackBar(content: Text(msg)),
+                                              );
+                                            }
+                                          } catch (e) {
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    'Błąd usuwania: $e',
+                                                  ),
+                                                ),
+                                              );
+                                            }
                                           }
                                         }
-                                      }
-                                    },
-                                  ),
-                                ],
+                                      },
+                                    ),
+                                  ],
+                                ),
                               ),
-                            )),
+                            ),
                           ],
                         );
                       }).toList(),
