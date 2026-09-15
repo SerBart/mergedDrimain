@@ -4,6 +4,9 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
 @Entity
 @Getter @Setter
 @Table(name="parts")
@@ -25,6 +28,15 @@ public class Part {
     private Integer ilosc;
     private Integer minIlosc;
     private String jednostka;
+
+    @Column(name = "data_zakupu")
+    private LocalDate dataZakupu;
+
+    @Column(name = "data_realizacji")
+    private LocalDate dataRealizacji;
+
+    @Column(precision = 12, scale = 2)
+    private BigDecimal cena;
 
     // new optional assignment to a machine
     @ManyToOne

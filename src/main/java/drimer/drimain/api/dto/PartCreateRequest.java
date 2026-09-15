@@ -4,6 +4,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 import lombok.Data;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
 /**
  * Request DTO for creating new Part (Część).
  * Validates part information including quantity constraints.
@@ -38,4 +41,12 @@ public class PartCreateRequest {
     @NotBlank(message = "Jednostka miary jest wymagana")
     @Size(min = 1, max = 50, message = "Jednostka musi zawierać od 1 do 50 znaków")
     private String jednostka;
+
+    private LocalDate dataZakupu;
+
+    private LocalDate dataRealizacji;
+
+    @DecimalMin(value = "0.00", message = "Cena nie może być ujemna")
+    @Digits(integer = 10, fraction = 2, message = "Cena może mieć maksymalnie 2 miejsca po przecinku")
+    private BigDecimal cena;
 }

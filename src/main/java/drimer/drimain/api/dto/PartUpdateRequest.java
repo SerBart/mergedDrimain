@@ -4,6 +4,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 import lombok.Data;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
 /**
  * Request DTO for updating Part (Część).
  * Allows partial updates with optional fields.
@@ -31,4 +34,12 @@ public class PartUpdateRequest {
     
     @Positive(message = "ID maszyny musi być dodatnie")
     private Long maszynaId;
+
+    private LocalDate dataZakupu;
+
+    private LocalDate dataRealizacji;
+
+    @DecimalMin(value = "0.00", message = "Cena nie może być ujemna")
+    @Digits(integer = 10, fraction = 2, message = "Cena może mieć maksymalnie 2 miejsca po przecinku")
+    private BigDecimal cena;
 }

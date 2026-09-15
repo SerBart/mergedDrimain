@@ -1,0 +1,5 @@
+ALTER TABLE parts
+    ADD COLUMN IF NOT EXISTS data_zakupu DATE,
+    ADD COLUMN IF NOT EXISTS data_realizacji DATE,
+    ADD COLUMN IF NOT EXISTS cena NUMERIC(12,2);
+

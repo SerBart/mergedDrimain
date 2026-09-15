@@ -41,21 +41,7 @@ class PartsApiRepository {
       options: Options(headers: {'Authorization': 'Bearer $t'}),
     );
     final list = (resp.data as List).cast<Map<String, dynamic>>();
-    return list.map(_dtoToPart).toList();
-  }
-
-  Part _dtoToPart(Map<String, dynamic> j) {
-    return Part(
-      id: (j['id'] as num).toInt(),
-      nazwa: (j['nazwa'] ?? '').toString(),
-      kod: (j['kod'] ?? '').toString(),
-      iloscMagazyn: (j['ilosc'] as num?)?.toInt() ?? 0,
-      minIlosc: (j['minIlosc'] as num?)?.toInt() ?? 0,
-      jednostka: (j['jednostka'] ?? 'szt').toString(),
-      kategoria: (j['kategoria'] as String?),
-      maszynaId: (j['maszynaId'] as num?)?.toInt(),
-      maszynaNazwa: (j['maszynaNazwa'] as String?),
-    );
+    return list.map(Part.fromJson).toList();
   }
 
   Future<void> adjustQuantity({required int partId, required int delta}) async {
@@ -74,6 +60,9 @@ class PartsApiRepository {
     required int minIlosc,
     required String jednostka,
     String? kategoria,
+    DateTime? dataZakupu,
+    DateTime? dataRealizacji,
+    double? cena,
   }) async {
     final t = await _token();
     await _dio.post(
@@ -85,6 +74,9 @@ class PartsApiRepository {
         'minIlosc': minIlosc,
         'jednostka': jednostka,
         if (kategoria != null) 'kategoria': kategoria,
+        if (dataZakupu != null) 'dataZakupu': Part.isoDate(dataZakupu),
+        if (dataRealizacji != null) 'dataRealizacji': Part.isoDate(dataRealizacji),
+        if (cena != null) 'cena': cena,
       },
       options: Options(headers: {'Authorization': 'Bearer $t'}),
     );
@@ -97,6 +89,9 @@ class PartsApiRepository {
     String? kategoria,
     int? minIlosc,
     String? jednostka,
+    DateTime? dataZakupu,
+    DateTime? dataRealizacji,
+    double? cena,
   }) async {
     final t = await _token();
     await _dio.put(
@@ -107,6 +102,9 @@ class PartsApiRepository {
         if (kategoria != null) 'kategoria': kategoria,
         if (minIlosc != null) 'minIlosc': minIlosc,
         if (jednostka != null) 'jednostka': jednostka,
+        'dataZakupu': Part.isoDate(dataZakupu),
+        'dataRealizacji': Part.isoDate(dataRealizacji),
+        'cena': cena,
       },
       options: Options(headers: {'Authorization': 'Bearer $t'}),
     );
@@ -114,8 +112,8 @@ class PartsApiRepository {
 
   Future<void> assignToMaszyna({required int partId, int? maszynaId}) async {
     final t = await _token();
-    await _dio.put(
-      '/api/czesci/$partId',
+    await _dio.patch(
+      '/api/czesci/$partId/maszyna',
       data: {'maszynaId': maszynaId ?? 0},
       options: Options(headers: {'Authorization': 'Bearer $t'}),
     );

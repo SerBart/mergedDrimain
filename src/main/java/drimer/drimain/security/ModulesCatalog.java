@@ -1,6 +1,5 @@
 package drimer.drimain.security;
 
-import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -18,7 +17,8 @@ public final class ModulesCatalog {
             "Harmonogramy",
             "Energia",
             "Czesci",
-            "Instrukcje"
+            "Instrukcje",
+            "CzesciCena"
     );
 
 

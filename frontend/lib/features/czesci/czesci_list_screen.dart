@@ -3,6 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/constants/app_roles.dart';
 import '../../core/models/maszyna.dart';
 import '../../core/models/part.dart';
 import '../../core/providers/app_providers.dart';
@@ -46,6 +47,9 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
   static const double _wQty = 90;
   static const double _wMin = 80;
   static const double _wUnit = 80;
+  static const double _wBuyDate = 140;
+  static const double _wDoneDate = 140;
+  static const double _wPrice = 110;
   static const double _wActions = 220;
 
   @override
@@ -306,12 +310,36 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
     );
   }
 
+  bool _canAccessPrice() {
+    final auth = ref.read(authStateProvider);
+    if (auth == null) return false;
+    if (auth.role == AppRoles.admin) return true;
+    return auth.modules.any((m) => m.toLowerCase() == 'czescicena');
+  }
+
+  DateTime? _parseDateOrNull(String value) {
+    final text = value.trim();
+    if (text.isEmpty) return null;
+    return DateTime.tryParse(text);
+  }
+
+  String _fmtDate(DateTime? date) {
+    if (date == null) return '-';
+    final m = date.month.toString().padLeft(2, '0');
+    final d = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$m-$d';
+  }
+
   Future<void> _editPartDialog(Part part) async {
+    final canAccessPrice = _canAccessPrice();
     final nazwa = TextEditingController(text: part.nazwa);
     final kod = TextEditingController(text: part.kod);
     final min = TextEditingController(text: part.minIlosc.toString());
     final jedn = TextEditingController(text: part.jednostka);
     final kat = TextEditingController(text: part.kategoria ?? '');
+    final dataZakupuCtrl = TextEditingController(text: part.dataZakupu == null ? '' : _fmtDate(part.dataZakupu));
+    final dataRealizacjiCtrl = TextEditingController(text: part.dataRealizacji == null ? '' : _fmtDate(part.dataRealizacji));
+    final cenaCtrl = TextEditingController(text: part.cena?.toStringAsFixed(2) ?? '');
 
     final ok = await showDialog<bool>(
       context: context,
@@ -356,6 +384,32 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: dataZakupuCtrl,
+                        decoration: const InputDecoration(labelText: 'Data zakupu (YYYY-MM-DD)', border: OutlineInputBorder()),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: dataRealizacjiCtrl,
+                        decoration: const InputDecoration(labelText: 'Data realizacji (YYYY-MM-DD)', border: OutlineInputBorder()),
+                      ),
+                    ),
+                  ],
+                ),
+                if (canAccessPrice) ...[
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: cenaCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Cena', border: OutlineInputBorder()),
+                  ),
+                ],
               ],
             ),
           ),
@@ -374,6 +428,9 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
     );
 
     if (ok == true) {
+      final dataZakupu = _parseDateOrNull(dataZakupuCtrl.text);
+      final dataRealizacji = _parseDateOrNull(dataRealizacjiCtrl.text);
+      final cena = canAccessPrice ? double.tryParse(cenaCtrl.text.trim().replaceAll(',', '.')) : null;
       try {
         await ref.read(partsApiRepositoryProvider).updatePart(
               id: part.id,
@@ -382,6 +439,9 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
               kategoria: kat.text.trim().isEmpty ? null : kat.text.trim(),
               minIlosc: int.tryParse(min.text.trim()),
               jednostka: jedn.text.trim().isEmpty ? null : jedn.text.trim(),
+              dataZakupu: dataZakupu,
+              dataRealizacji: dataRealizacji,
+              cena: cena,
             );
         await _load();
       } catch (e) {
@@ -396,15 +456,22 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
     min.dispose();
     jedn.dispose();
     kat.dispose();
+    dataZakupuCtrl.dispose();
+    dataRealizacjiCtrl.dispose();
+    cenaCtrl.dispose();
   }
 
   Future<void> _openAddPartDialog() async {
+    final canAccessPrice = _canAccessPrice();
     final nazwa = TextEditingController();
     final kod = TextEditingController();
     final kat = TextEditingController();
     final iloscCtrl = TextEditingController();
     final minCtrl = TextEditingController();
     final jednCtrl = TextEditingController(text: 'szt');
+    final dataZakupuCtrl = TextEditingController();
+    final dataRealizacjiCtrl = TextEditingController();
+    final cenaCtrl = TextEditingController();
 
     final ok = await showDialog<bool>(
       context: context,
@@ -455,6 +522,32 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                   controller: jednCtrl,
                   decoration: const InputDecoration(labelText: 'Jednostka', border: OutlineInputBorder()),
                 ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: dataZakupuCtrl,
+                        decoration: const InputDecoration(labelText: 'Data zakupu (YYYY-MM-DD)', border: OutlineInputBorder()),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: dataRealizacjiCtrl,
+                        decoration: const InputDecoration(labelText: 'Data realizacji (YYYY-MM-DD)', border: OutlineInputBorder()),
+                      ),
+                    ),
+                  ],
+                ),
+                if (canAccessPrice) ...[
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: cenaCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Cena', border: OutlineInputBorder()),
+                  ),
+                ],
               ],
             ),
           ),
@@ -473,6 +566,9 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
     );
 
     if (ok == true) {
+      final dataZakupu = _parseDateOrNull(dataZakupuCtrl.text);
+      final dataRealizacji = _parseDateOrNull(dataRealizacjiCtrl.text);
+      final cena = canAccessPrice ? double.tryParse(cenaCtrl.text.trim().replaceAll(',', '.')) : null;
       try {
         await ref.read(partsApiRepositoryProvider).createPart(
               nazwa: nazwa.text.trim(),
@@ -481,6 +577,9 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
               minIlosc: int.tryParse(minCtrl.text.trim()) ?? 0,
               jednostka: jednCtrl.text.trim().isEmpty ? 'szt' : jednCtrl.text.trim(),
               kategoria: kat.text.trim().isEmpty ? null : kat.text.trim(),
+              dataZakupu: dataZakupu,
+              dataRealizacji: dataRealizacji,
+              cena: cena,
             );
         await _load();
       } catch (e) {
@@ -496,6 +595,9 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
     iloscCtrl.dispose();
     minCtrl.dispose();
     jednCtrl.dispose();
+    dataZakupuCtrl.dispose();
+    dataRealizacjiCtrl.dispose();
+    cenaCtrl.dispose();
   }
 
   Future<void> _assignPartDialog(Part part) async {
@@ -584,6 +686,7 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final canAccessPrice = _canAccessPrice();
     _ensureDerivedParts();
 
     final filteredParts = _derivedParts;
@@ -618,6 +721,7 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
       body: _loading && _items.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : ListView(
+              padding: const EdgeInsets.only(bottom: 92),
               children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
@@ -764,6 +868,17 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                           label: ConstrainedBox(constraints: const BoxConstraints(minWidth: _wUnit), child: const Text('Jedn.')),
                         ),
                         DataColumn(
+                          label: ConstrainedBox(constraints: const BoxConstraints(minWidth: _wBuyDate), child: const Text('Data zakupu')),
+                        ),
+                        DataColumn(
+                          label: ConstrainedBox(constraints: const BoxConstraints(minWidth: _wDoneDate), child: const Text('Data realizacji')),
+                        ),
+                        if (canAccessPrice)
+                          DataColumn(
+                            numeric: true,
+                            label: ConstrainedBox(constraints: const BoxConstraints(minWidth: _wPrice), child: const Text('Cena')),
+                          ),
+                        DataColumn(
                           label: ConstrainedBox(constraints: const BoxConstraints(minWidth: _wActions), child: const Text('Akcje')),
                         ),
                       ],
@@ -778,6 +893,15 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                             DataCell(ConstrainedBox(constraints: const BoxConstraints(minWidth: _wQty), child: Text(p.iloscMagazyn.toString()))),
                             DataCell(ConstrainedBox(constraints: const BoxConstraints(minWidth: _wMin), child: Text(p.minIlosc.toString()))),
                             DataCell(ConstrainedBox(constraints: const BoxConstraints(minWidth: _wUnit), child: Text(p.jednostka))),
+                            DataCell(ConstrainedBox(constraints: const BoxConstraints(minWidth: _wBuyDate), child: Text(_fmtDate(p.dataZakupu)))),
+                            DataCell(ConstrainedBox(constraints: const BoxConstraints(minWidth: _wDoneDate), child: Text(_fmtDate(p.dataRealizacji)))),
+                            if (canAccessPrice)
+                              DataCell(
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(minWidth: _wPrice),
+                                  child: Text(p.cena == null ? '-' : p.cena!.toStringAsFixed(2)),
+                                ),
+                              ),
                             DataCell(
                               ConstrainedBox(
                                 constraints: const BoxConstraints(minWidth: _wActions),
@@ -861,16 +985,14 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                  child: Wrap(
-                    alignment: WrapAlignment.spaceBetween,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 12,
-                    runSpacing: 8,
-                    children: [
-                      Text('Pozycje: ${filteredParts.length} | Strona ${_page + 1} z $totalPages'),
-                      Row(
+                  child: Center(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          Text('Pozycje: ${filteredParts.length} | Strona ${_page + 1} z $totalPages'),
+                          const SizedBox(width: 12),
                           const Text('Na stronę:'),
                           const SizedBox(width: 8),
                           DropdownButton<int>(
@@ -887,20 +1009,12 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                           const SizedBox(width: 8),
                           IconButton(
                             tooltip: 'Pierwsza strona',
-                            onPressed: _page > 0
-                                ? () => setState(() {
-                                      _page = 0;
-                                    })
-                                : null,
+                            onPressed: _page > 0 ? () => setState(() => _page = 0) : null,
                             icon: const Icon(Icons.first_page),
                           ),
                           IconButton(
                             tooltip: 'Poprzednia strona',
-                            onPressed: _page > 0
-                                ? () => setState(() {
-                                      _page--;
-                                    })
-                                : null,
+                            onPressed: _page > 0 ? () => setState(() => _page--) : null,
                             icon: const Icon(Icons.chevron_left),
                           ),
                           ..._visiblePageTokens(totalPages).map((token) {
@@ -917,25 +1031,17 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                           }),
                           IconButton(
                             tooltip: 'Następna strona',
-                            onPressed: (_page + 1) < totalPages
-                                ? () => setState(() {
-                                      _page++;
-                                    })
-                                : null,
+                            onPressed: (_page + 1) < totalPages ? () => setState(() => _page++) : null,
                             icon: const Icon(Icons.chevron_right),
                           ),
                           IconButton(
                             tooltip: 'Ostatnia strona',
-                            onPressed: (_page + 1) < totalPages
-                                ? () => setState(() {
-                                      _page = totalPages - 1;
-                                    })
-                                : null,
+                            onPressed: (_page + 1) < totalPages ? () => setState(() => _page = totalPages - 1) : null,
                             icon: const Icon(Icons.last_page),
                           ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ],
