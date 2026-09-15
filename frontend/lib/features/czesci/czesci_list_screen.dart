@@ -25,7 +25,7 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
   bool _exporting = false;
 
   String _query = '';
-  int _sortColumn = 0;
+  int? _sortColumn;
   bool _sortAsc = true;
 
   int _page = 0;
@@ -35,6 +35,9 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
   List<Part> _items = [];
   List<Maszyna> _maszyny = [];
   int? _filterMaszynaId; // null = wszystkie, 0 = Inne, >0 = konkretna maszyna
+
+  List<Part> _derivedParts = const <Part>[];
+  bool _derivedDirty = true;
 
   static const double _wName = 220;
   static const double _wCode = 160;
@@ -58,13 +61,26 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
     super.dispose();
   }
 
+  void _markDerivedDirty() {
+    _derivedDirty = true;
+  }
+
+  void _ensureDerivedParts() {
+    if (!_derivedDirty) return;
+    _derivedParts = _filtered(_items);
+    _derivedDirty = false;
+  }
+
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
       final api = ref.read(partsApiRepositoryProvider);
       final list = await api.listFull();
       if (mounted) {
-        setState(() => _items = list);
+        setState(() {
+          _items = list;
+          _markDerivedDirty();
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -210,7 +226,10 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
       }
     }
 
-    if (q.isEmpty) return _sorted([...base]);
+    if (q.isEmpty) {
+      if (_sortColumn == null) return base;
+      return _sorted([...base]);
+    }
 
     final filtered = base.where((p) {
       return p.nazwa.toLowerCase().contains(q) ||
@@ -220,13 +239,16 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
           (p.maszynaId == null && 'inne'.contains(q));
     }).toList();
 
+    if (_sortColumn == null) return filtered;
     return _sorted(filtered);
   }
 
   List<Part> _sorted(List<Part> list) {
+    if (_sortColumn == null) return list;
+
     list.sort((a, b) {
       int cmp;
-      switch (_sortColumn) {
+      switch (_sortColumn!) {
         case 0:
           cmp = a.nazwa.compareTo(b.nazwa);
           break;
@@ -590,7 +612,9 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final filteredParts = _filtered(_items);
+    _ensureDerivedParts();
+
+    final filteredParts = _derivedParts;
     final totalPages = filteredParts.isEmpty ? 1 : (filteredParts.length / _pageSize).ceil();
     if (_page >= totalPages) {
       _page = totalPages - 1;
@@ -671,6 +695,7 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                                           setState(() {
                                             _query = '';
                                             _page = 0;
+                                            _markDerivedDirty();
                                           });
                                         },
                                       )
@@ -679,6 +704,7 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                               onChanged: (v) => setState(() {
                                 _query = v;
                                 _page = 0;
+                                _markDerivedDirty();
                               }),
                             ),
                           ),
@@ -702,6 +728,7 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                               onChanged: (v) => setState(() {
                                 _filterMaszynaId = v;
                                 _page = 0;
+                                _markDerivedDirty();
                               }),
                             ),
                           ),
@@ -727,6 +754,7 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                             _sortColumn = i;
                             _sortAsc = asc;
                             _page = 0;
+                            _markDerivedDirty();
                           }),
                         ),
                         DataColumn(
@@ -738,6 +766,7 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                             _sortColumn = i;
                             _sortAsc = asc;
                             _page = 0;
+                            _markDerivedDirty();
                           }),
                         ),
                         DataColumn(
@@ -749,6 +778,7 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                             _sortColumn = i;
                             _sortAsc = asc;
                             _page = 0;
+                            _markDerivedDirty();
                           }),
                         ),
                         DataColumn(
@@ -760,6 +790,7 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                             _sortColumn = i;
                             _sortAsc = asc;
                             _page = 0;
+                            _markDerivedDirty();
                           }),
                         ),
                         DataColumn(
@@ -772,6 +803,7 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                             _sortColumn = i;
                             _sortAsc = asc;
                             _page = 0;
+                            _markDerivedDirty();
                           }),
                         ),
                         DataColumn(
@@ -784,6 +816,7 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                             _sortColumn = i;
                             _sortAsc = asc;
                             _page = 0;
+                            _markDerivedDirty();
                           }),
                         ),
                         DataColumn(
@@ -803,48 +836,13 @@ class _CzesciListScreenState extends ConsumerState<CzesciListScreen> {
                         return DataRow(
                           color: p.belowMin ? WidgetStatePropertyAll(Colors.red.withOpacity(.08)) : null,
                           cells: [
-                            DataCell(
-                              ConstrainedBox(
-                                constraints: const BoxConstraints(minWidth: _wName),
-                                child: Text(p.nazwa),
-                              ),
-                            ),
-                            DataCell(
-                              ConstrainedBox(
-                                constraints: const BoxConstraints(minWidth: _wCode),
-                                child: Text(p.kod),
-                              ),
-                            ),
-                            DataCell(
-                              ConstrainedBox(
-                                constraints: const BoxConstraints(minWidth: _wCategory),
-                                child: Text(p.kategoria ?? '-'),
-                              ),
-                            ),
-                            DataCell(
-                              ConstrainedBox(
-                                constraints: const BoxConstraints(minWidth: _wMachine),
-                                child: Text(p.maszynaNazwa ?? 'Inne'),
-                              ),
-                            ),
-                            DataCell(
-                              ConstrainedBox(
-                                constraints: const BoxConstraints(minWidth: _wQty),
-                                child: Text(p.iloscMagazyn.toString()),
-                              ),
-                            ),
-                            DataCell(
-                              ConstrainedBox(
-                                constraints: const BoxConstraints(minWidth: _wMin),
-                                child: Text(p.minIlosc.toString()),
-                              ),
-                            ),
-                            DataCell(
-                              ConstrainedBox(
-                                constraints: const BoxConstraints(minWidth: _wUnit),
-                                child: Text(p.jednostka),
-                              ),
-                            ),
+                            DataCell(ConstrainedBox(constraints: const BoxConstraints(minWidth: _wName), child: Text(p.nazwa))),
+                            DataCell(ConstrainedBox(constraints: const BoxConstraints(minWidth: _wCode), child: Text(p.kod))),
+                            DataCell(ConstrainedBox(constraints: const BoxConstraints(minWidth: _wCategory), child: Text(p.kategoria ?? '-'))),
+                            DataCell(ConstrainedBox(constraints: const BoxConstraints(minWidth: _wMachine), child: Text(p.maszynaNazwa ?? 'Inne'))),
+                            DataCell(ConstrainedBox(constraints: const BoxConstraints(minWidth: _wQty), child: Text(p.iloscMagazyn.toString()))),
+                            DataCell(ConstrainedBox(constraints: const BoxConstraints(minWidth: _wMin), child: Text(p.minIlosc.toString()))),
+                            DataCell(ConstrainedBox(constraints: const BoxConstraints(minWidth: _wUnit), child: Text(p.jednostka))),
                             DataCell(
                               ConstrainedBox(
                                 constraints: const BoxConstraints(minWidth: _wActions),
