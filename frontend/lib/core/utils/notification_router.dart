@@ -41,6 +41,8 @@ String routeFromNotificationModel(NotificationModel n) {
 
   // Najpierw sprawdzaj moduł - zawsze kieruj do listy, ignoruj konkretne ID
   if (raw.isNotEmpty) {
+    if (raw.contains('message') || raw.contains('wiadom')) return '/messages';
+    if (raw.contains('announc') || raw.contains('oglosz')) return '/announcements';
     if (raw.contains('zglos')) return '/zgloszenia';
     if (raw.contains('raport')) return '/raporty';
     if (raw.contains('harmonogram')) return '/harmonogramy';
@@ -48,6 +50,8 @@ String routeFromNotificationModel(NotificationModel n) {
   }
 
   // Heuristic fallback by content (normalized diacritics)
+  if (normalized.contains('message') || normalized.contains('wiadom')) return '/messages';
+  if (normalized.contains('announc') || normalized.contains('oglosz')) return '/announcements';
   if (normalized.contains('zglos')) return '/zgloszenia';
   if (normalized.contains('raport')) return '/raporty';
   if (normalized.contains('harmonogram')) return '/harmonogramy';

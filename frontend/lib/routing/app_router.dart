@@ -24,6 +24,8 @@ import '../features/profile/profile_screen.dart';
 import '../features/modules/modules_screen.dart';
 import '../features/statystyki/statystyki_screen.dart';
 import '../features/aktualnosci/aktualnosci_screen.dart';
+import '../features/messages/messages_screen.dart';
+import '../features/announcements/announcements_screen.dart';
 
 class _RouteBackground extends StatelessWidget {
   final Widget child;
@@ -90,6 +92,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/aktualnosci',
         pageBuilder: (_, state) => _smoothPage(state: state, child: const AktualnosciScreen()),
+      ),
+      GoRoute(
+        path: '/messages',
+        pageBuilder: (_, state) => _smoothPage(state: state, child: const MessagesScreen()),
+      ),
+      GoRoute(
+        path: '/announcements',
+        pageBuilder: (_, state) => _smoothPage(state: state, child: const AnnouncementsScreen()),
       ),
       GoRoute(
         path: '/raporty',

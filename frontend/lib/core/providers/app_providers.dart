@@ -13,6 +13,8 @@ import '../repositories/parts_api_repository.dart';
 import '../repositories/raporty_api_repository.dart';
 import '../repositories/notifications_api_repository.dart';
 import '../repositories/energia_api_repository.dart';
+import '../repositories/messages_api_repository.dart';
+import '../repositories/announcements_api_repository.dart';
 import '../models/notification.dart';
 
 // Bezpieczny storage na token
@@ -132,6 +134,18 @@ final notificationsApiRepositoryProvider = Provider<NotificationsApiRepository>(
   final api = ref.watch(apiClientProvider);
   final storage = ref.watch(secureStorageProvider);
   return NotificationsApiRepository(api.dio, storage);
+});
+
+final messagesApiRepositoryProvider = Provider<MessagesApiRepository>((ref) {
+  final api = ref.watch(apiClientProvider);
+  final storage = ref.watch(secureStorageProvider);
+  return MessagesApiRepository(api.dio, storage);
+});
+
+final announcementsApiRepositoryProvider = Provider<AnnouncementsApiRepository>((ref) {
+  final api = ref.watch(apiClientProvider);
+  final storage = ref.watch(secureStorageProvider);
+  return AnnouncementsApiRepository(api.dio, storage);
 });
 
 // Provider zwracający listę powiadomień (Future) — odświeża się po zmianie stanu auth

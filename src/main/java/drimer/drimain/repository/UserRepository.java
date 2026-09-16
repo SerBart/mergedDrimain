@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.util.List;
 
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByUsername(String username);
@@ -15,4 +16,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     // Ładuj użytkownika wraz z działem, aby uniknąć LAZY w kontrolerze
     @Query("select u from User u left join fetch u.dzial where u.username = :username")
     Optional<User> findByUsernameFetchDzial(@Param("username") String username);
+
+    List<User> findByDzial_Id(Long dzialId);
 }
