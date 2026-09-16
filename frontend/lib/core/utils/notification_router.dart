@@ -1,61 +1,49 @@
-import 'package:characters/characters.dart';
 import '../models/notification.dart';
 
-String _normalize(String input) {
-  final map = {
-    'ą': 'a',
-    'ć': 'c',
-    'ę': 'e',
-    'ł': 'l',
-    'ń': 'n',
-    'ó': 'o',
-    'ś': 's',
-    'ż': 'z',
-    'ź': 'z',
-    'Ą': 'A',
-    'Ć': 'C',
-    'Ę': 'E',
-    'Ł': 'L',
-    'Ń': 'N',
-    'Ó': 'O',
-    'Ś': 'S',
-    'Ż': 'Z',
-    'Ź': 'Z',
-  };
-  final sb = StringBuffer();
-  for (final ch in input.characters) {
-    sb.write(map[ch] ?? ch);
-  }
-  return sb.toString();
-}
-
-/// Mapuje `NotificationModel` (jego pola module/type/title/message/link)
-/// na ścieżkę w aplikacji.
-/// Zwraca domyślnie '/notifications' gdy nie rozpoznano celu.
-/// ZAWSZE kieruje do listy modułu (np. /zgloszenia, /raporty), nigdy do szczegółów
 String routeFromNotificationModel(NotificationModel n) {
-  final raw = (n.link ?? '').trim();
-
-  final combined = ('${n.module ?? ''} ${n.type ?? ''} ${n.title ?? ''} ${n.message ?? ''} ${raw}').toLowerCase();
-  final normalized = _normalize(combined);
-
-  // Najpierw sprawdzaj moduł - zawsze kieruj do listy, ignoruj konkretne ID
-  if (raw.isNotEmpty) {
-    if (raw.contains('message') || raw.contains('wiadom')) return '/messages';
-    if (raw.contains('announc') || raw.contains('oglosz')) return '/announcements';
-    if (raw.contains('zglos')) return '/zgloszenia';
-    if (raw.contains('raport')) return '/raporty';
-    if (raw.contains('harmonogram')) return '/harmonogramy';
-    if (raw.contains('przegl')) return '/przeglady';
+  final direct = (n.link ?? '').trim();
+  if (direct.startsWith('/')) {
+    return direct;
   }
 
-  // Heuristic fallback by content (normalized diacritics)
-  if (normalized.contains('message') || normalized.contains('wiadom')) return '/messages';
-  if (normalized.contains('announc') || normalized.contains('oglosz')) return '/announcements';
-  if (normalized.contains('zglos')) return '/zgloszenia';
-  if (normalized.contains('raport')) return '/raporty';
-  if (normalized.contains('harmonogram')) return '/harmonogramy';
-  if (normalized.contains('przegl')) return '/przeglady';
+  final raw = [n.module, n.type, n.title, n.message]
+      .whereType<String>()
+      .join(' ')
+      .toLowerCase();
+
+  final normalized = _normalize(raw);
+
+  if (raw.contains('message') || raw.contains('wiadom') || normalized.contains('wiadom')) {
+    return '/messages';
+  }
+  if (raw.contains('announc') || raw.contains('oglosz') || normalized.contains('oglosz')) {
+    return '/announcements';
+  }
+  if (raw.contains('zglosz') || normalized.contains('zglosz')) {
+    return '/zgloszenia';
+  }
+  if (raw.contains('raport')) {
+    return '/raporty';
+  }
+  if (raw.contains('harmonogram')) {
+    return '/harmonogramy';
+  }
+  if (raw.contains('przegl')) {
+    return '/przeglady';
+  }
 
   return '/notifications';
+}
+
+String _normalize(String input) {
+  return input
+      .replaceAll('ą', 'a')
+      .replaceAll('ć', 'c')
+      .replaceAll('ę', 'e')
+      .replaceAll('ł', 'l')
+      .replaceAll('ń', 'n')
+      .replaceAll('ó', 'o')
+      .replaceAll('ś', 's')
+      .replaceAll('ż', 'z')
+      .replaceAll('ź', 'z');
 }

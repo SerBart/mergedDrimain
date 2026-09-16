@@ -29,6 +29,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -248,21 +249,44 @@ public class AnnouncementService {
 
     private AnnouncementDTO toDto(Announcement a) {
         AnnouncementDTO dto = new AnnouncementDTO();
+        AnnouncementTargetType targetType = a.getTargetType() == null ? AnnouncementTargetType.ALL : a.getTargetType();
         dto.setId(a.getId());
         dto.setTitle(a.getTitle());
         dto.setContent(a.getContent());
         dto.setCreatedAt(a.getCreatedAt());
         dto.setCreatedByUsername(a.getCreatedBy() != null ? a.getCreatedBy().getUsername() : null);
         dto.setActive(a.isActive());
-        dto.setTargetType((a.getTargetType() == null ? AnnouncementTargetType.ALL : a.getTargetType()).name());
+        dto.setTargetType(targetType.name());
         dto.setTargetDzialId(a.getTargetDzial() != null ? a.getTargetDzial().getId() : null);
         dto.setTargetDzialNazwa(a.getTargetDzial() != null ? a.getTargetDzial().getNazwa() : null);
-        dto.setTargetUserIds(a.getTargetUsers().stream()
-                .map(User::getId)
-                .filter(id -> id != null)
-                .toList());
-        dto.setAttachments(a.getAttachments().stream().map(this::toAttachmentDto).toList());
+
+        if (targetType == AnnouncementTargetType.USERS) {
+            dto.setTargetUserIds(safeTargetUserIds(a));
+        } else {
+            dto.setTargetUserIds(List.of());
+        }
+
+        dto.setAttachments(safeAttachments(a));
         return dto;
+    }
+
+    private List<Long> safeTargetUserIds(Announcement a) {
+        try {
+            return a.getTargetUsers().stream()
+                    .map(User::getId)
+                    .filter(id -> id != null)
+                    .toList();
+        } catch (Exception ex) {
+            return List.of();
+        }
+    }
+
+    private List<AnnouncementAttachmentDTO> safeAttachments(Announcement a) {
+        try {
+            return a.getAttachments().stream().map(this::toAttachmentDto).toList();
+        } catch (Exception ex) {
+            return Collections.emptyList();
+        }
     }
 
     private AnnouncementAttachmentDTO toAttachmentDto(AnnouncementAttachment attachment) {
