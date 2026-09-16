@@ -1,0 +1,35 @@
+ALTER TABLE announcements ADD COLUMN target_type VARCHAR(20) DEFAULT 'ALL' NOT NULL;
+ALTER TABLE announcements ADD COLUMN target_dzial_id BIGINT;
+
+ALTER TABLE announcements
+    ADD CONSTRAINT fk_announcements_target_dzial
+    FOREIGN KEY (target_dzial_id) REFERENCES dzialy(id);
+
+CREATE INDEX IF NOT EXISTS idx_announcements_target_dzial_id ON announcements(target_dzial_id);
+
+CREATE TABLE IF NOT EXISTS announcement_target_users (
+    announcement_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    PRIMARY KEY (announcement_id, user_id),
+    CONSTRAINT fk_announcement_target_users_announcement
+        FOREIGN KEY (announcement_id) REFERENCES announcements(id) ON DELETE CASCADE,
+    CONSTRAINT fk_announcement_target_users_user
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS announcement_attachments (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    announcement_id BIGINT NOT NULL,
+    original_filename VARCHAR(500) NOT NULL,
+    stored_filename VARCHAR(255) NOT NULL UNIQUE,
+    content_type VARCHAR(255),
+    file_size BIGINT,
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR(255),
+    CONSTRAINT fk_announcement_attachments_announcement
+        FOREIGN KEY (announcement_id) REFERENCES announcements(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_announcement_attachments_announcement_id
+    ON announcement_attachments(announcement_id);
+
