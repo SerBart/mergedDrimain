@@ -55,7 +55,7 @@ public class RaportNotificationListener {
         String title = "Nowy raport: " + raport.getTypNaprawy();
         String message = "Raport dla maszyny " + (raport.getMaszyna() != null ? raport.getMaszyna().getNazwa() : "?") +
                         " - " + raport.getOpis();
-        String link = "/raporty/" + raport.getId();
+        String link = "/raport/edytuj/" + raport.getId();
 
         notificationService.createModuleNotification(
                 "Raporty",
@@ -72,7 +72,7 @@ public class RaportNotificationListener {
     private void createRaportUpdatedNotification(RaportDTO raport) {
         String title = "Raport zaktualizowany: " + raport.getTypNaprawy();
         String message = "Raport ID " + raport.getId() + " został zaktualizowany";
-        String link = "/raporty/" + raport.getId();
+        String link = "/raport/edytuj/" + raport.getId();
 
         notificationService.createModuleNotification(
                 "Raporty",

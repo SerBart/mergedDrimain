@@ -2,6 +2,14 @@ import '../models/notification.dart';
 
 String routeFromNotificationModel(NotificationModel n) {
   final direct = (n.link ?? '').trim();
+
+  // Backward compatibility: old notifications used /raporty/{id},
+  // but app routes use /raport/edytuj/{id}.
+  final raportLegacy = RegExp(r'^/raporty/(\d+)$').firstMatch(direct);
+  if (raportLegacy != null) {
+    return '/raport/edytuj/${raportLegacy.group(1)}';
+  }
+
   if (direct.startsWith('/')) {
     return direct;
   }
@@ -10,7 +18,6 @@ String routeFromNotificationModel(NotificationModel n) {
       .whereType<String>()
       .join(' ')
       .toLowerCase();
-
   final normalized = _normalize(raw);
 
   if (raw.contains('message') || raw.contains('wiadom') || normalized.contains('wiadom')) {
