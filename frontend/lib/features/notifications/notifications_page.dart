@@ -1,16 +1,46 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/providers/app_providers.dart';
-import '../../core/models/notification.dart';
-import '../../widgets/top_app_bar.dart';
-import '../../core/utils/notification_router.dart';
 
-class NotificationsPage extends ConsumerWidget {
-  const NotificationsPage({Key? key}) : super(key: key);
+import '../../core/models/notification.dart';
+import '../../core/providers/app_providers.dart';
+import '../../core/utils/notification_router.dart';
+import '../../widgets/top_app_bar.dart';
+
+class NotificationsPage extends ConsumerStatefulWidget {
+  const NotificationsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NotificationsPage> createState() => _NotificationsPageState();
+}
+
+class _NotificationsPageState extends ConsumerState<NotificationsPage> {
+  bool _markingDone = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _markAllReadOnce();
+    });
+  }
+
+  Future<void> _markAllReadOnce() async {
+    if (_markingDone) return;
+    _markingDone = true;
+    try {
+      final repo = ref.read(notificationsApiRepositoryProvider);
+      await repo.markAllRead();
+    } catch (_) {
+      // Keep UI usable even if mark endpoint fails.
+    } finally {
+      // Force refresh so badges in AppBar/Dashboard recalculate unread count.
+      ref.invalidate(notificationsListProvider);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final notifsAsync = ref.watch(notificationsListProvider);
 
     return Scaffold(
