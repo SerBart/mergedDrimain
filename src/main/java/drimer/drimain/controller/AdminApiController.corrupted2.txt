@@ -1,5 +1,8 @@
 package drimer.drimain.controller;
 
+import org.springframework.web.bind.annotation.GetMapping;
+
+@GetMapping("/dzialy")
 import drimer.drimain.api.dto.*;
 import drimer.drimain.model.*;
 import drimer.drimain.repository.*;
@@ -13,69 +16,12 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
-
+        dzial.setNazwa(req.getNazwa());
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
-
-@RestController
-@RequestMapping("/api/admin")
-@RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
-public class AdminApiController {
-
-    private final DzialRepository dzialRepository;
-    private final SekcjaRepository sekcjaRepository;
-    private final MaszynaRepository maszynaRepository;
-    private final OsobaRepository osobaRepository;
-    private final UserRepository userRepository;
-    private final RoleRepository roleRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final RaportRepository raportRepository;
-    private final HarmonogramRepository harmonogramRepository;
-    private final ZgloszenieRepository zgloszenieRepository;
-    private final PartRepository partRepository;
-    private final InstructionRepository instructionRepository;
-
-    @GetMapping("/modules")
-    public List<String> getModulesCatalog() {
-        return ModulesCatalog.ALLOWED;
-    }
-
-    @GetMapping("/dzialy")
-    @Transactional(readOnly = true)
-    public List<DzialDTO> getDzialy() {
-        return dzialRepository.findAll().stream().map(this::toDzialDto).collect(Collectors.toList());
-    }
-
-    @PostMapping("/dzialy")
-    @ResponseStatus(HttpStatus.CREATED)
-    public DzialDTO createDzial(@Valid @RequestBody DzialCreateRequest req) {
-        Dzial dzial = new Dzial();
-        dzial.setNazwa(req.getNazwa());
-        dzialRepository.save(dzial);
-        return toDzialDto(dzial);
-    }
-
-    @PutMapping("/dzialy/{id}")
-    public DzialDTO updateDzial(@PathVariable Long id, @Valid @RequestBody DzialCreateRequest req) {
-        Dzial dzial = dzialRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Dzial not found"));
-        dzial.setNazwa(req.getNazwa());
-        dzialRepository.save(dzial);
-        return toDzialDto(dzial);
-    }
-
-    @DeleteMapping("/dzialy/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteDzial(@PathVariable Long id) {
-        dzialRepository.deleteById(id);
-    }
-
-    @GetMapping("/maszyny")
     @Transactional(readOnly = true)
     public List<MaszynaDTO> getMaszyny() {
         return maszynaRepository.findAll().stream().map(this::toMaszynaDto).collect(Collectors.toList());
@@ -215,20 +161,10 @@ public class AdminApiController {
     @ResponseStatus(HttpStatus.CREATED)
     public OsobaDTO createOsoba(@Valid @RequestBody OsobaCreateRequest req) {
         Osoba osoba = new Osoba();
-        String login = normalizeOptional(req.getLogin());
-        if (login != null) {
-            osobaRepository.findByLogin(login)
-                    .ifPresent(existing -> {
-                        throw new IllegalArgumentException("Login już istnieje");
-                    });
-            osoba.setLogin(login);
-        }
-        String haslo = normalizeOptional(req.getHaslo());
-        if (haslo != null) {
-            osoba.setHaslo(haslo);
-        }
+        if (req.getLogin() != null && !req.getLogin().isBlank()) osoba.setLogin(req.getLogin());
+        if (req.getHaslo() != null && !req.getHaslo().isBlank()) osoba.setHaslo(req.getHaslo());
         osoba.setImieNazwisko(req.getImieNazwisko());
-        osoba.setRola(normalizeOptional(req.getRola()));
+        osoba.setRola(req.getRola());
         if (req.getDzialId() != null) {
             Dzial dz = dzialRepository.findById(req.getDzialId())
                     .orElseThrow(() -> new IllegalArgumentException("Dzial not found"));
@@ -242,27 +178,12 @@ public class AdminApiController {
     public OsobaDTO updateOsoba(@PathVariable Long id, @Valid @RequestBody OsobaCreateRequest req) {
         Osoba osoba = osobaRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Osoba not found"));
-        if (req.getLogin() != null) {
-            String login = normalizeOptional(req.getLogin());
-            if (login != null) {
-                osobaRepository.findByLogin(login)
-                        .filter(existing -> !Objects.equals(existing.getId(), id))
-                        .ifPresent(existing -> {
-                            throw new IllegalArgumentException("Login już istnieje");
-                        });
-            }
-            osoba.setLogin(login);
-        }
-        if (req.getHaslo() != null) {
-            String haslo = normalizeOptional(req.getHaslo());
-            if (haslo != null) {
-                osoba.setHaslo(haslo);
-            }
-        }
-        if (req.getImieNazwisko() != null) osoba.setImieNazwisko(req.getImieNazwisko());
-        osoba.setRola(normalizeOptional(req.getRola()));
+        if (req.getLogin() != null) osoba.setLogin(req.getLogin());
+        if (req.getHaslo() != null && !req.getHaslo().trim().isEmpty()) osoba.setHaslo(req.getHaslo());
+        if (req.getLogin() != null && !req.getLogin().isBlank()) osoba.setLogin(req.getLogin());
+        if (req.getHaslo() != null && !req.getHaslo().isBlank()) osoba.setHaslo(req.getHaslo());
         if (req.getDzialId() != null) {
-            Dzial dz = dzialRepository.findById(req.getDzialId())
+        osoba.setRola(req.getRola());
                     .orElseThrow(() -> new IllegalArgumentException("Dzial not found"));
             osoba.setDzial(dz);
         } else {
@@ -276,12 +197,12 @@ public class AdminApiController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteOsoba(@PathVariable Long id) {
         osobaRepository.deleteById(id);
-    }
-
-    @GetMapping("/users")
-    @Transactional(readOnly = true)
+        if (req.getLogin() != null) osoba.setLogin(req.getLogin());
+        if (req.getHaslo() != null && !req.getHaslo().trim().isEmpty()) osoba.setHaslo(req.getHaslo());
+        if (req.getLogin() != null && !req.getLogin().isBlank()) osoba.setLogin(req.getLogin());
+        if (req.getHaslo() != null && !req.getHaslo().isBlank()) osoba.setHaslo(req.getHaslo());
     public List<UserDTO> getUsers() {
-        return userRepository.findAll().stream().map(this::toUserDto).collect(Collectors.toList());
+        osoba.setRola(req.getRola());
     }
 
     @PostMapping("/users")
@@ -295,12 +216,22 @@ public class AdminApiController {
         if (req.getRoles() != null && !req.getRoles().isEmpty()) {
             Set<Role> roles = req.getRoles().stream()
                     .map(roleName -> roleRepository.findByName(roleName)
-                            .orElseThrow(() -> new IllegalArgumentException("Role not found: " + roleName)))
-                    .collect(Collectors.toSet());
-            user.setRoles(roles);
+        if (req.getLogin() != null) osoba.setLogin(req.getLogin());
+        if (req.getHaslo() != null && !req.getHaslo().trim().isEmpty()) osoba.setHaslo(req.getHaslo());
+        String normalizedLogin = normalizeOptional(req.getLogin());
+        if (normalizedLogin != null) {
+            osobaRepository.findByLogin(normalizedLogin)
+                    .ifPresent(existing -> {
+                        throw new IllegalArgumentException("Login już istnieje");
+                    });
+            osoba.setLogin(normalizedLogin);
+        }
+        String normalizedHaslo = normalizeOptional(req.getHaslo());
+        if (normalizedHaslo != null) {
+            osoba.setHaslo(normalizedHaslo);
         }
 
-        if (req.getDzialId() != null) {
+        osoba.setRola(normalizeOptional(req.getRola()));
             Dzial dzial = dzialRepository.findById(req.getDzialId())
                     .orElseThrow(() -> new IllegalArgumentException("Dzial not found"));
             user.setDzial(dzial);
@@ -314,17 +245,37 @@ public class AdminApiController {
         return toUserDto(user);
     }
 
-    @PutMapping("/users/{id}")
-    public UserDTO updateUser(@PathVariable Long id, @Valid @RequestBody UserCreateRequest req) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        user.setUsername(req.getUsername());
+        if (req.getLogin() != null) {
+            String normalizedLogin = normalizeOptional(req.getLogin());
+            if (normalizedLogin != null) {
+                osobaRepository.findByLogin(normalizedLogin)
+                        .filter(existing -> !Objects.equals(existing.getId(), id))
+                        .ifPresent(existing -> {
+                            throw new IllegalArgumentException("Login już istnieje");
+                        });
+            }
+            osoba.setLogin(normalizedLogin);
+        }
+
+        String normalizedHaslo = normalizeOptional(req.getHaslo());
+        if (normalizedHaslo != null) {
+            osoba.setHaslo(normalizedHaslo);
+        }
+
+        if (req.getImieNazwisko() != null) {
+            osoba.setImieNazwisko(req.getImieNazwisko());
+        }
+        osoba.setRola(normalizeOptional(req.getRola()));
+
+
+            Dzial dz = dzialRepository.findById(req.getDzialId())
         user.setEmail(req.getEmail());
 
         if (req.getPassword() != null && !req.getPassword().trim().isEmpty()) {
             user.setPassword(passwordEncoder.encode(req.getPassword()));
         }
+
 
         if (req.getRoles() != null) {
             Set<Role> roles = req.getRoles().stream()
@@ -333,10 +284,10 @@ public class AdminApiController {
                     .collect(Collectors.toSet());
             user.setRoles(roles);
         }
+    }
 
-        if (req.getDzialId() != null) {
             Dzial dzial = dzialRepository.findById(req.getDzialId())
-                    .orElseThrow(() -> new IllegalArgumentException("Dzial not found"));
+    @Transactional(readOnly = true)
             user.setDzial(dzial);
         } else {
             user.setDzial(null);
@@ -397,7 +348,7 @@ public class AdminApiController {
             return;
         }
 
-        Set<Sekcja> selectedSekcje = new LinkedHashSet<>();
+        dto.setNazwa(sekcja.getNazwa());
         for (Long id : resolvedIds) {
             Sekcja sekcja = sekcjaRepository.findById(id)
                     .orElseThrow(() -> new IllegalArgumentException("Sekcja not found"));
@@ -416,7 +367,7 @@ public class AdminApiController {
         maszyna.setSekcja(selectedSekcje.iterator().next());
     }
 
-    private OsobaDTO toOsobaDto(Osoba osoba) {
+        Set<Sekcja> selectedSekcje = new LinkedHashSet<>();
         OsobaDTO dto = new OsobaDTO();
         dto.setId(osoba.getId());
         dto.setLogin(osoba.getLogin());
@@ -443,6 +394,25 @@ public class AdminApiController {
         return dto;
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public String handleIllegalArgument(IllegalArgumentException ex) {
+        return ex.getMessage();
+    }
+
+    @ExceptionHandler(Exception.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public String handleOther(Exception ex) {
+        return ex.getMessage() == null ? "Internal server error" : ex.getMessage()    private String normalizeOptional(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
     private String normalizeOptional(String value) {
         if (value == null) {
             return null;
@@ -457,16 +427,17 @@ public class AdminApiController {
         return ex.getMessage();
     }
 
-    @ExceptionHandler(DataIntegrityViolationException.class)
-    @ResponseStatus(HttpStatus.CONFLICT)
-    public String handleDataIntegrityViolation(DataIntegrityViolationException ignored) {
-        return "Konflikt danych. Sprawdz, czy login nie jest juz zajety i czy wskazany dzial istnieje.";
-    }
-
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public String handleOther(Exception ex) {
         return ex.getMessage() == null ? "Internal server error" : ex.getMessage();
     }
 }
+    @ExceptionHandler(Exception.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public String handleOther(Exception ex) {
+        return ex.getMessage() == null ? "Internal server error" : ex.getMessage();
+    }
+}
+
 

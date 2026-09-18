@@ -17,7 +17,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -215,20 +214,10 @@ public class AdminApiController {
     @ResponseStatus(HttpStatus.CREATED)
     public OsobaDTO createOsoba(@Valid @RequestBody OsobaCreateRequest req) {
         Osoba osoba = new Osoba();
-        String login = normalizeOptional(req.getLogin());
-        if (login != null) {
-            osobaRepository.findByLogin(login)
-                    .ifPresent(existing -> {
-                        throw new IllegalArgumentException("Login już istnieje");
-                    });
-            osoba.setLogin(login);
-        }
-        String haslo = normalizeOptional(req.getHaslo());
-        if (haslo != null) {
-            osoba.setHaslo(haslo);
-        }
+        if (req.getLogin() != null && !req.getLogin().isBlank()) osoba.setLogin(req.getLogin());
+        if (req.getHaslo() != null && !req.getHaslo().isBlank()) osoba.setHaslo(req.getHaslo());
         osoba.setImieNazwisko(req.getImieNazwisko());
-        osoba.setRola(normalizeOptional(req.getRola()));
+        osoba.setRola(req.getRola());
         if (req.getDzialId() != null) {
             Dzial dz = dzialRepository.findById(req.getDzialId())
                     .orElseThrow(() -> new IllegalArgumentException("Dzial not found"));
@@ -242,25 +231,10 @@ public class AdminApiController {
     public OsobaDTO updateOsoba(@PathVariable Long id, @Valid @RequestBody OsobaCreateRequest req) {
         Osoba osoba = osobaRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Osoba not found"));
-        if (req.getLogin() != null) {
-            String login = normalizeOptional(req.getLogin());
-            if (login != null) {
-                osobaRepository.findByLogin(login)
-                        .filter(existing -> !Objects.equals(existing.getId(), id))
-                        .ifPresent(existing -> {
-                            throw new IllegalArgumentException("Login już istnieje");
-                        });
-            }
-            osoba.setLogin(login);
-        }
-        if (req.getHaslo() != null) {
-            String haslo = normalizeOptional(req.getHaslo());
-            if (haslo != null) {
-                osoba.setHaslo(haslo);
-            }
-        }
+        if (req.getLogin() != null) osoba.setLogin(req.getLogin());
+        if (req.getHaslo() != null && !req.getHaslo().trim().isEmpty()) osoba.setHaslo(req.getHaslo());
         if (req.getImieNazwisko() != null) osoba.setImieNazwisko(req.getImieNazwisko());
-        osoba.setRola(normalizeOptional(req.getRola()));
+        osoba.setRola(req.getRola());
         if (req.getDzialId() != null) {
             Dzial dz = dzialRepository.findById(req.getDzialId())
                     .orElseThrow(() -> new IllegalArgumentException("Dzial not found"));
@@ -443,24 +417,10 @@ public class AdminApiController {
         return dto;
     }
 
-    private String normalizeOptional(String value) {
-        if (value == null) {
-            return null;
-        }
-        String normalized = value.trim();
-        return normalized.isEmpty() ? null : normalized;
-    }
-
     @ExceptionHandler(IllegalArgumentException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public String handleIllegalArgument(IllegalArgumentException ex) {
         return ex.getMessage();
-    }
-
-    @ExceptionHandler(DataIntegrityViolationException.class)
-    @ResponseStatus(HttpStatus.CONFLICT)
-    public String handleDataIntegrityViolation(DataIntegrityViolationException ignored) {
-        return "Konflikt danych. Sprawdz, czy login nie jest juz zajety i czy wskazany dzial istnieje.";
     }
 
     @ExceptionHandler(Exception.class)
@@ -469,4 +429,5 @@ public class AdminApiController {
         return ex.getMessage() == null ? "Internal server error" : ex.getMessage();
     }
 }
+
 

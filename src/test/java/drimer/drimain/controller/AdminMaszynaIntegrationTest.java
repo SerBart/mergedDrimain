@@ -19,6 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -51,11 +52,11 @@ class AdminMaszynaIntegrationTest {
     @BeforeEach
     void setUp() {
         dzial = new Dzial();
-        dzial.setNazwa("UTR");
+        dzial.setNazwa("UTR-" + UUID.randomUUID());
         dzial = dzialRepository.save(dzial);
 
         sekcja = new Sekcja();
-        sekcja.setNazwa("Sekcja A");
+        sekcja.setNazwa("Sekcja A-" + UUID.randomUUID());
         sekcja.setDzial(dzial);
         sekcja = sekcjaRepository.save(sekcja);
     }
@@ -89,4 +90,3 @@ class AdminMaszynaIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 }
-

@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -15,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@ActiveProfiles("test")
 @TestPropertySource(properties = {
         "spring.flyway.enabled=false"
 })
@@ -31,7 +33,8 @@ class EnergyControllerIntegrationTest {
                         .param("bucketMinutes", "5"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith("text/csv"))
-                .andExpect(content().string(containsString("czas;deviceId;mocKw;energiaKwhTotal;napiecieV;pradA")));
+                .andExpect(content().string(containsString(
+                        "czas;deviceId;mocKw;licznikKwhTotal;przyrostEnergiiKwh;napiecieV;pradA"
+                )));
     }
 }
-
