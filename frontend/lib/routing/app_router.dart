@@ -14,7 +14,7 @@ import '../features/czesci/czesci_list_screen.dart';
 import '../features/zgloszenia/zgloszenia_screen_modern.dart';
 import '../features/zgloszenia/moje_zgloszenia_screen.dart';
 import '../features/harmonogramy/harmonogramy_screen.dart';
-import '../features/przeglady/przeglady_screen.dart';
+import '../features/przeglady/przeglady_screen_v2.dart';
 import '../features/energia/energia_screen.dart';
 import '../features/admin/admin_screen.dart';
 import '../features/instrukcje/instrukcje_list_screen.dart' as instrukcje_list;

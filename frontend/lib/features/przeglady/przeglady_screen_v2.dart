@@ -1,66 +1,66 @@
- _shortDesc(Harmonogram h) {
-    final base = _fullDesc(h);
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/dzial.dart';
-  }
-
-    DateTime.monday: 'Poniedziałek',
+import '../../core/models/harmonogram.dart';
+import '../../core/models/maszyna.dart';
+import '../../core/models/osoba.dart';
 import '../../core/providers/app_providers.dart';
 import '../../widgets/modern_date_picker.dart';
 import '../../widgets/top_app_bar.dart';
-    DateTime.tuesday: 'Wtorek',
-    DateTime.friday: 'Piątek',
-    DateTime.sunday: 'Niedziela',
-  };
+import '../raporty/raport_form_screen.dart';
 
-  DateTime _nextOrSameWeekday(DateTime from, int weekday) {
+enum DayColorMode { none, dominantFrequency, gradientFrequencies, status }
 
-    final delta = (weekday - from.weekday + 7) % 7;
-    return DateTime(from.year, from.month, from.day + delta);
-  }
+class PrzegladyScreen extends ConsumerStatefulWidget {
+  const PrzegladyScreen({super.key});
 
-   Future<void> _openAddDialog() async {
-     DateTime selectedDate = DateTime.now();
-     String? frequency = 'MIESIECZNY';
-     int weeklyWeekday = DateTime.friday;
-     DateTime planEndDate = DateTime(DateTime.now().year, 12, 31);
-     String opis = '';
+  @override
+  ConsumerState<PrzegladyScreen> createState() => _PrzegladyScreenState();
+}
+
+class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
+  DateTime _currentMonth = DateTime(DateTime.now().year, DateTime.now().month);
+  bool _loading = false;
+  List<Harmonogram> _items = [];
+  List<Maszyna> _maszyny = [];
+  List<Dzial> _dzialy = [];
   List<Osoba> _osoby = [];
-     int? dzialId;
-     int? osobaId; // wykonujący przegląd
-     bool allowBackdate = false;
+  bool _loadingMeta = false;
+
+  DayColorMode _colorMode = DayColorMode.dominantFrequency;
   bool _strongFill = false;
 
-     await showDialog(
+  static const _freqValues = [
     'TYGODNIOWY',
     'MIESIECZNY',
     'KWARTALNY',
     'POLROCZNY',
     'ROCZNY',
-       barrierDismissible: false,
-       builder: (ctx) => StatefulBuilder(
-         builder: (ctx, setLocal) => AlertDialog(
-           title: const Text('Nowy przegląd'),
-           content: SizedBox(
-             width: 480,
-             child: SingleChildScrollView(
-               child: Column(
-                 mainAxisSize: MainAxisSize.min,
-                 children: [
-                   // UPROSZCZONE: Data
-                   InputDecorator(
-                     decoration: const InputDecoration(
-                       labelText: 'Data pierwszego przeglądu',
-                       border: OutlineInputBorder(),
-                        helperText: 'Wybierz datę rozpoczęcia (mozna tez wstecz)'
-                     ),
-                       onTap: () async {
+  ];
+
+  static const Map<String, Color> _freqColors = {
+    'TYGODNIOWY': Colors.blue,
+    'MIESIECZNY': Colors.green,
+    'KWARTALNY': Colors.orange,
+    'POLROCZNY': Colors.purple,
+    'ROCZNY': Colors.red,
+  };
+
+  static const Map<String, Color> _statusColors = {
+    'PLANOWANE': Colors.amber,
+    'W_TRAKCIE': Colors.indigo,
+    'ZAKONCZONE': Colors.teal,
+    'ANULOWANE': Colors.grey,
+  };
+
+  static const List<String> _freqPriority = [
     'TYGODNIOWY',
     'MIESIECZNY',
     'KWARTALNY',
     'POLROCZNY',
     'ROCZNY',
-                          final picked = await showModernDatePicker(
+  ];
 
   static const Map<int, String> _weekdayLabels = {
     DateTime.monday: 'Poniedziałek',
@@ -71,20 +71,20 @@ import '../../widgets/top_app_bar.dart';
     DateTime.saturday: 'Sobota',
     DateTime.sunday: 'Niedziela',
   };
-                            context: ctx,
-                            title: 'Data pierwszego przegladu',
-                           initialDate: selectedDate,
-                            firstDate: allowBackdate
-                                ? DateTime(now.year - 5, 1, 1)
-                                : todayStart,
-                           lastDate: DateTime(now.year + 2),
-                         );
-                         if (picked != null) {
-                           setLocal(() {
-                             selectedDate = picked;
-                             if (planEndDate.isBefore(selectedDate)) {
-                               planEndDate = DateTime(selectedDate.year, 12, 31);
-                             }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAll();
+  }
+
+  Future<void> _loadAll() async {
+    await Future.wait([
+      _loadMonth(),
+      _loadMeta(),
+    ]);
+  }
+
   Future<void> _loadMonth() async {
     setState(() => _loading = true);
     try {
@@ -115,7 +115,7 @@ import '../../widgets/top_app_bar.dart';
       if (mounted) setState(() => _loading = false);
     }
   }
-                          selectedDate = todayStart;
+
   Future<void> _loadMeta() async {
     setState(() => _loadingMeta = true);
     try {
@@ -143,23 +143,23 @@ import '../../widgets/top_app_bar.dart';
       if (mounted) setState(() => _loadingMeta = false);
     }
   }
-                       frequency = v;
-                       if (v == 'TYGODNIOWY') {
-                         weeklyWeekday = selectedDate.weekday;
-                       }
-                     }),
-                   ),
-                   const SizedBox(height: 16),
-                   // Jeśli tygodniowy, pozwól wybrać dzień
-                   if (frequency == 'TYGODNIOWY') ...[
-                     DropdownButtonFormField<int>(
-                       value: weeklyWeekday,
-                       decoration: const InputDecoration(
-                         labelText: 'Który dzień tygodnia?',
-                         border: OutlineInputBorder(),
-                       ),
-                       isExpanded: true,
-                       items: _weekdayLabels.entries
+
+  void _prevMonth() {
+    setState(() {
+      _currentMonth = DateTime(_currentMonth.year, _currentMonth.month - 1);
+    });
+    _loadMonth();
+  }
+
+  void _nextMonth() {
+    setState(() {
+      _currentMonth = DateTime(_currentMonth.year, _currentMonth.month + 1);
+    });
+    _loadMonth();
+  }
+
+  String _monthTitle(DateTime d) {
+    const names = [
       'Styczeń',
       'Luty',
       'Marzec',
@@ -171,23 +171,23 @@ import '../../widgets/top_app_bar.dart';
       'Wrzesień',
       'Październik',
       'Listopad',
-      'Grudzień'
-                       onChanged: (v) => setLocal(() => weeklyWeekday = v ?? DateTime.friday),
-                     ),
-                     const SizedBox(height: 16),
-                   ],
-                   // UPROSZCZONE: Plan do
-                   InputDecorator(
+      'Grudzień',
+    ];
+    return '${names[d.month - 1]} ${d.year}';
+  }
+
+  List<DateTime> _calendarDays(DateTime month) {
+    final first = DateTime(month.year, month.month, 1);
     final firstWeekday = first.weekday;
     final daysBefore = firstWeekday - 1;
-                       border: OutlineInputBorder(),
+    final firstToShow = first.subtract(Duration(days: daysBefore));
     return List.generate(
       42,
       (i) => DateTime(firstToShow.year, firstToShow.month, firstToShow.day + i),
     );
-                     ),
-                     child: InkWell(
-                       onTap: () async {
+  }
+
+  List<Harmonogram> _eventsOn(DateTime day) {
     return _items
         .where(
           (h) =>
@@ -197,31 +197,31 @@ import '../../widgets/top_app_bar.dart';
               h.data!.day == day.day,
         )
         .toList();
-                            context: ctx,
-                            title: 'Plan do',
-                           initialDate: planEndDate,
-                           firstDate: selectedDate,
-                           lastDate: DateTime(2035, 12, 31),
-                         );
-                         if (picked != null) setLocal(() => planEndDate = picked);
-                       },
-                       child: Padding(
-                         padding: const EdgeInsets.symmetric(vertical: 12),
-                         child: Row(
-                           children: [
-                             const Icon(Icons.event_repeat, size: 20, color: Colors.indigo),
-                             const SizedBox(width: 12),
-                             Text(
-                               '${planEndDate.year}-${planEndDate.month.toString().padLeft(2,'0')}-${planEndDate.day.toString().padLeft(2,'0')}',
-                               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                             ),
-                           ],
-                         ),
-                       ),
-                     ),
-                   ),
-                   const SizedBox(height: 16),
-                   // UPROSZCZONE: Opis (główne pole)
+  }
+
+  Color _colorFor(String? freq) => _freqColors[freq] ?? Colors.grey;
+
+  Color? _dominantColorForEvents(List<Harmonogram> events) {
+    if (events.isEmpty) return null;
+    final counts = <String, int>{};
+    for (final e in events) {
+      final f = e.frequency;
+      if (f == null) continue;
+      counts[f] = (counts[f] ?? 0) + 1;
+    }
+    if (counts.isEmpty) return null;
+    for (final p in _freqPriority) {
+      if (counts.containsKey(p)) {
+        return _colorFor(p);
+      }
+    }
+    return _colorFor(counts.keys.first);
+  }
+
+  String _fullDesc(Harmonogram h) {
+    return h.opis.isNotEmpty ? h.opis : (h.maszyna?.nazwa ?? h.dzial?.nazwa ?? 'Przegląd');
+  }
+
   String? _departmentName(Harmonogram h) {
     final machineDepartment = h.maszyna?.dzial?.nazwa?.trim();
     if (machineDepartment != null && machineDepartment.isNotEmpty) {
@@ -249,29 +249,25 @@ import '../../widgets/top_app_bar.dart';
   String _eventTooltip(Harmonogram h) {
     final lines = <String>[_fullDesc(h)];
     final department = _departmentName(h);
-    if (department != null) {
-      lines.add('Dział: $department');
-    }
-    if (h.maszyna != null) {
-      lines.add('Maszyna: ${h.maszyna!.nazwa}');
-    }
+    if (department != null) lines.add('Dział: $department');
+    if (h.maszyna != null) lines.add('Maszyna: ${h.maszyna!.nazwa}');
     if (h.frequency != null && h.frequency!.isNotEmpty) {
       lines.add('Częstotliwość: ${h.frequency}');
     }
     return lines.join('\n');
   }
 
-                   TextField(
-                     decoration: const InputDecoration(
-                       labelText: 'Czego dotyczy przegląd?',
+  String _shortDesc(Harmonogram h) {
+    final base = _fullDesc(h);
+    if (base.length <= 40) return base;
     return '${base.substring(0, 37)}...';
-                       border: OutlineInputBorder(),
-                   const SizedBox(height: 12),
-                   Row(
-                     children: [
-                       Expanded(
-                         child: SegmentedButton<bool>(
-                           segments: const [
+  }
+
+  DateTime _nextOrSameWeekday(DateTime from, int weekday) {
+    final delta = (weekday - from.weekday + 7) % 7;
+    return DateTime(from.year, from.month, from.day + delta);
+  }
+
   Future<void> _openAddDialog() async {
     DateTime selectedDate = DateTime.now();
     String? frequency = 'MIESIECZNY';
@@ -284,7 +280,7 @@ import '../../widgets/top_app_bar.dart';
     bool useMaszyna = true;
     bool allowBackdate = false;
     final todayStart = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
-                       value: maszynaId,
+
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -365,7 +361,16 @@ import '../../widgets/top_app_bar.dart';
                       helperText: 'Wybierz częstotliwość powtarzania',
                     ),
                     isExpanded: true,
-                    items: _freqValues.map((f) => DropdownMenuItem(value: f, child: Text(f))).toList(),
+                    items: _freqValues.map((f) {
+                      const labels = {
+                        'TYGODNIOWY': 'Co tydzień',
+                        'MIESIECZNY': 'Co miesiąc',
+                        'KWARTALNY': 'Co kwartał',
+                        'POLROCZNY': 'Co pół roku',
+                        'ROCZNY': 'Co rok',
+                      };
+                      return DropdownMenuItem(value: f, child: Text(labels[f] ?? f));
+                    }).toList(),
                     onChanged: (v) => setLocal(() {
                       frequency = v;
                       if (v == 'TYGODNIOWY') {
@@ -377,7 +382,11 @@ import '../../widgets/top_app_bar.dart';
                   if (frequency == 'TYGODNIOWY') ...[
                     DropdownButtonFormField<int>(
                       value: weeklyWeekday,
-                      decoration: const InputDecoration(labelText: 'Dzień tygodnia', border: OutlineInputBorder()),
+                      decoration: const InputDecoration(
+                        labelText: 'Który dzień tygodnia?',
+                        border: OutlineInputBorder(),
+                      ),
+                      isExpanded: true,
                       items: _weekdayLabels.entries
                           .map((e) => DropdownMenuItem<int>(value: e.key, child: Text(e.value)))
                           .toList(),
@@ -554,33 +563,34 @@ import '../../widgets/top_app_bar.dart';
       ),
     );
   }
-                    frequency: frequency,
-                    planEndDate: planEndDate,
-                    opis: opis,
-                    applyToSeriesFuture: applyToFuture,
-                  );
-                  if (!mounted) return;
-                  Navigator.of(ctx).pop();
-                  await _loadMonth();
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Zapisano zmiany przeglądu')));
-                } catch (e) {
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Błąd edycji: $e')));
-                }
-              },
-              child: const Text('Zapisz'),
-            ),
-          ],
-          ),
-        ),
-      );
-    } finally {
-      opisCtrl.dispose();
-    }
-  }
 
-   Future<void> _openRaportFromPrzeglad(Harmonogram item) async {
-     try {
+  Future<void> _openEditDialog(Harmonogram item) async {
+    DateTime selectedDate = item.data ?? DateTime.now();
+    String? frequency = item.frequency ?? 'MIESIECZNY';
+    int weeklyWeekday = selectedDate.weekday;
+    DateTime planEndDate = item.planEndDate ?? DateTime(selectedDate.year, 12, 31);
+    String opis = item.opis;
+    final opisCtrl = TextEditingController(text: opis);
+    int? maszynaId = item.maszyna?.id;
+    int? dzialId = item.dzial?.id;
+    int? osobaId = item.osoba?.id;
+    final isRecurringSeries = (item.seriesId?.trim().isNotEmpty ?? false) && item.frequency != null;
+    bool applyToFuture = isRecurringSeries;
+    bool useMaszyna = item.maszyna != null;
+
+    try {
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setLocal) => AlertDialog(
+            title: const Text('Edytuj przegląd'),
+            content: SizedBox(
+              width: 500,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                     InputDecorator(
                       decoration: const InputDecoration(labelText: 'Data', border: OutlineInputBorder()),
                       child: InkWell(
@@ -724,18 +734,20 @@ import '../../widgets/top_app_bar.dart';
                       ),
                       onChanged: (v) => opis = v,
                     ),
-                    const SizedBox(height: 16),
-                    CheckboxListTile(
-                      value: applyToFuture,
-                      onChanged: (v) => setLocal(() => applyToFuture = v ?? true),
-                      title: const Text('Zastosuj do przyszłych przeglądów z tej serii'),
-                      controlAffinity: ListTileControlAffinity.leading,
-                      contentPadding: EdgeInsets.zero,
-                      subtitle: const Text(
-                        'Jeśli nie zaznaczysz, zmieni się tylko ten przegląd',
-                        style: TextStyle(fontSize: 11),
+                    if (isRecurringSeries) ...[
+                      const SizedBox(height: 16),
+                      CheckboxListTile(
+                        value: applyToFuture,
+                        onChanged: (v) => setLocal(() => applyToFuture = v ?? true),
+                        title: const Text('Zastosuj zmiany do całego przeglądu cyklicznego'),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        contentPadding: EdgeInsets.zero,
+                        subtitle: const Text(
+                          'Po zaznaczeniu zmiany przejdą także na kolejne przeglądy z tej serii, np. za tydzień, dwa tygodnie itd.',
+                          style: TextStyle(fontSize: 11),
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -746,23 +758,29 @@ import '../../widgets/top_app_bar.dart';
                 onPressed: () async {
                   try {
                     await ref.read(harmonogramyApiRepositoryProvider).update(
-                          id: item.id,
-                          data: frequency == 'TYGODNIOWY'
-                              ? _nextOrSameWeekday(selectedDate, weeklyWeekday)
-                              : selectedDate,
-                          maszynaId: useMaszyna ? maszynaId : null,
-                          dzialId: useMaszyna ? null : dzialId,
-                          osobaId: osobaId,
-                          frequency: frequency,
-                          planEndDate: planEndDate,
-                          opis: opis,
-                          applyToSeriesFuture: applyToFuture,
-                        );
+                      id: item.id,
+                      data: frequency == 'TYGODNIOWY'
+                          ? _nextOrSameWeekday(selectedDate, weeklyWeekday)
+                          : selectedDate,
+                      maszynaId: useMaszyna ? maszynaId : null,
+                      dzialId: useMaszyna ? null : dzialId,
+                      osobaId: osobaId,
+                      frequency: frequency,
+                      planEndDate: planEndDate,
+                      opis: opis,
+                      applyToSeriesFuture: applyToFuture,
+                    );
                     if (!mounted) return;
                     Navigator.of(ctx).pop();
                     await _loadMonth();
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Zapisano zmiany przeglądu')),
+                      SnackBar(
+                        content: Text(
+                          isRecurringSeries && applyToFuture
+                              ? 'Zapisano zmiany w całym przeglądzie cyklicznym'
+                              : 'Zapisano zmiany przeglądu',
+                        ),
+                      ),
                     );
                   } catch (e) {
                     if (!mounted) return;
@@ -774,14 +792,14 @@ import '../../widgets/top_app_bar.dart';
                 child: const Text('Zapisz'),
               ),
             ],
-                        const SizedBox(width: 4),
-                        if (DateTime.now().year == d.year && DateTime.now().month == d.month && DateTime.now().day == d.day)
-                          const Icon(Icons.circle, size: 6, color: Colors.redAccent),
-                        if (dayEvents.length > 3)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 4),
-                            child: Text('+${dayEvents.length - 2}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500)),
-                          )
+          ),
+        ),
+      );
+    } finally {
+      opisCtrl.dispose();
+    }
+  }
+
   Future<void> _openRaportFromPrzeglad(Harmonogram item) async {
     try {
       final ok = await showDialog<bool>(
@@ -801,7 +819,7 @@ import '../../widgets/top_app_bar.dart';
           ),
         ),
       );
-                    ] else const SizedBox(height: 4),
+
       if (ok == true) {
         try {
           final result = await ref.read(harmonogramyApiRepositoryProvider).complete(item.id);
@@ -825,14 +843,14 @@ import '../../widgets/top_app_bar.dart';
       }
     }
   }
-    // pokaż do 4 kropek, jeśli więcej – ostatnia z liczbą
-    const maxDots = 4;
-    if (events.length <= maxDots) {
-      return events.map((e) => _eventDot(_colorFor(e.frequency), e)).toList();
-    }
-    final first = events.take(maxDots - 1).map((e) => _eventDot(_colorFor(e.frequency), e));
-    return [
-      ...first,
+
+  void _openDayDetails(DateTime day) {
+    final events = _eventsOn(day);
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
           child: events.isEmpty
               ? const Text('Brak przeglądów w tym dniu')
               : Column(
@@ -935,71 +953,71 @@ import '../../widgets/top_app_bar.dart';
                     }),
                   ],
                 ),
-      runSpacing: 8,
-      children: _freqValues.map((f) {
-        final c = _colorFor(f);
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(width: 14, height: 14, decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(7))),
-              const SizedBox(width: 6),
-              Text(f, style: const TextStyle(fontSize: 12)),
-            ],
-        );
-      }).toList(),
+        ),
+      ),
     );
   }
 
+  Widget _buildCalendar() {
+    final days = _calendarDays(_currentMonth);
+    final month = _currentMonth.month;
+    return Column(
+      children: [
+        Row(
+          children: [
+            IconButton(onPressed: _loading ? null : _prevMonth, icon: const Icon(Icons.chevron_left)),
+            Expanded(
+              child: Center(
                 child: Text(
                   _monthTitle(_currentMonth),
                   style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                 ),
-
-  List<Color> _frequencyColors(List<Harmonogram> events) {
-    final set = <String>{};
-    final colors = <Color>[];
-    for (final e in events) {
-      final f = e.frequency;
-      if (f == null) continue;
-      if (set.add(f)) {
-        colors.add(_colorFor(f).withOpacity(_strongFill ? .65 : .35));
-        if (colors.length == 4) break; // ogranicz gradient do 4 kolorów
-      }
-    }
-    return colors;
-  }
-
-  Color? _statusDominant(List<Harmonogram> events) {
-    if (events.isEmpty) return null;
-    // prosty priorytet: W_TRAKCIE > PLANOWANE > ZAKONCZONE > ANULOWANE
-    const order = ['W_TRAKCIE','PLANOWANE','ZAKONCZONE','ANULOWANE'];
-    final statuses = events.map((e)=>e.status).toSet();
-    for (final o in order) {
-      if (statuses.contains(o)) return _statusColor(o);
-    }
-    return _statusColor(events.first.status);
-  }
-
-  BoxDecoration _dayDecoration(List<Harmonogram> dayEvents, bool isCurrent) {
-    final baseBorder = BorderRadius.circular(6);
-    if (_colorMode == DayColorMode.none || dayEvents.isEmpty) {
-      return BoxDecoration(
-        color: isCurrent ? Colors.white : Colors.grey.shade100,
-        borderRadius: baseBorder,
-        border: Border.all(color: isCurrent ? Colors.grey.shade300 : Colors.grey.shade200, width: 1),
-      );
-    }
-    switch (_colorMode) {
-      case DayColorMode.dominantFrequency:
-        final c = _dominantColorForEvents(dayEvents) ?? Colors.grey;
-        final fill = c.withOpacity(_strongFill ? .38 : .18);
-        return BoxDecoration(
-          color: fill,
-          borderRadius: baseBorder,
-          border: Border.all(color: c.withOpacity(.55), width: 1),
-        );
-      case DayColorMode.gradientFrequencies:
-        final cols = _frequencyColors(dayEvents);
+              ),
+            ),
+            IconButton(onPressed: _loading ? null : _nextMonth, icon: const Icon(Icons.chevron_right)),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: const [
+            Expanded(child: Center(child: Text('Pn', style: TextStyle(fontWeight: FontWeight.bold)))),
+            Expanded(child: Center(child: Text('Wt', style: TextStyle(fontWeight: FontWeight.bold)))),
+            Expanded(child: Center(child: Text('Śr', style: TextStyle(fontWeight: FontWeight.bold)))),
+            Expanded(child: Center(child: Text('Cz', style: TextStyle(fontWeight: FontWeight.bold)))),
+            Expanded(child: Center(child: Text('Pt', style: TextStyle(fontWeight: FontWeight.bold)))),
+            Expanded(child: Center(child: Text('So', style: TextStyle(fontWeight: FontWeight.bold)))),
+            Expanded(child: Center(child: Text('Nd', style: TextStyle(fontWeight: FontWeight.bold)))),
+          ],
+        ),
+        const SizedBox(height: 4),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: days.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 7,
+            mainAxisExtent: 82,
+          ),
+          itemBuilder: (ctx, i) {
+            final d = days[i];
+            final isCurrent = d.month == month;
+            final dayEvents = _eventsOn(d);
+            final decoration = _dayDecoration(dayEvents, isCurrent);
+            final firstEvent = dayEvents.isNotEmpty ? dayEvents.first : null;
+            final shortLabel = firstEvent == null ? null : _shortDesc(firstEvent);
+            final departmentLabel = firstEvent == null ? null : _departmentName(firstEvent);
+            final firstDone = firstEvent?.status.toUpperCase() == 'ZAKONCZONE';
+            return InkWell(
+              onTap: () => _openDayDetails(d),
+              child: Container(
+                margin: const EdgeInsets.all(2),
+                decoration: decoration,
+                padding: const EdgeInsets.all(4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
                         Text(
                           '${d.day}',
                           style: TextStyle(
@@ -1007,53 +1025,53 @@ import '../../widgets/top_app_bar.dart';
                             color: isCurrent ? Colors.black87 : Colors.grey,
                           ),
                         ),
-          final single = (cols.isEmpty ? (_dominantColorForEvents(dayEvents) ?? Colors.grey) : cols.first.withOpacity(1));
+                        const SizedBox(width: 4),
                         if (DateTime.now().year == d.year &&
                             DateTime.now().month == d.month &&
                             DateTime.now().day == d.day)
-            color: single.withOpacity(_strongFill ? .38 : .18),
-            borderRadius: baseBorder,
-            border: Border.all(color: single.withOpacity(.6), width: 1),
-          );
+                          const Icon(Icons.circle, size: 6, color: Colors.redAccent),
+                        if (dayEvents.length > 3)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4),
                             child: Text(
                               '+${dayEvents.length - 2}',
                               style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500),
                             ),
                           ),
-          gradient: LinearGradient(
-            colors: cols,
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: baseBorder,
-          border: Border.all(color: cols.first.withOpacity(.7), width: 1),
-        );
-      case DayColorMode.status:
-        final c = _statusDominant(dayEvents) ?? Colors.grey;
-        return BoxDecoration(
-          color: c.withOpacity(_strongFill ? .42 : .20),
-            borderRadius: baseBorder,
-            border: Border.all(color: c.withOpacity(.55), width: 1),
-        );
-      case DayColorMode.none:
-        return BoxDecoration(
-          color: isCurrent ? Colors.white : Colors.grey.shade100,
-          borderRadius: baseBorder,
-          border: Border.all(color: isCurrent ? Colors.grey.shade300 : Colors.grey.shade200, width: 1),
-        );
-    }
-  }
-
-  void _cycleColorMode() {
-    setState(() {
-      switch (_colorMode) {
-                            color: firstDone ? Colors.blueGrey : Colors.red.shade400,
-        case DayColorMode.status: _colorMode = DayColorMode.none; break;
-      }
-    });
+                      ],
+                    ),
+                    if (shortLabel != null) ...[
+                      const SizedBox(height: 2),
+                      Tooltip(
+                        message: _eventTooltip(firstEvent!),
+                        child: Text(
+                          shortLabel,
+                          maxLines: departmentLabel != null ? 1 : 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            height: 1.1,
+                            color: firstDone == true
+                                ? (isCurrent ? Colors.black87 : Colors.grey)
+                                : Colors.red.shade700,
+                          ),
+                        ),
+                      ),
+                      if (departmentLabel != null)
+                        Text(
+                          departmentLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10,
+                            height: 1.1,
+                            color: firstDone == true ? Colors.blueGrey : Colors.red.shade400,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                     ] else
                       const SizedBox(height: 4),
-
+                    Expanded(
                       child: dayEvents.isEmpty
                           ? const SizedBox.shrink()
                           : Align(
@@ -1064,44 +1082,44 @@ import '../../widgets/top_app_bar.dart';
                                 children: _buildEventDots(dayEvents),
                               ),
                             ),
-
-  IconData _colorModeIcon() {
-    switch (_colorMode) {
-      case DayColorMode.none: return Icons.crop_square;
-      case DayColorMode.dominantFrequency: return Icons.color_lens_outlined;
-      case DayColorMode.gradientFrequencies: return Icons.gradient;
-      case DayColorMode.status: return Icons.flag_circle_outlined;
-    }
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        _buildLegend(),
+      ],
+    );
   }
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: TopAppBar(
-        title: 'Przeglądy',
-        extraActions: [
-          Tooltip(
-            message: _colorModeLabel(),
-            child: IconButton(
-              icon: Icon(_colorModeIcon()),
-              onPressed: _loading ? null : _cycleColorMode,
-            ),
-          ),
-          Tooltip(
-            message: _strongFill ? 'Wypełnienie: mocne' : 'Wypełnienie: delikatne',
-            child: IconButton(
-              icon: Icon(_strongFill ? Icons.opacity : Icons.opacity_outlined),
-              onPressed: () => setState(() => _strongFill = !_strongFill),
-            ),
-          ),
+
+  List<Widget> _buildEventDots(List<Harmonogram> events) {
+    const maxDots = 4;
+    if (events.length <= maxDots) {
+      return events.map((e) => _eventDot(_colorFor(e.frequency), e)).toList();
+    }
+    final first = events.take(maxDots - 1).map((e) => _eventDot(_colorFor(e.frequency), e));
+    return [
+      ...first,
+      Container(
+        width: 16,
+        height: 16,
+        decoration: BoxDecoration(
+          color: Colors.black54,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        alignment: Alignment.center,
         child: Text(
           '+${events.length - (maxDots - 1)}',
           style: const TextStyle(fontSize: 9, color: Colors.white),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _loading ? null : _openAddDialog,
-        icon: const Icon(Icons.add),
-        label: const Text('Dodaj'),
+    ];
+  }
+
+  Widget _eventDot(Color c, Harmonogram h) => Tooltip(
         message: _eventTooltip(h),
         child: Container(
           width: 16,
@@ -1113,7 +1131,7 @@ import '../../widgets/top_app_bar.dart';
           ),
         ),
       );
-                    child: Padding(
+
   Widget _buildLegend() {
     return Wrap(
       spacing: 12,
@@ -1311,3 +1329,4 @@ import '../../widgets/top_app_bar.dart';
     );
   }
 }
+
