@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import '../../core/providers/app_providers.dart';
+
+import '../../core/models/dzial.dart';
 import '../../core/models/harmonogram.dart';
 import '../../core/models/maszyna.dart';
 import '../../core/models/osoba.dart';
-import '../../core/models/dzial.dart';
+import '../../core/providers/app_providers.dart';
 import '../../widgets/centered_scroll_card.dart';
 import '../../widgets/modern_date_picker.dart';
 import '../../widgets/pagination_controls.dart';
@@ -23,23 +23,23 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
   List<Harmonogram> _items = [];
   List<Maszyna> _maszyny = [];
   List<Osoba> _osoby = [];
-  List<Dzial> _dzialy = []; // <--- Dodajemy
+  List<Dzial> _dzialy = [];
 
-  // Filtry / wyszukiwanie
   int? _year = DateTime.now().year;
   int? _month;
   String _statusFilter = 'WSZYSTKIE';
   String _query = '';
-  final _searchCtrl = TextEditingController();
+  final TextEditingController _searchCtrl = TextEditingController();
 
-  // Sortowanie
   int _sortCol = 0;
   bool _asc = true;
 
-  // Paginacja (jak w częściach)
   int _page = 0;
   int _pageSize = 25;
   static const List<int> _pageSizes = [10, 25, 50, 100];
+
+  bool _multiSelectMode = false;
+  final Set<int> _selectedIds = <int>{};
 
   @override
   void initState() {
@@ -64,14 +64,15 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
         metaApi.fetchOsobySimple(),
         metaApi.fetchDzialySimple(),
       ]);
+
       _items = results[0] as List<Harmonogram>;
       _maszyny = results[1] as List<Maszyna>;
       _osoby = results[2] as List<Osoba>;
-      final dzialy = results[3] as List<Dzial>;
+      _dzialy = results[3] as List<Dzial>;
 
-      // Przypisz działy do maszyn, jeśli maszyna nie ma jeszcze załadowanego działu
-      // i możemy go skojarzyć po id działu, ale bezpieczniej przekazać dział do formularza
-      _dzialy = dzialy;
+      final existingIds = _items.map((h) => h.id).toSet();
+      _selectedIds.removeWhere((id) => !existingIds.contains(id));
+      if (_selectedIds.isEmpty) _multiSelectMode = false;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -86,16 +87,23 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
   List<Harmonogram> _applyFilters() {
     Iterable<Harmonogram> list = _items;
     if (_statusFilter != 'WSZYSTKIE') {
-      list = list.where((h) => (h.status).toUpperCase() == _statusFilter);
+      list = list.where((h) => h.status.toUpperCase() == _statusFilter);
     }
     final q = _query.trim().toLowerCase();
     if (q.isNotEmpty) {
-      list = list.where((h) =>
-          (h.opis.toLowerCase().contains(q)) ||
-          ((h.maszyna?.nazwa.toLowerCase() ?? '').contains(q)) ||
-          ((h.maszyna?.dzial?.nazwa.toLowerCase() ?? '').contains(q)) ||
-          ((h.maszyna?.sekcja?.nazwa.toLowerCase() ?? '').contains(q)) ||
-          ((h.osoba?.imieNazwisko.toLowerCase() ?? '').contains(q)));
+      list = list.where((h) {
+        final machineName = h.maszyna?.nazwa.toLowerCase() ?? '';
+        final machineDept = h.maszyna?.dzial?.nazwa.toLowerCase() ?? '';
+        final directDept = h.dzial?.nazwa.toLowerCase() ?? '';
+        final section = h.maszyna?.sekcja?.nazwa.toLowerCase() ?? '';
+        final person = h.osoba?.imieNazwisko.toLowerCase() ?? '';
+        return h.opis.toLowerCase().contains(q) ||
+            machineName.contains(q) ||
+            machineDept.contains(q) ||
+            directDept.contains(q) ||
+            section.contains(q) ||
+            person.contains(q);
+      });
     }
     return list.toList();
   }
@@ -104,30 +112,30 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
     list.sort((a, b) {
       int cmp;
       switch (_sortCol) {
-        case 0: // Data
-          final ad = a.data ?? DateTime.fromMillisecondsSinceEpoch(0);
-          final bd = b.data ?? DateTime.fromMillisecondsSinceEpoch(0);
-          cmp = ad.compareTo(bd);
+        case 0:
+          cmp = (a.data ?? DateTime.fromMillisecondsSinceEpoch(0)).compareTo(
+            b.data ?? DateTime.fromMillisecondsSinceEpoch(0),
+          );
           break;
-        case 1: // Maszyna
+        case 1:
           cmp = (a.maszyna?.nazwa ?? '').compareTo(b.maszyna?.nazwa ?? '');
           break;
-        case 2: // Dział
-          cmp = (a.maszyna?.dzial?.nazwa ?? '').compareTo(b.maszyna?.dzial?.nazwa ?? '');
+        case 2:
+          cmp = (a.maszyna?.dzial?.nazwa ?? a.dzial?.nazwa ?? '').compareTo(b.maszyna?.dzial?.nazwa ?? b.dzial?.nazwa ?? '');
           break;
-        case 3: // Sekcja
+        case 3:
           cmp = (a.maszyna?.sekcja?.nazwa ?? '').compareTo(b.maszyna?.sekcja?.nazwa ?? '');
           break;
-        case 4: // Osoba
+        case 4:
           cmp = (a.osoba?.imieNazwisko ?? '').compareTo(b.osoba?.imieNazwisko ?? '');
           break;
-        case 5: // Czas trwania
+        case 5:
           cmp = (a.durationMinutes ?? 0).compareTo(b.durationMinutes ?? 0);
           break;
-        case 6: // Status
-          cmp = (a.status).compareTo(b.status);
+        case 6:
+          cmp = a.status.compareTo(b.status);
           break;
-        default: // Opis
+        default:
           cmp = a.opis.compareTo(b.opis);
       }
       return _asc ? cmp : -cmp;
@@ -142,7 +150,6 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
     return all.sublist(start, end);
   }
 
-
   Future<void> _addNew() async {
     final created = await _openFormDialog();
     if (created == true) await _loadAll();
@@ -155,15 +162,17 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
       initialOsobaId: h.osoba?.id,
       initialDuration: h.durationMinutes,
       initialOpis: h.opis.isEmpty ? null : h.opis,
-      onSubmit: (data, maszynaId, osobaId, duration, opis) async {
+      initialDzialId: h.dzial?.id ?? h.maszyna?.dzial?.id,
+      onSubmit: (data, maszynaId, osobaId, duration, opis, dzialId) async {
         final api = ref.read(harmonogramyApiRepositoryProvider);
         await api.update(
           id: h.id,
           data: data,
           maszynaId: maszynaId,
           osobaId: osobaId,
+          dzialId: dzialId,
           durationMinutes: duration,
-          opis: (opis ?? '').trim().isEmpty ? '' : opis!.trim(),
+          opis: (opis ?? '').trim(),
         );
       },
       title: 'Edytuj harmonogram',
@@ -189,39 +198,114 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
         await _loadAll();
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Błąd usuwania: $e')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Błąd usuwania: $e')));
       }
     }
   }
 
   Future<void> _quickToggleStatus(Harmonogram h) async {
-    final current = (h.status).toUpperCase();
-    String next;
-    switch (current) {
-      case 'PLANOWANE':
-        next = 'W_TRAKCIE';
-        break;
-      case 'W_TRAKCIE':
-        next = 'ZAKONCZONE';
-        break;
-      default:
-        next = 'PLANOWANE';
-    }
+    final current = h.status.toUpperCase();
+    final next = switch (current) {
+      'PLANOWANE' => 'W_TRAKCIE',
+      'W_TRAKCIE' => 'ZAKONCZONE',
+      _ => 'PLANOWANE',
+    };
     try {
       await ref.read(harmonogramyApiRepositoryProvider).update(id: h.id, status: next);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Zmieniono status na ${_statusLabel(next)}')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Zmieniono status na ${_statusLabel(next)}')));
       }
       await _loadAll();
     } catch (e) {
       if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Błąd zmiany statusu: $e')));
+    }
+  }
+
+  void _toggleMultiSelectMode() {
+    setState(() {
+      _multiSelectMode = !_multiSelectMode;
+      if (!_multiSelectMode) _selectedIds.clear();
+    });
+  }
+
+  void _toggleItemSelection(Harmonogram h, bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedIds.add(h.id);
+      } else {
+        _selectedIds.remove(h.id);
+      }
+      _multiSelectMode = _selectedIds.isNotEmpty;
+    });
+  }
+
+  void _toggleSelectVisible(List<Harmonogram> visible) {
+    final visibleIds = visible.map((h) => h.id).toSet();
+    final allVisibleSelected = visibleIds.isNotEmpty && visibleIds.every(_selectedIds.contains);
+    setState(() {
+      if (allVisibleSelected) {
+        _selectedIds.removeWhere(visibleIds.contains);
+      } else {
+        _selectedIds.addAll(visibleIds);
+      }
+      _multiSelectMode = _selectedIds.isNotEmpty;
+    });
+  }
+
+  void _toggleSelectFiltered(List<Harmonogram> filtered) {
+    final filteredIds = filtered.map((h) => h.id).toSet();
+    final allFilteredSelected = filteredIds.isNotEmpty && filteredIds.every(_selectedIds.contains);
+    setState(() {
+      if (allFilteredSelected) {
+        _selectedIds.removeWhere(filteredIds.contains);
+      } else {
+        _selectedIds.addAll(filteredIds);
+      }
+      _multiSelectMode = _selectedIds.isNotEmpty;
+    });
+  }
+
+  Future<void> _deleteSelected() async {
+    if (_selectedIds.isEmpty) return;
+    final count = _selectedIds.length;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Usuń zaznaczone harmonogramy'),
+        content: Text('Usunąć $count zaznaczon${count == 1 ? 'y wpis' : 'e wpisy'}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Anuluj')),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Usuń')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    setState(() => _loading = true);
+    int deleted = 0;
+    int failed = 0;
+    final api = ref.read(harmonogramyApiRepositoryProvider);
+    try {
+      for (final id in _selectedIds.toList()) {
+        try {
+          await api.delete(id);
+          deleted++;
+        } catch (_) {
+          failed++;
+        }
+      }
+      await _loadAll();
+      if (!mounted) return;
+      setState(() {
+        _selectedIds.clear();
+        _multiSelectMode = false;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Błąd zmiany statusu: $e')),
+        SnackBar(content: Text(failed == 0 ? 'Usunięto $deleted harmonogram${deleted == 1 ? '' : 'y'}' : 'Usunięto $deleted, błędy: $failed')),
       );
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -231,10 +315,11 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
     int? initialOsobaId,
     int? initialDuration,
     String? initialOpis,
-    Future<void> Function(DateTime, int, int, int?, String?)? onSubmit,
+    int? initialDzialId,
+    Future<void> Function(DateTime, int, int, int?, String?, int?)? onSubmit,
     String title = 'Nowy harmonogram',
   }) async {
-    if (_osoby.isEmpty) { // Usuwamy blokowanie przy braku maszyn, bo maszyny pobieramy z wybranego dzialu z bazy na biezaco jesli chcemy, albo uzywamy dzialow!
+    if (_osoby.isEmpty) {
       await showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -242,7 +327,7 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
           content: const Text('Dodaj najpierw Osobę w Panelu Admina.'),
           actions: [
             TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Zamknij')),
-            FilledButton(onPressed: () { Navigator.of(ctx).pop(); context.go('/admin'); }, child: const Text('Panel Admina')),
+            FilledButton(onPressed: () { Navigator.of(ctx).pop(); }, child: const Text('OK')),
           ],
         ),
       );
@@ -255,20 +340,28 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
       builder: (_) => AlertDialog(
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         content: SizedBox(
-          width: 560,
+          width: 640,
           child: _HarmonogramFormSheet(
             title: title,
             maszyny: _maszyny,
             osoby: _osoby,
-            dzialy: _dzialy, // <--- Dodajemy
+            dzialy: _dzialy,
             initialDate: initialDate,
             initialMaszynaId: initialMaszynaId,
             initialOsobaId: initialOsobaId,
             initialDuration: initialDuration,
             initialOpis: initialOpis,
-            onSubmit: (onSubmit ?? (DateTime d, int mId, int oId, int? dur, String? op) async {
+            initialDzialId: initialDzialId,
+            onSubmit: (onSubmit ?? (DateTime d, int mId, int oId, int? dur, String? op, int? dzialId) async {
               final api = ref.read(harmonogramyApiRepositoryProvider);
-              await api.create(data: d, maszynaId: mId, osobaId: oId, opis: op, durationMinutes: dur);
+              await api.create(
+                data: d,
+                maszynaId: mId,
+                osobaId: oId,
+                dzialId: dzialId,
+                opis: op,
+                durationMinutes: dur,
+              );
             }),
           ),
         ),
@@ -282,12 +375,14 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
   @override
   Widget build(BuildContext context) {
     final filtered = _sorted(_applyFilters());
-    final theme = Theme.of(context);
     final totalPages = filtered.isEmpty ? 1 : (filtered.length / _pageSize).ceil();
     if (_page >= totalPages) {
       _page = totalPages - 1;
     }
     final visible = _pageSlice(filtered);
+    final visibleIds = visible.map((h) => h.id).toSet();
+    final allVisibleSelected = visibleIds.isNotEmpty && visibleIds.every(_selectedIds.contains);
+    final allFilteredSelected = filtered.isNotEmpty && filtered.map((h) => h.id).every(_selectedIds.contains);
 
     return Scaffold(
       appBar: const TopAppBar(title: 'Harmonogramy', showBack: true),
@@ -300,14 +395,12 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                // Pasek filtrów
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
                   child: Column(
                     children: [
                       Row(
                         children: [
-                          // Rok
                           SizedBox(
                             width: 140,
                             child: DropdownButtonFormField<int>(
@@ -326,17 +419,13 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          // Miesiąc
                           SizedBox(
                             width: 160,
                             child: DropdownButtonFormField<int>(
                               value: _month,
                               decoration: const InputDecoration(labelText: 'Miesiąc'),
                               items: [null, ...List<int>.generate(12, (i) => i + 1)]
-                                  .map((m) => DropdownMenuItem(
-                                        value: m,
-                                        child: Text(m == null ? 'Wszystkie' : m.toString().padLeft(2, '0')),
-                                      ))
+                                  .map((m) => DropdownMenuItem(value: m, child: Text(m == null ? 'Wszystkie' : m.toString().padLeft(2, '0'))))
                                   .toList(),
                               onChanged: (v) async {
                                 setState(() {
@@ -348,7 +437,6 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          // Szukaj
                           Expanded(
                             child: TextField(
                               controller: _searchCtrl,
@@ -375,7 +463,6 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      // Status chips
                       Align(
                         alignment: Alignment.centerLeft,
                         child: Wrap(
@@ -391,11 +478,42 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                           ],
                         ),
                       ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: filtered.isEmpty ? null : _toggleMultiSelectMode,
+                            icon: Icon(_multiSelectMode ? Icons.checklist_rtl : Icons.checklist),
+                            label: Text(_multiSelectMode ? 'Wyłącz zaznaczanie' : 'Zaznacz kilka'),
+                          ),
+                          const SizedBox(width: 8),
+                          if (_multiSelectMode)
+                            OutlinedButton.icon(
+                              onPressed: visible.isEmpty ? null : () => _toggleSelectVisible(visible),
+                              icon: Icon(allVisibleSelected ? Icons.remove_done : Icons.select_all),
+                              label: Text(allVisibleSelected ? 'Odznacz stronę' : 'Zaznacz stronę'),
+                            ),
+                          const SizedBox(width: 8),
+                          if (_multiSelectMode)
+                            OutlinedButton.icon(
+                              onPressed: filtered.isEmpty ? null : () => _toggleSelectFiltered(filtered),
+                              icon: Icon(Icons.select_all),
+                              label: Text(allFilteredSelected ? 'Odznacz wszystkie z filtrowania' : 'Zaznacz wszystkie z filtrowania'),
+                            ),
+                          const SizedBox(width: 8),
+                          if (_multiSelectMode)
+                            FilledButton.icon(
+                              onPressed: _selectedIds.isEmpty ? null : _deleteSelected,
+                              style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+                              icon: const Icon(Icons.delete_forever),
+                              label: Text('Usuń zaznaczone (${_selectedIds.length})'),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
                 const Divider(height: 1),
-                // Tabela w karcie jak w Zgłoszeniach
                 Expanded(
                   child: RefreshIndicator(
                     onRefresh: _loadAll,
@@ -405,90 +523,70 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                       children: [
                         CenteredScrollableCard(
                           child: DataTable(
-                          sortColumnIndex: _sortCol,
-                          sortAscending: _asc,
-                          columns: [
-                            DataColumn(
-                              label: const Text('Data'),
-                              onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; }),
-                            ),
-                            DataColumn(
-                              label: const Text('Maszyna'),
-                              onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; }),
-                            ),
-                            DataColumn(
-                              label: const Text('Dział'),
-                              onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; }),
-                            ),
-                            DataColumn(
-                              label: const Text('Sekcja'),
-                              onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; }),
-                            ),
-                            DataColumn(
-                              label: const Text('Osoba'),
-                              onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; }),
-                            ),
-                            DataColumn(
-                              numeric: true,
-                              label: const Text('Czas [min]'),
-                              onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; }),
-                            ),
-                            DataColumn(
-                              label: const Text('Status'),
-                              onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; }),
-                            ),
-                            const DataColumn(label: Text('Opis')),
-                            const DataColumn(label: Text('Akcje')),
-                          ],
-                          rows: visible.map((h) {
-                            final dateStr = _fmtDate(h.data);
-                            return DataRow(
-                              cells: [
-                                DataCell(Text(dateStr)),
-                                DataCell(Text(h.maszyna?.nazwa ?? '-')),
-                                DataCell(Text(h.maszyna?.dzial?.nazwa ?? '-')),
-                                DataCell(Text(h.maszyna?.sekcja?.nazwa ?? '-')),
-                                DataCell(Text(h.osoba?.imieNazwisko ?? '-')),
-                                DataCell(Text((h.durationMinutes ?? 0).toString())),
-                                DataCell(Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: _statusColor(h.status).withOpacity(.12),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    _statusLabel(h.status),
-                                    style: TextStyle(color: _statusColor(h.status), fontWeight: FontWeight.w600),
-                                  ),
-                                )),
-                                DataCell(ConstrainedBox(
-                                  constraints: const BoxConstraints(maxWidth: 260),
-                                  child: Text(h.opis, maxLines: 2, overflow: TextOverflow.ellipsis),
-                                )),
-                                DataCell(Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      tooltip: 'Zmień status',
-                                      icon: const Icon(Icons.playlist_add_check_circle_outlined),
-                                      color: _statusColor(h.status),
-                                      onPressed: () => _quickToggleStatus(h),
+                            showCheckboxColumn: _multiSelectMode,
+                            sortColumnIndex: _sortCol,
+                            sortAscending: _asc,
+                            columns: [
+                              DataColumn(label: const Text('Data'), onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; })),
+                              DataColumn(label: const Text('Maszyna'), onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; })),
+                              DataColumn(label: const Text('Dział'), onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; })),
+                              DataColumn(label: const Text('Sekcja'), onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; })),
+                              DataColumn(label: const Text('Osoba'), onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; })),
+                              DataColumn(numeric: true, label: const Text('Czas [min]'), onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; })),
+                              DataColumn(label: const Text('Status'), onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; })),
+                              const DataColumn(label: Text('Opis')),
+                              const DataColumn(label: Text('Akcje')),
+                            ],
+                            rows: visible.map((h) {
+                              return DataRow(
+                                selected: _selectedIds.contains(h.id),
+                                onSelectChanged: _multiSelectMode ? (v) => _toggleItemSelection(h, v ?? false) : null,
+                                cells: [
+                                  DataCell(Text(_fmtDate(h.data))),
+                                  DataCell(Text(h.maszyna?.nazwa ?? '-')),
+                                  DataCell(Text(h.maszyna?.dzial?.nazwa ?? h.dzial?.nazwa ?? '-')),
+                                  DataCell(Text(h.maszyna?.sekcja?.nazwa ?? '-')),
+                                  DataCell(Text(h.osoba?.imieNazwisko ?? '-')),
+                                  DataCell(Text((h.durationMinutes ?? 0).toString())),
+                                  DataCell(Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: _statusColor(h.status).withOpacity(.12),
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
-                                    IconButton(
-                                      tooltip: 'Edytuj',
-                                      icon: const Icon(Icons.edit, color: Colors.blueAccent),
-                                      onPressed: () => _editItem(h),
+                                    child: Text(
+                                      _statusLabel(h.status),
+                                      style: TextStyle(color: _statusColor(h.status), fontWeight: FontWeight.w600),
                                     ),
-                                    IconButton(
-                                      tooltip: 'Usuń',
-                                      icon: const Icon(Icons.delete, color: Colors.redAccent),
-                                      onPressed: () => _deleteItem(h),
-                                    ),
-                                  ],
-                                )),
-                              ],
-                            );
-                          }).toList(),
+                                  )),
+                                  DataCell(ConstrainedBox(
+                                    constraints: const BoxConstraints(maxWidth: 260),
+                                    child: Text(h.opis, maxLines: 2, overflow: TextOverflow.ellipsis),
+                                  )),
+                                  DataCell(Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        tooltip: 'Zmień status',
+                                        icon: const Icon(Icons.playlist_add_check_circle_outlined),
+                                        color: _statusColor(h.status),
+                                        onPressed: () => _quickToggleStatus(h),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Edytuj',
+                                        icon: const Icon(Icons.edit, color: Colors.blueAccent),
+                                        onPressed: () => _editItem(h),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Usuń',
+                                        icon: const Icon(Icons.delete, color: Colors.redAccent),
+                                        onPressed: () => _deleteItem(h),
+                                      ),
+                                    ],
+                                  )),
+                                ],
+                              );
+                            }).toList(),
                           ),
                         ),
                       ],
@@ -563,36 +661,34 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
     }
   }
 
-  String _fmtDate(DateTime? d) => d == null
-      ? '-'
-      : '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}'
-  ;
+  String _fmtDate(DateTime? d) => d == null ? '-' : '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 }
 
 class _HarmonogramFormSheet extends StatefulWidget {
   final String title;
   final List<Maszyna> maszyny;
   final List<Osoba> osoby;
-  final List<Dzial> dzialy; // <--- Dodajemy
-  final Future<void> Function(DateTime data, int maszynaId, int osobaId, int? duration, String? opis) onSubmit;
-
+  final List<Dzial> dzialy;
+  final Future<void> Function(DateTime data, int maszynaId, int osobaId, int? duration, String? opis, int? dzialId) onSubmit;
   final DateTime? initialDate;
   final int? initialMaszynaId;
   final int? initialOsobaId;
   final int? initialDuration;
   final String? initialOpis;
+  final int? initialDzialId;
 
   const _HarmonogramFormSheet({
     required this.title,
     required this.maszyny,
     required this.osoby,
-    required this.dzialy, // <--- Dodajemy
+    required this.dzialy,
     required this.onSubmit,
     this.initialDate,
     this.initialMaszynaId,
     this.initialOsobaId,
     this.initialDuration,
     this.initialOpis,
+    this.initialDzialId,
   });
 
   @override
@@ -601,84 +697,60 @@ class _HarmonogramFormSheet extends StatefulWidget {
 
 class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
   final _formKey = GlobalKey<FormState>();
-  DateTime? _data;
-  Maszyna? _maszyna;
-  Osoba? _osoba;
+  late DateTime _data;
   late final TextEditingController _opisCtrl;
   late final TextEditingController _durationCtrl;
-
-  // Nowe: obsługa Działu
   Dzial? _selectedDzial;
-  List<Dzial> _dzialy = [];
+  Maszyna? _selectedMaszyna;
+  Osoba? _selectedOsoba;
   List<Maszyna> _maszynyDlaDzialu = [];
-  bool _loadingMaszyny = false;
 
   @override
   void initState() {
     super.initState();
     _data = widget.initialDate ?? DateTime.now();
-    if (widget.initialMaszynaId != null) {
-      try { _maszyna = widget.maszyny.firstWhere((m) => m.id == widget.initialMaszynaId); } catch (_) {}
-    }
-    if (widget.initialOsobaId != null) {
-      try { _osoba = widget.osoby.firstWhere((o) => o.id == widget.initialOsobaId); } catch (_) {}
-    }
     _opisCtrl = TextEditingController(text: widget.initialOpis ?? '');
     _durationCtrl = TextEditingController(text: widget.initialDuration?.toString() ?? '');
 
-    // Załaduj działy z maszyn
-    _loadDzialy();
-  }
-
-  void _loadDzialy() {
-    // Ekstrahuj unikalne działy z maszyn + te przypisane bezpośrednio z bazy
-    final uniqueDzialy = <int, Dzial>{};
-    for (final dzial in widget.dzialy) {
-      uniqueDzialy[dzial.id] = dzial;
-    }
-    for (final m in widget.maszyny) {
-      if (m.dzial != null && !uniqueDzialy.containsKey(m.dzial!.id)) {
-        uniqueDzialy[m.dzial!.id] = m.dzial!;
-      }
-    }
-
-    setState(() {
-      _dzialy = uniqueDzialy.values.toList();
-    });
-  }
-
-  void _onDzialChanged(Dzial? dz) async { // <-- zmieniono na async
-    setState(() {
-      _selectedDzial = dz;
-      _maszyna = null;
-      _maszynyDlaDzialu = [];
-      _loadingMaszyny = true; // <-- dodano flage
-    });
-
-    if (dz != null) {
-      // Pobieranie maszyn dla wybranego działu
-      try {
-        final metaProvider = ProviderScope.containerOf(context).read(metaApiRepositoryProvider);
-        final fetchedMaszyny = await metaProvider.fetchMaszynySimple(dzialId: dz.id);
-
-        if (mounted) {
-          setState(() {
-            _maszynyDlaDzialu = fetchedMaszyny;
-            _loadingMaszyny = false;
-          });
-        }
-      } catch (e) {
-        if (mounted) {
-          setState(() => _loadingMaszyny = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Błąd pobierania maszyn: $e')),
-          );
+    if (widget.initialOsobaId != null) {
+      for (final o in widget.osoby) {
+        if (o.id == widget.initialOsobaId) {
+          _selectedOsoba = o;
+          break;
         }
       }
+    }
+    if (widget.initialDzialId != null) {
+      for (final d in widget.dzialy) {
+        if (d.id == widget.initialDzialId) {
+          _selectedDzial = d;
+          break;
+        }
+      }
+    }
+    if (widget.initialMaszynaId != null) {
+      for (final m in widget.maszyny) {
+        if (m.id == widget.initialMaszynaId) {
+          _selectedMaszyna = m;
+          if (_selectedDzial == null) _selectedDzial = m.dzial;
+          break;
+        }
+      }
+    }
+    _refreshMaszyny();
+  }
+
+  void _refreshMaszyny() {
+    if (_selectedDzial == null) {
+      _maszynyDlaDzialu = List<Maszyna>.from(widget.maszyny);
     } else {
-        if (mounted) {
-            setState(() => _loadingMaszyny = false);
-        }
+      _maszynyDlaDzialu = widget.maszyny.where((m) => m.dzial?.id == _selectedDzial!.id).toList();
+    }
+    if (_selectedMaszyna != null && !_maszynyDlaDzialu.any((m) => m.id == _selectedMaszyna!.id)) {
+      _selectedMaszyna = null;
+    }
+    if (_selectedMaszyna == null && _maszynyDlaDzialu.isNotEmpty) {
+      _selectedMaszyna = _maszynyDlaDzialu.first;
     }
   }
 
@@ -691,156 +763,103 @@ class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(widget.title, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-                  ),
-                  IconButton(
-                    tooltip: 'Zamknij',
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.of(context).pop(false),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: InputDecorator(
-                            decoration: const InputDecoration(
-                              labelText: 'Data',
-                              border: OutlineInputBorder(),
-                            ),
-                            child: InkWell(
-                              onTap: () async {
-                                final now = DateTime.now();
-                                final picked = await showModernDatePicker(
-                                  context: context,
-                                  title: 'Data harmonogramu',
-                                  initialDate: _data ?? now,
-                                  firstDate: DateTime(now.year - 5),
-                                  lastDate: DateTime(now.year + 5),
-                                );
-                                if (picked != null) setState(() => _data = picked);
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.calendar_month_outlined),
-                                    const SizedBox(width: 8),
-                                    Text(_data != null
-                                        ? '${_data!.year}-${_data!.month.toString().padLeft(2, '0')}-${_data!.day.toString().padLeft(2, '0')}'
-                                        : 'Wybierz datę'),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<Dzial>(
-                      value: _selectedDzial,
-                      decoration: const InputDecoration(
-                        labelText: 'Dział',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: _dzialy.map((d) => DropdownMenuItem(value: d, child: Text(d.nazwa))).toList(),
-                      onChanged: _onDzialChanged,
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<Maszyna>(
-                      value: _maszyna,
-                      decoration: const InputDecoration(
-                        labelText: 'Maszyna',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: _loadingMaszyny // <--  Czekamy na pobranie
-                          ? [DropdownMenuItem(child: Text('Ładowanie maszyn...'))]
-                          : _maszynyDlaDzialu.isEmpty
-                              ? [DropdownMenuItem(child: Text(_selectedDzial == null ? 'Najpierw wybierz dział' : 'Brak maszyn dla tego działu'))]
-                              : _maszynyDlaDzialu
-                                  .map((m) => DropdownMenuItem(
-                                        value: m,
-                                        child: Text(m.sekcja != null ? '${m.nazwa} [${m.sekcja!.nazwa}]' : m.nazwa),
-                                      ))
-                                  .toList(),
-                      onChanged: _selectedDzial == null || _loadingMaszyny ? null : (v) => setState(() => _maszyna = v),
-                      validator: (v) => v == null ? 'Wybierz maszynę' : null,
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<Osoba>(
-                      value: _osoba,
-                      decoration: const InputDecoration(
-                        labelText: 'Osoba (wykonujący)',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: widget.osoby.map((o) => DropdownMenuItem(value: o, child: Text(o.imieNazwisko))).toList(),
-                      onChanged: (v) => setState(() => _osoba = v),
-                      validator: (v) => v == null ? 'Wybierz osobę' : null,
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _durationCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Czas trwania (minuty)',
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.number,
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _opisCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Opis (co naprawiano)',
-                        border: OutlineInputBorder(),
-                      ),
-                      maxLines: 3,
-                    ),
-                  ],
+    return Form(
+      key: _formKey,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(widget.title, style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 16),
+            InputDecorator(
+              decoration: const InputDecoration(labelText: 'Data', border: OutlineInputBorder()),
+              child: InkWell(
+                onTap: () async {
+                  final picked = await showModernDatePicker(
+                    context: context,
+                    title: 'Data',
+                    initialDate: _data,
+                    firstDate: DateTime.now().subtract(const Duration(days: 365 * 5)),
+                    lastDate: DateTime(2035, 12, 31),
+                  );
+                  if (picked != null) setState(() => _data = picked);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text('${_data.year}-${_data.month.toString().padLeft(2, '0')}-${_data.day.toString().padLeft(2, '0')}'),
                 ),
               ),
-              const SizedBox(height: 14),
-              Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton.icon(
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<Dzial?>(
+              value: _selectedDzial,
+              decoration: const InputDecoration(labelText: 'Dział', border: OutlineInputBorder()),
+              items: [
+                const DropdownMenuItem<Dzial?>(value: null, child: Text('Brak')),
+                ...widget.dzialy.map((d) => DropdownMenuItem<Dzial?>(value: d, child: Text(d.nazwa))),
+              ],
+              onChanged: (v) => setState(() {
+                _selectedDzial = v;
+                _refreshMaszyny();
+              }),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<Maszyna?>(
+              value: _selectedMaszyna,
+              decoration: const InputDecoration(labelText: 'Maszyna', border: OutlineInputBorder()),
+              items: [
+                const DropdownMenuItem<Maszyna?>(value: null, child: Text('Brak')),
+                ..._maszynyDlaDzialu.map((m) => DropdownMenuItem<Maszyna?>(value: m, child: Text(m.nazwa))),
+              ],
+              onChanged: (v) => setState(() => _selectedMaszyna = v),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<Osoba?>(
+              value: _selectedOsoba,
+              decoration: const InputDecoration(labelText: 'Osoba', border: OutlineInputBorder()),
+              items: [
+                const DropdownMenuItem<Osoba?>(value: null, child: Text('Brak')),
+                ...widget.osoby.map((o) => DropdownMenuItem<Osoba?>(value: o, child: Text(o.imieNazwisko))),
+              ],
+              onChanged: (v) => setState(() => _selectedOsoba = v),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _durationCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Czas [min]', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _opisCtrl,
+              maxLines: 2,
+              decoration: const InputDecoration(labelText: 'Opis', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Anuluj')),
+                const SizedBox(width: 8),
+                FilledButton(
                   onPressed: () async {
-                    if (_formKey.currentState?.validate() != true || _data == null || _maszyna == null || _osoba == null) {
-                      return;
-                    }
-                    try {
-                      final d = int.tryParse(_durationCtrl.text.trim());
-                      await widget.onSubmit(_data!, _maszyna!.id, _osoba!.id, d, _opisCtrl.text);
-                      if (mounted) Navigator.of(context).pop(true);
-                    } catch (e) {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Błąd zapisu: $e')),
-                      );
-                    }
+                    if (_selectedMaszyna == null || _selectedOsoba == null) return;
+                    final duration = int.tryParse(_durationCtrl.text.trim());
+                    await widget.onSubmit(
+                      _data,
+                      _selectedMaszyna!.id,
+                      _selectedOsoba!.id,
+                      duration,
+                      _opisCtrl.text.trim().isEmpty ? null : _opisCtrl.text.trim(),
+                      _selectedDzial?.id,
+                    );
+                    if (mounted) Navigator.of(context).pop(true);
                   },
-                  icon: const Icon(Icons.save),
-                  label: const Text('Zapisz'),
+                  child: const Text('Zapisz'),
                 ),
-              )
-            ],
-          ),
+              ],
+            ),
+          ],
         ),
       ),
     );
