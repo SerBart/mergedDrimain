@@ -227,11 +227,34 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
     if (machineDepartment != null && machineDepartment.isNotEmpty) {
       return machineDepartment;
     }
+    if (h.maszyna?.id != null) {
+      final machine = _maszyny.where((m) => m.id == h.maszyna!.id).cast<Maszyna?>().firstWhere(
+            (m) => m?.dzial?.nazwa?.trim().isNotEmpty == true,
+            orElse: () => null,
+          );
+      final machineListDepartment = machine?.dzial?.nazwa?.trim();
+      if (machineListDepartment != null && machineListDepartment.isNotEmpty) {
+        return machineListDepartment;
+      }
+    }
     final directDepartment = h.dzial?.nazwa?.trim();
     if (directDepartment != null && directDepartment.isNotEmpty) {
       return directDepartment;
     }
     return null;
+  }
+
+  String _departmentLabelForEvent(Harmonogram h) {
+    return _departmentName(h) ?? 'Brak działu';
+  }
+
+  String? _departmentLabelForDay(List<Harmonogram> events) {
+    if (events.isEmpty) return null;
+    final departments = events.map(_departmentLabelForEvent).toSet();
+    if (departments.length == 1) {
+      return departments.first;
+    }
+    return 'Wiele działów';
   }
 
   String _eventMeta(Harmonogram h) {
@@ -863,10 +886,10 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
                     ),
                     const SizedBox(height: 12),
                     ...events.map((e) {
-                      final department = _departmentName(e);
+                      final department = _departmentLabelForEvent(e);
                       return ListTile(
                         contentPadding: EdgeInsets.zero,
-                        isThreeLine: department != null,
+                        isThreeLine: true,
                         leading: CircleAvatar(radius: 10, backgroundColor: _colorFor(e.frequency)),
                         title: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -881,27 +904,25 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-                            if (department != null) ...[
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  const Icon(Icons.apartment_outlined, size: 14, color: Colors.blueGrey),
-                                  const SizedBox(width: 4),
-                                  Expanded(
-                                    child: Text(
-                                      department,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.blueGrey,
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                const Icon(Icons.apartment_outlined, size: 14, color: Colors.blueGrey),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    department,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.blueGrey,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
-                                ],
-                              ),
-                            ],
+                                ),
+                              ],
+                            ),
                           ],
                         ),
                         subtitle: Text(_eventMeta(e)),
@@ -1005,7 +1026,7 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
             final decoration = _dayDecoration(dayEvents, isCurrent);
             final firstEvent = dayEvents.isNotEmpty ? dayEvents.first : null;
             final shortLabel = firstEvent == null ? null : _shortDesc(firstEvent);
-            final departmentLabel = firstEvent == null ? null : _departmentName(firstEvent);
+            final departmentLabel = _departmentLabelForDay(dayEvents);
             final firstDone = firstEvent?.status.toUpperCase() == 'ZAKONCZONE';
             return InkWell(
               onTap: () => _openDayDetails(d),
