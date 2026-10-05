@@ -61,9 +61,13 @@ public class BootstrapAdminService {
     }
 
     private boolean matchesConfiguredBootstrapCredentials(String attemptedUsername, String attemptedPassword) {
+        String normalizedAttempt = trimToEmpty(attemptedUsername);
+        String configuredBootstrapEmail = buildBootstrapEmail(adminUsername);
+
         return notBlank(adminUsername)
                 && notBlank(adminPassword)
-                && adminUsername.equalsIgnoreCase(trimToEmpty(attemptedUsername))
+                && (adminUsername.equalsIgnoreCase(normalizedAttempt)
+                || configuredBootstrapEmail.equalsIgnoreCase(normalizedAttempt))
                 && adminPassword.equals(attemptedPassword);
     }
 

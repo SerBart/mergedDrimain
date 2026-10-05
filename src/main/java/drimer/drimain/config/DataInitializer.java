@@ -16,13 +16,15 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.Optional;
+import java.util.Locale;
 import java.util.Set;
 
 @Component
 @Order(10)
 @Slf4j
 public class DataInitializer implements ApplicationRunner {
+
+    private static final Set<String> DEFAULT_ADMIN_MODULES = Set.of("Zgloszenia", "Raporty", "Czesci", "Instrukcje");
 
     private final RoleRepository roleRepository;
     private final UserRepository userRepository;
@@ -54,101 +56,91 @@ public class DataInitializer implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         log.info("[INIT] DataInitializer start");
-        try {
-            final boolean prodProfile = isProdProfileActive();
-            final String effectiveAdminUsername = resolveBootstrapAdminUsername();
-            final String effectiveAdminPassword = resolveBootstrapAdminPassword(prodProfile);
-            final boolean effectiveAdminForceReset = adminForceReset || !prodProfile;
 
-            Role adminRole = ensureRole("ROLE_ADMIN");
-            Role userRole = ensureRole("ROLE_USER");
-            ensureRole("ROLE_MAGAZYN");
-            ensureRole("ROLE_BIURO");
-            log.debug("[INIT] Roles ensured");
+        boolean prodProfile = isProdProfileActive();
+        String effectiveAdminUsername = resolveBootstrapAdminUsername();
+        String effectiveAdminPassword = resolveBootstrapAdminPassword(prodProfile);
+        boolean effectiveAdminForceReset = adminForceReset || !prodProfile;
 
-            Dzial dz1 = ensureDzial("Produkcja");
-            Dzial dz2 = ensureDzial("Utrzymanie Ruchu");
-            Dzial dz3 = ensureDzial("Technologie");
-            log.debug("[INIT] Działy ensured: {} / {} / {}", dz1.getId(), dz2.getId(), dz3.getId());
+        Role adminRole = ensureRole("ROLE_ADMIN");
+        Role userRole = ensureRole("ROLE_USER");
+        ensureRole("ROLE_MAGAZYN");
+        ensureRole("ROLE_BIURO");
 
-            Optional<User> adminOpt = userRepository.findByUsername(effectiveAdminUsername);
-            String bootstrapAdminEmail = buildBootstrapEmail(effectiveAdminUsername);
+        ensureDzial("Produkcja");
+        Dzial maintenanceDepartment = ensureDzial("Utrzymanie Ruchu");
+        ensureDzial("Technologie");
 
-            if (adminOpt.isPresent()) {
-                if (effectiveAdminForceReset && notBlank(effectiveAdminPassword)) {
-                    log.info("[INIT] Forcing bootstrap admin password reset for user {}", effectiveAdminUsername);
-                    User u = adminOpt.get();
-                    u.setPassword(passwordEncoder.encode(effectiveAdminPassword));
-                    u.setRoles(Set.of(adminRole, userRole));
-                    u.setDzial(dz2);
-                    u.setModules(Set.of("Zgloszenia", "Raporty", "Czesci", "Instrukcje"));
-                    userRepository.save(u);
-                } else {
-                    log.info("[INIT] Admin exists; no password reset (set app.admin.force-reset=true + app.admin.password to reset)");
-                }
+        ensureBootstrapAdmin(effectiveAdminUsername, effectiveAdminPassword, effectiveAdminForceReset, adminRole, userRole, maintenanceDepartment);
+
+        if (!prodProfile) {
+            ensureRegularUser(userRole, maintenanceDepartment);
+        }
+    }
+
+    private void ensureBootstrapAdmin(String username,
+                                      String rawPassword,
+                                      boolean forceResetPassword,
+                                      Role adminRole,
+                                      Role userRole,
+                                      Dzial dzial) {
+        String normalizedUsername = username.trim();
+        String bootstrapEmail = buildBootstrapEmail(normalizedUsername);
+
+        userRepository.findByUsername(normalizedUsername).ifPresentOrElse(user -> {
+            user.setUsername(normalizedUsername);
+            user.setEmail(bootstrapEmail);
+            user.setRoles(Set.of(adminRole, userRole));
+            user.setDzial(dzial);
+            user.setModules(DEFAULT_ADMIN_MODULES);
+
+            if (forceResetPassword && notBlank(rawPassword)) {
+                user.setPassword(passwordEncoder.encode(rawPassword));
+                log.info("[INIT] Bootstrap admin password synchronized for user {}", normalizedUsername);
             } else {
-                if (notBlank(effectiveAdminPassword)) {
-                    log.info("[INIT] Creating bootstrap admin user {} with email {}", effectiveAdminUsername, bootstrapAdminEmail);
-                    User u = new User();
-                    u.setUsername(effectiveAdminUsername);
-                    u.setEmail(bootstrapAdminEmail);
-                    u.setPassword(passwordEncoder.encode(effectiveAdminPassword));
-                    u.setRoles(Set.of(adminRole, userRole));
-                    u.setDzial(dz2);
-                    u.setModules(Set.of("Zgloszenia", "Raporty", "Czesci", "Instrukcje"));
-                    userRepository.save(u);
-                } else {
-                    log.warn("[INIT] Admin user does not exist and app.admin.password is empty. Skipping admin creation for safety.");
-                }
+                log.info("[INIT] Bootstrap admin user {} already exists", normalizedUsername);
             }
 
-            userRepository.findByUsername("user").ifPresentOrElse(u -> {
-                if (!prodProfile) {
-                    u.setPassword(passwordEncoder.encode("user123"));
-                    u.setRoles(Set.of(userRole));
-                    u.setDzial(dz1);
-                    u.setModules(Set.of("Zgloszenia"));
-                    userRepository.save(u);
-                }
-            }, () -> {
-                log.info("[INIT] Creating default user");
-                User u = new User();
-                u.setUsername("user");
-                u.setEmail("user@local");
-                u.setPassword(passwordEncoder.encode("user123"));
-                u.setRoles(Set.of(userRole));
-                u.setDzial(dz1);
-                u.setModules(Set.of("Zgloszenia"));
-                userRepository.save(u);
-            });
-            log.info("[INIT] DataInitializer done");
-        } catch (Exception e) {
-            log.error("[INIT] DataInitializer failed: {}", e.getMessage(), e);
-            throw e;
-        }
+            userRepository.save(user);
+        }, () -> {
+            if (!notBlank(rawPassword)) {
+                log.warn("[INIT] Bootstrap admin user {} was not created because password is blank", normalizedUsername);
+                return;
+            }
+
+            User user = new User();
+            user.setUsername(normalizedUsername);
+            user.setEmail(bootstrapEmail);
+            user.setPassword(passwordEncoder.encode(rawPassword));
+            user.setRoles(Set.of(adminRole, userRole));
+            user.setDzial(dzial);
+            user.setModules(DEFAULT_ADMIN_MODULES);
+            userRepository.save(user);
+
+            log.info("[INIT] Created bootstrap admin user {}", normalizedUsername);
+        });
     }
 
-    private boolean notBlank(String s) {
-        return s != null && !s.trim().isEmpty();
-    }
-
-    private String resolveBootstrapAdminUsername() {
-        return notBlank(adminUsername) ? adminUsername.trim() : "adm";
-    }
-
-    private String resolveBootstrapAdminPassword(boolean prodProfile) {
-        if (notBlank(adminPassword)) {
-            return adminPassword;
-        }
-        return prodProfile ? "123" : "admin123";
-    }
-
-    private String buildBootstrapEmail(String username) {
-        if (!notBlank(username)) {
-            return "admin@local";
-        }
-        String normalized = username.trim().toLowerCase();
-        return normalized.contains("@") ? normalized : normalized + "@local";
+    private void ensureRegularUser(Role userRole, Dzial dzial) {
+        userRepository.findByUsername("user").ifPresentOrElse(user -> {
+            user.setEmail("user@local");
+            user.setPassword(passwordEncoder.encode("user123"));
+            user.setRoles(Set.of(userRole));
+            user.setDzial(dzial);
+            if (user.getModules() == null || user.getModules().isEmpty()) {
+                user.setModules(Set.of("Zgloszenia", "Raporty"));
+            }
+            userRepository.save(user);
+        }, () -> {
+            User user = new User();
+            user.setUsername("user");
+            user.setEmail("user@local");
+            user.setPassword(passwordEncoder.encode("user123"));
+            user.setRoles(Set.of(userRole));
+            user.setDzial(dzial);
+            user.setModules(Set.of("Zgloszenia", "Raporty"));
+            userRepository.save(user);
+        });
     }
 
     private boolean isProdProfileActive() {
@@ -167,11 +159,38 @@ public class DataInitializer implements ApplicationRunner {
 
     private Dzial ensureDzial(String nazwa) {
         List<Dzial> all = dzialRepository.findAll();
-        return all.stream().filter(d -> nazwa.equalsIgnoreCase(d.getNazwa())).findFirst()
+        return all.stream()
+                .filter(d -> nazwa.equalsIgnoreCase(d.getNazwa()))
+                .findFirst()
                 .orElseGet(() -> {
                     Dzial d = new Dzial();
                     d.setNazwa(nazwa);
                     return dzialRepository.save(d);
                 });
     }
+
+    private String resolveBootstrapAdminUsername() {
+        return notBlank(adminUsername) ? adminUsername.trim() : "admin";
+    }
+
+    private String resolveBootstrapAdminPassword(boolean prodProfile) {
+        if (notBlank(adminPassword)) {
+            return adminPassword.trim();
+        }
+        return prodProfile ? "" : "admin123";
+    }
+
+    private String buildBootstrapEmail(String username) {
+        String normalized = username == null ? "" : username.trim().toLowerCase(Locale.ROOT);
+        if (normalized.isBlank()) {
+            return "admin@local";
+        }
+        return normalized.contains("@") ? normalized : normalized + "@local";
+    }
+
+    private boolean notBlank(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
 }
+
+
