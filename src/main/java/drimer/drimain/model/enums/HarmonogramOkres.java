@@ -5,6 +5,8 @@ public enum HarmonogramOkres {
     MIESIECZNY,
     KWARTALNY,
     POLROCZNY,
-    ROCZNY
+    ROCZNY,
+    DWULETNI,
+    PIECIOLETNI
 }
 

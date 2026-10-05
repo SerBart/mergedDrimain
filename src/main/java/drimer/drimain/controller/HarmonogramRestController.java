@@ -307,6 +307,8 @@ public class HarmonogramRestController {
             case KWARTALNY -> current.plusMonths(3);
             case POLROCZNY -> current.plusMonths(6);
             case ROCZNY -> current.plusYears(1);
+            case DWULETNI -> current.plusYears(2);
+            case PIECIOLETNI -> current.plusYears(5);
         };
     }
 }
