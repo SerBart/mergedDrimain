@@ -1,27 +1,26 @@
 package drimer.drimain.config;
 
+import drimer.drimain.model.Dzial;
 import drimer.drimain.model.Role;
 import drimer.drimain.model.User;
-import drimer.drimain.model.Dzial;
+import drimer.drimain.repository.DzialRepository;
 import drimer.drimain.repository.RoleRepository;
 import drimer.drimain.repository.UserRepository;
-import drimer.drimain.repository.DzialRepository;
-// usuń import org.flywaydb.core.Flyway; i ConditionalOnBean
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.env.Environment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
-import org.springframework.beans.factory.annotation.Value;
-import lombok.extern.slf4j.Slf4j;
 
-import java.util.Set;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Component
-@Order(10) // Initialize roles and users
+@Order(10)
 @Slf4j
 public class DataInitializer implements ApplicationRunner {
 
@@ -62,27 +61,25 @@ public class DataInitializer implements ApplicationRunner {
                     : (prodProfile ? "" : "admin123");
             final boolean effectiveAdminForceReset = adminForceReset || !prodProfile;
 
-            // Initialize all roles first
             Role adminRole = ensureRole("ROLE_ADMIN");
-            Role userRole  = ensureRole("ROLE_USER");
+            Role userRole = ensureRole("ROLE_USER");
             ensureRole("ROLE_MAGAZYN");
             ensureRole("ROLE_BIURO");
             log.debug("[INIT] Roles ensured");
 
-            // Ensure sample departments
             Dzial dz1 = ensureDzial("Produkcja");
             Dzial dz2 = ensureDzial("Utrzymanie Ruchu");
             Dzial dz3 = ensureDzial("Technologie");
             log.debug("[INIT] Działy ensured: {} / {} / {}", dz1.getId(), dz2.getId(), dz3.getId());
 
             Optional<User> adminOpt = userRepository.findByUsername(adminUsername);
+            String bootstrapAdminEmail = buildBootstrapEmail(adminUsername);
 
             if (adminOpt.isPresent()) {
                 if (effectiveAdminForceReset && notBlank(effectiveAdminPassword)) {
-                    log.info("[INIT] Forcing admin password reset");
+                    log.info("[INIT] Forcing bootstrap admin password reset for user {}", adminUsername);
                     User u = adminOpt.get();
                     u.setPassword(passwordEncoder.encode(effectiveAdminPassword));
-                    // Bezpiecznie nadpisujemy pola bez odczytu LAZY
                     u.setRoles(Set.of(adminRole, userRole));
                     u.setDzial(dz2);
                     u.setModules(Set.of("Zgloszenia", "Raporty", "Czesci", "Instrukcje"));
@@ -92,10 +89,10 @@ public class DataInitializer implements ApplicationRunner {
                 }
             } else {
                 if (notBlank(effectiveAdminPassword)) {
-                    log.info("[INIT] Creating admin user {}", adminUsername);
+                    log.info("[INIT] Creating bootstrap admin user {} with email {}", adminUsername, bootstrapAdminEmail);
                     User u = new User();
                     u.setUsername(adminUsername);
-                    u.setEmail("admin@local");
+                    u.setEmail(bootstrapAdminEmail);
                     u.setPassword(passwordEncoder.encode(effectiveAdminPassword));
                     u.setRoles(Set.of(adminRole, userRole));
                     u.setDzial(dz2);
@@ -106,8 +103,6 @@ public class DataInitializer implements ApplicationRunner {
                 }
             }
 
-            // Użytkownik 'user' (dev/demo) – zawsze resetuj hasło w non-prod,
-            // aby lokalne logowanie było przewidywalne po zmianach DB.
             userRepository.findByUsername("user").ifPresentOrElse(u -> {
                 if (!prodProfile) {
                     u.setPassword(passwordEncoder.encode("user123"));
@@ -136,6 +131,14 @@ public class DataInitializer implements ApplicationRunner {
 
     private boolean notBlank(String s) {
         return s != null && !s.trim().isEmpty();
+    }
+
+    private String buildBootstrapEmail(String username) {
+        if (!notBlank(username)) {
+            return "admin@local";
+        }
+        String normalized = username.trim().toLowerCase();
+        return normalized.contains("@") ? normalized : normalized + "@local";
     }
 
     private boolean isProdProfileActive() {

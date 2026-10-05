@@ -78,9 +78,9 @@ app:
     # WAŻNE: blob: (z dwukropkiem!) = schemat URL, nie hostname
     csp: "default-src 'self' https: data: blob:; script-src 'self' 'unsafe-eval' 'unsafe-inline' 'wasm-unsafe-eval' https: blob:; style-src 'self' 'unsafe-inline' https: blob:; img-src 'self' data: https: blob:; connect-src 'self' https: blob: wss:; worker-src 'self' blob:; font-src 'self' data: https:; frame-ancestors 'none';"
   admin:
-    username: ${ADMIN_USERNAME:admin}
-    force-reset: ${ADMIN_FORCE_RESET:false}
-    password: ${ADMIN_PASSWORD:}
+    username: ${ADMIN_USERNAME:${APP_ADMIN_USERNAME:adm}}
+    force-reset: ${ADMIN_FORCE_RESET:${APP_ADMIN_FORCE_RESET:true}}
+    password: ${ADMIN_PASSWORD:${APP_ADMIN_PASSWORD:123}}
 
 server:
   forward-headers-strategy: framework
