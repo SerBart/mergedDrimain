@@ -11,7 +11,7 @@ public class ChangePasswordRequest {
     private String currentPassword;
 
     @NotBlank(message = "Nowe hasło jest wymagane")
-    @Size(min = 8, max = 128, message = "Nowe hasło musi mieć od 8 do 128 znaków")
+    @Size(min = 3, max = 128, message = "Nowe hasło musi mieć od 3 do 128 znaków")
     private String newPassword;
 
     @NotBlank(message = "Potwierdzenie nowego hasła jest wymagane")

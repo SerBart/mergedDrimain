@@ -131,7 +131,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             decoration: const InputDecoration(labelText: 'Nowe hasło'),
                             validator: (v) {
                               if (v == null || v.isEmpty) return 'Podaj nowe hasło';
-                              if (v.length < 8) return 'Hasło musi mieć co najmniej 8 znaków';
+                              if (v.length < 3) return 'Hasło musi mieć co najmniej 3 znaki';
                               return null;
                             },
                           ),

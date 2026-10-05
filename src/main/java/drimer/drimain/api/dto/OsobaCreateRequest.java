@@ -16,7 +16,7 @@ public class OsobaCreateRequest {
     @Pattern(regexp = "^[a-zA-Z0-9._-]*$", message = "Login może zawierać tylko litery, cyfry, kropki, myślniki i podkreślenia")
     private String login;
     
-    @Size(min = 8, max = 255, message = "Hasło musi zawierać od 8 do 255 znaków")
+    @Size(min = 3, max = 255, message = "Hasło musi zawierać od 3 do 255 znaków")
     private String haslo;
 
     @NotBlank(message = "Imię i nazwisko są wymagane")

@@ -18,6 +18,6 @@ public class AuthRequest {
     private String username;
     
     @NotBlank(message = "Hasło jest wymagane")
-    @Size(min = 6, max = 255, message = "Hasło musi zawierać od 6 do 255 znaków")
+    @Size(min = 3, max = 255, message = "Hasło musi zawierać od 3 do 255 znaków")
     private String password;
 }

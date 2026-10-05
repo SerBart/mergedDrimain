@@ -19,9 +19,7 @@ public class UserCreateRequest {
     private String username;
     
     @NotBlank(message = "Hasło jest wymagane")
-    @Size(min = 8, max = 255, message = "Hasło musi zawierać co najmniej 8 znaków")
-    @Pattern(regexp = "^(?=.*[A-Z])(?=.*[a-z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]*$",
-            message = "Hasło musi zawierać co najmniej jedną dużą literę, małą literę, cyfrę i znak specjalny (@$!%*?&)")
+    @Size(min = 3, max = 255, message = "Hasło musi zawierać co najmniej 3 znaki")
     private String password;
 
     @NotBlank(message = "Email jest wymagany")

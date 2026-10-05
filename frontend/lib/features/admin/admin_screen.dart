@@ -287,6 +287,10 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
       _showError('Uzupełnij login, hasło i e-mail.');
       return;
     }
+    if (password.length < 3) {
+      _showError('Hasło musi mieć co najmniej 3 znaki.');
+      return;
+    }
     try {
       final roles = _apiUserRole == 'ADMIN'
           ? {'ROLE_ADMIN', 'ROLE_USER'}

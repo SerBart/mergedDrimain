@@ -96,7 +96,7 @@ public class UserController {
         public String currentPassword;
 
         @jakarta.validation.constraints.NotBlank(message = "Nowe hasło jest wymagane")
-        @jakarta.validation.constraints.Size(min = 8, max = 128, message = "Nowe hasło musi mieć od 8 do 128 znaków")
+        @jakarta.validation.constraints.Size(min = 3, max = 128, message = "Nowe hasło musi mieć od 3 do 128 znaków")
         public String newPassword;
 
         @jakarta.validation.constraints.NotBlank(message = "Potwierdzenie nowego hasła jest wymagane")
