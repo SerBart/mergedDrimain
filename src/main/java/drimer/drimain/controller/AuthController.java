@@ -3,7 +3,6 @@ package drimer.drimain.controller;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import drimer.drimain.api.dto.RefreshRequest;
 import drimer.drimain.model.RefreshToken;
 import drimer.drimain.model.Role;
 import drimer.drimain.model.User;
@@ -39,14 +38,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -57,10 +55,11 @@ public class AuthController {
     private final JwtService jwtService;
     private final CustomUserDetailsService userDetailsService;
     private final RefreshTokenService refreshTokenService;
-    private final BootstrapAdminService bootstrapAdminService;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final BootstrapAdminService bootstrapAdminService;
+
     private final ObjectMapper lenientJsonMapper = new ObjectMapper()
             .configure(JsonParser.Feature.ALLOW_SINGLE_QUOTES, true)
             .configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
@@ -69,18 +68,18 @@ public class AuthController {
                           JwtService jwtService,
                           CustomUserDetailsService userDetailsService,
                           RefreshTokenService refreshTokenService,
-                          BootstrapAdminService bootstrapAdminService,
                           UserRepository userRepository,
                           RoleRepository roleRepository,
-                          PasswordEncoder passwordEncoder) {
+                          PasswordEncoder passwordEncoder,
+                          BootstrapAdminService bootstrapAdminService) {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
         this.refreshTokenService = refreshTokenService;
-        this.bootstrapAdminService = bootstrapAdminService;
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
+        this.bootstrapAdminService = bootstrapAdminService;
     }
 
     @PostMapping(value = "/login", consumes = {MediaType.APPLICATION_JSON_VALUE, MediaType.APPLICATION_FORM_URLENCODED_VALUE, MediaType.TEXT_PLAIN_VALUE})
@@ -90,146 +89,101 @@ public class AuthController {
                                    @RequestParam(value = "rememberMe", required = false) Boolean rememberMeParam,
                                    HttpServletResponse response,
                                    HttpServletRequest httpRequest) {
-        AuthRequest request = null;
         try {
-            request = resolveAuthRequest(rawBody, usernameParam, passwordParam, rememberMeParam);
-            if (request.getUsername() == null || request.getUsername().trim().isEmpty()
-                    || request.getPassword() == null || request.getPassword().isEmpty()) {
+            AuthRequest request = resolveAuthRequest(rawBody, usernameParam, passwordParam, rememberMeParam);
+            if (isBlank(request.getUsername()) || isBlank(request.getPassword())) {
                 return ResponseEntity.badRequest().body("username and password are required");
             }
 
             String identifier = request.getUsername().trim();
             bootstrapAdminService.ensureBootstrapAdminForLogin(identifier, request.getPassword());
 
-            String resolvedUsername = identifier;
-            if (identifier.contains("@")) {
-                String email = identifier.toLowerCase();
-                var byEmail = userRepository.findByEmail(email);
-                if (byEmail.isPresent()) {
-                    resolvedUsername = byEmail.get().getUsername();
-                }
-            }
-
+            String resolvedUsername = resolveUsername(identifier);
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(resolvedUsername, request.getPassword())
             );
-            var userDetails = userDetailsService.loadUserByUsername(resolvedUsername);
+
+            User user = userRepository.findByUsername(resolvedUsername)
+                    .orElseThrow(() -> new IllegalStateException("Authenticated user not found in database"));
+            UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
+
             Map<String, Object> claims = new HashMap<>();
             claims.put("roles", userDetails.getAuthorities().stream()
-                    .map(org.springframework.security.core.GrantedAuthority::getAuthority)
+                    .map(a -> a.getAuthority())
                     .toList());
 
             String accessToken = jwtService.generateAccessToken(userDetails.getUsername(), claims);
+            RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
 
-            var optUser = userRepository.findByUsername(userDetails.getUsername());
-            if (optUser.isEmpty()) {
-                log.warn("Authenticated principal '{}' not found in users table", userDetails.getUsername());
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("User not found");
-            }
-            User user = optUser.get();
+            boolean rememberMe = request.isRememberMe();
+            writeAuthCookies(httpRequest, response, accessToken, refreshToken.getToken(), rememberMe);
 
-            RefreshToken refreshToken = null;
-            try {
-                refreshToken = refreshTokenService.createRefreshToken(user);
-            } catch (Exception e) {
-                log.error("Failed to create refresh token for user {}: {}", user.getUsername(), e.getMessage(), e);
-            }
+            Map<String, Object> body = new HashMap<>();
+            body.put("token", accessToken);
+            body.put("accessToken", accessToken);
+            body.put("refreshToken", refreshToken.getToken());
+            body.put("roles", claims.get("roles"));
 
-            boolean isHttps = httpRequest.isSecure() || "https".equalsIgnoreCase(httpRequest.getHeader("X-Forwarded-Proto"));
-            String sameSite = isHttps ? "None" : "Lax";
-
-            ResponseCookie jwtCookie = ResponseCookie.from("JWT", accessToken)
-                    .httpOnly(true)
-                    .secure(isHttps)
-                    .path("/")
-                    .maxAge(Duration.ofHours(1))
-                    .sameSite(sameSite)
-                    .build();
-            response.addHeader("Set-Cookie", jwtCookie.toString());
-
-            if (refreshToken != null) {
-                ResponseCookie.ResponseCookieBuilder refreshBuilder = ResponseCookie.from("REFRESH_TOKEN", refreshToken.getToken())
-                        .httpOnly(true)
-                        .secure(isHttps)
-                        .path("/")
-                        .sameSite(sameSite);
-
-                if (request.isRememberMe()) {
-                    Duration ttl = Duration.between(LocalDateTime.now(), refreshToken.getExpiry());
-                    if (ttl.isNegative()) {
-                        ttl = Duration.ofDays(7);
-                    }
-                    refreshBuilder.maxAge(ttl);
-                }
-
-                response.addHeader("Set-Cookie", refreshBuilder.build().toString());
-            }
-
-            log.info("User {} logged in successfully (rememberMe={})", userDetails.getUsername(), request.isRememberMe());
-            return ResponseEntity.ok(new AuthResponse(accessToken, refreshToken == null ? null : refreshToken.getToken()));
-        } catch (AuthenticationException e) {
+            return ResponseEntity.ok(body);
+        } catch (AuthenticationException ex) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Bad credentials");
-        } catch (Exception e) {
-            log.error("Unexpected error during login for '{}': {}", request == null ? "<null>" : request.getUsername(), e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Internal server error");
+        } catch (Exception ex) {
+            log.error("Unexpected error during login for '{}': {}", usernameParam, ex.getMessage(), ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Login failed");
         }
     }
 
-    @PostMapping("/refresh")
-    @Transactional
-    public ResponseEntity<?> refresh(@RequestBody(required = false) RefreshRequest request,
-                                     HttpServletRequest httpRequest,
-                                     HttpServletResponse httpResponse) {
+    @PostMapping(value = "/refresh", consumes = {MediaType.APPLICATION_JSON_VALUE, MediaType.APPLICATION_FORM_URLENCODED_VALUE, MediaType.TEXT_PLAIN_VALUE})
+    public ResponseEntity<?> refresh(@RequestBody(required = false) String rawBody,
+                                     @RequestParam(value = "refreshToken", required = false) String refreshTokenParam,
+                                     HttpServletRequest request,
+                                     HttpServletResponse response) {
         try {
-            String refreshTokenValue = request != null ? request.getRefreshToken() : null;
-            if (refreshTokenValue == null || refreshTokenValue.trim().isEmpty()) {
-                if (httpRequest.getCookies() != null) {
-                    for (Cookie cookie : httpRequest.getCookies()) {
-                        if ("REFRESH_TOKEN".equals(cookie.getName())) {
-                            refreshTokenValue = cookie.getValue();
-                            break;
-                        }
+            AuthRequest parsed = resolveAuthRequest(rawBody, null, null, null);
+            String refreshTokenValue = !isBlank(refreshTokenParam) ? refreshTokenParam : parsed.getRefreshToken();
+
+            if (isBlank(refreshTokenValue) && request.getCookies() != null) {
+                for (Cookie cookie : request.getCookies()) {
+                    if ("REFRESH_TOKEN".equals(cookie.getName()) && !isBlank(cookie.getValue())) {
+                        refreshTokenValue = cookie.getValue();
+                        break;
                     }
                 }
             }
 
-            if (refreshTokenValue == null || refreshTokenValue.trim().isEmpty()) {
+            if (isBlank(refreshTokenValue)) {
                 return ResponseEntity.badRequest().body("Refresh token is required");
             }
 
-            RefreshToken refreshToken = refreshTokenService.findByToken(refreshTokenValue)
-                    .orElseThrow(() -> new RuntimeException("Invalid refresh token"));
+            RefreshToken token = refreshTokenService.findByToken(refreshTokenValue)
+                    .orElse(null);
+            if (token == null || token.isRevoked()) {
+                clearAuthCookies(request, response);
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid refresh token");
+            }
 
-            if (!refreshToken.isValid()) {
-                refreshTokenService.revokeByToken(refreshTokenValue);
-                clearAuthCookies(httpRequest, httpResponse);
+            try {
+                refreshTokenService.verifyExpiration(token);
+            } catch (RuntimeException ex) {
+                clearAuthCookies(request, response);
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Refresh token expired or revoked");
             }
 
-            User user = refreshToken.getUser();
-            var userDetails = userDetailsService.loadUserByUsername(user.getUsername());
+            User user = token.getUser();
+            UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
             Map<String, Object> claims = new HashMap<>();
-            claims.put("roles", userDetails.getAuthorities().stream()
-                    .map(org.springframework.security.core.GrantedAuthority::getAuthority)
-                    .toList());
+            claims.put("roles", userDetails.getAuthorities().stream().map(a -> a.getAuthority()).toList());
 
-            String newAccessToken = jwtService.generateAccessToken(user.getUsername(), claims);
+            String accessToken = jwtService.generateAccessToken(user.getUsername(), claims);
+            writeAccessCookie(request, response, accessToken, true);
 
-            boolean isHttps = httpRequest.isSecure() || "https".equalsIgnoreCase(httpRequest.getHeader("X-Forwarded-Proto"));
-            String sameSite = isHttps ? "None" : "Lax";
-            ResponseCookie jwtCookie = ResponseCookie.from("JWT", newAccessToken)
-                    .httpOnly(true)
-                    .secure(isHttps)
-                    .path("/")
-                    .maxAge(Duration.ofHours(1))
-                    .sameSite(sameSite)
-                    .build();
-            httpResponse.addHeader("Set-Cookie", jwtCookie.toString());
-
-            log.info("Access token refreshed for user: {}", user.getUsername());
-            return ResponseEntity.ok(new AuthResponse(newAccessToken, refreshTokenValue));
-        } catch (Exception e) {
-            log.warn("Failed to refresh token: {}", e.getMessage());
+            Map<String, Object> body = new HashMap<>();
+            body.put("token", accessToken);
+            body.put("accessToken", accessToken);
+            body.put("roles", claims.get("roles"));
+            return ResponseEntity.ok(body);
+        } catch (Exception ex) {
+            log.error("Unexpected error during refresh: {}", ex.getMessage(), ex);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid refresh token");
         }
     }
@@ -239,7 +193,7 @@ public class AuthController {
         try {
             if (request.getCookies() != null) {
                 for (Cookie cookie : request.getCookies()) {
-                    if ("REFRESH_TOKEN".equals(cookie.getName()) && cookie.getValue() != null && !cookie.getValue().isBlank()) {
+                    if ("REFRESH_TOKEN".equals(cookie.getName()) && !isBlank(cookie.getValue())) {
                         refreshTokenService.revokeByToken(cookie.getValue());
                     }
                 }
@@ -265,9 +219,7 @@ public class AuthController {
                     body.put("id", user.getId());
                     body.put("username", user.getUsername());
                     body.put("email", user.getEmail());
-                    body.put("roles", user.getAuthorities().stream()
-                            .map(org.springframework.security.core.GrantedAuthority::getAuthority)
-                            .toList());
+                    body.put("roles", user.getAuthorities().stream().map(a -> a.getAuthority()).toList());
                     body.put("modules", user.getModules());
                     if (user.getDzial() != null) {
                         body.put("dzialId", user.getDzial().getId());
@@ -278,7 +230,7 @@ public class AuthController {
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found"));
     }
 
-    @PostMapping("/register")
+    @PostMapping(value = "/register", consumes = MediaType.APPLICATION_JSON_VALUE)
     @Transactional
     public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
         if (request == null || isBlank(request.getUsername()) || isBlank(request.getPassword()) || isBlank(request.getEmail())) {
@@ -301,29 +253,93 @@ public class AuthController {
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setRoles(Set.of(userRole));
         user.setModules(request.getModules() == null ? Set.of() : ModulesCatalog.normalizeAndFilter(request.getModules()));
-        userRepository.save(user);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("username", user.getUsername(), "email", user.getEmail()));
+        userRepository.save(user);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(Map.of("username", user.getUsername(), "email", user.getEmail()));
+    }
+
+    private String resolveUsername(String identifier) {
+        String normalized = identifier.trim();
+        if (!normalized.contains("@")) {
+            return normalized;
+        }
+
+        return userRepository.findByEmail(normalized.toLowerCase())
+                .map(User::getUsername)
+                .orElse(normalized);
+    }
+
+    private void writeAuthCookies(HttpServletRequest request,
+                                  HttpServletResponse response,
+                                  String accessToken,
+                                  String refreshToken,
+                                  boolean rememberMe) {
+        boolean isHttps = isHttps(request);
+        String sameSite = isHttps ? "None" : "Lax";
+
+        Duration accessTtl = rememberMe ? Duration.ofDays(7) : Duration.ofHours(1);
+        Duration refreshTtl = rememberMe ? Duration.ofDays(30) : Duration.ofDays(7);
+
+        ResponseCookie jwtCookie = ResponseCookie.from("JWT", accessToken)
+                .httpOnly(true)
+                .secure(isHttps)
+                .path("/")
+                .sameSite(sameSite)
+                .maxAge(accessTtl)
+                .build();
+
+        ResponseCookie refreshCookie = ResponseCookie.from("REFRESH_TOKEN", refreshToken)
+                .httpOnly(true)
+                .secure(isHttps)
+                .path("/")
+                .sameSite(sameSite)
+                .maxAge(refreshTtl)
+                .build();
+
+        response.addHeader("Set-Cookie", jwtCookie.toString());
+        response.addHeader("Set-Cookie", refreshCookie.toString());
+    }
+
+    private void writeAccessCookie(HttpServletRequest request,
+                                   HttpServletResponse response,
+                                   String accessToken,
+                                   boolean preserveRememberMeWindow) {
+        boolean isHttps = isHttps(request);
+        String sameSite = isHttps ? "None" : "Lax";
+        Duration accessTtl = preserveRememberMeWindow ? Duration.ofDays(7) : Duration.ofHours(1);
+
+        ResponseCookie jwtCookie = ResponseCookie.from("JWT", accessToken)
+                .httpOnly(true)
+                .secure(isHttps)
+                .path("/")
+                .sameSite(sameSite)
+                .maxAge(accessTtl)
+                .build();
+
+        response.addHeader("Set-Cookie", jwtCookie.toString());
     }
 
     private void clearAuthCookies(HttpServletRequest request, HttpServletResponse response) {
-        boolean isHttps = request.isSecure() || "https".equalsIgnoreCase(request.getHeader("X-Forwarded-Proto"));
+        boolean isHttps = isHttps(request);
         String sameSite = isHttps ? "None" : "Lax";
 
         ResponseCookie clearJwt = ResponseCookie.from("JWT", "")
                 .httpOnly(true)
                 .secure(isHttps)
                 .path("/")
-                .maxAge(Duration.ZERO)
                 .sameSite(sameSite)
+                .maxAge(Duration.ZERO)
                 .build();
+
         ResponseCookie clearRefresh = ResponseCookie.from("REFRESH_TOKEN", "")
                 .httpOnly(true)
                 .secure(isHttps)
                 .path("/")
-                .maxAge(Duration.ZERO)
                 .sameSite(sameSite)
+                .maxAge(Duration.ZERO)
                 .build();
+
         response.addHeader("Set-Cookie", clearJwt.toString());
         response.addHeader("Set-Cookie", clearRefresh.toString());
     }
@@ -353,27 +369,52 @@ public class AuthController {
                 if (root.has("rememberMe")) {
                     request.setRememberMe(root.get("rememberMe").asBoolean(false));
                 }
+                if (root.hasNonNull("refreshToken")) {
+                    request.setRefreshToken(root.get("refreshToken").asText());
+                }
+                if (root.hasNonNull("email")) {
+                    request.setEmail(root.get("email").asText());
+                }
                 return request;
             }
         } catch (Exception ignored) {
-            // Fallback below
+            // Fallback to form parser below.
         }
 
-        if (rawBody.contains("=") && rawBody.contains("&")) {
-            Map<String, String> pairs = new HashMap<>();
-            for (String token : rawBody.split("&")) {
-                int idx = token.indexOf('=');
-                if (idx > 0) {
-                    pairs.put(token.substring(0, idx), token.substring(idx + 1));
-                }
-            }
+        Map<String, String> pairs = parseFormEncoded(rawBody);
+        if (!pairs.isEmpty()) {
             request.setUsername(pairs.getOrDefault("username", request.getUsername()));
             request.setPassword(pairs.getOrDefault("password", request.getPassword()));
-            request.setRememberMe(Boolean.parseBoolean(pairs.getOrDefault("rememberMe", String.valueOf(request.isRememberMe()))));
-            return request;
+            request.setRefreshToken(pairs.getOrDefault("refreshToken", request.getRefreshToken()));
+            request.setEmail(pairs.getOrDefault("email", request.getEmail()));
+            request.setRememberMe(Boolean.parseBoolean(
+                    pairs.getOrDefault("rememberMe", String.valueOf(request.isRememberMe()))
+            ));
         }
 
         return request;
+    }
+
+    private Map<String, String> parseFormEncoded(String rawBody) {
+        Map<String, String> pairs = new HashMap<>();
+        if (rawBody == null || rawBody.isBlank()) {
+            return pairs;
+        }
+
+        for (String token : rawBody.split("&")) {
+            int idx = token.indexOf('=');
+            if (idx <= 0) {
+                continue;
+            }
+            String key = URLDecoder.decode(token.substring(0, idx), StandardCharsets.UTF_8);
+            String value = URLDecoder.decode(token.substring(idx + 1), StandardCharsets.UTF_8);
+            pairs.put(key, value);
+        }
+        return pairs;
+    }
+
+    private boolean isHttps(HttpServletRequest request) {
+        return request.isSecure() || "https".equalsIgnoreCase(request.getHeader("X-Forwarded-Proto"));
     }
 
     private boolean isBlank(String value) {
@@ -381,30 +422,26 @@ public class AuthController {
     }
 
     @Data
-    public static class AuthRequest {
-        @NotBlank
+    private static class AuthRequest {
         private String username;
-        @NotBlank
         private String password;
+        private String refreshToken;
+        private String email;
         private boolean rememberMe;
-    }
-
-    @Data
-    public static class AuthResponse {
-        private final String token;
-        private final String refreshToken;
-        private final Instant expiresAt = Instant.now().plus(Duration.ofHours(1));
     }
 
     @Data
     public static class RegisterRequest {
         @NotBlank
         private String username;
+
         @NotBlank
         private String password;
+
         @NotBlank
         @Email
         private String email;
+
         private Set<String> modules = new LinkedHashSet<>();
     }
 }
