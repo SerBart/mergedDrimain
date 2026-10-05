@@ -10,35 +10,42 @@ import drimer.drimain.model.User;
 import drimer.drimain.repository.RoleRepository;
 import drimer.drimain.repository.UserRepository;
 import drimer.drimain.security.JwtService;
+import drimer.drimain.security.ModulesCatalog;
+import drimer.drimain.service.BootstrapAdminService;
 import drimer.drimain.service.CustomUserDetailsService;
 import drimer.drimain.service.RefreshTokenService;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.*;
-
-import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.regex.Pattern;
-import java.time.Duration;
-import java.time.LocalDateTime;
-import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @RestController
@@ -50,6 +57,7 @@ public class AuthController {
     private final JwtService jwtService;
     private final CustomUserDetailsService userDetailsService;
     private final RefreshTokenService refreshTokenService;
+    private final BootstrapAdminService bootstrapAdminService;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
@@ -61,6 +69,7 @@ public class AuthController {
                           JwtService jwtService,
                           CustomUserDetailsService userDetailsService,
                           RefreshTokenService refreshTokenService,
+                          BootstrapAdminService bootstrapAdminService,
                           UserRepository userRepository,
                           RoleRepository roleRepository,
                           PasswordEncoder passwordEncoder) {
@@ -68,6 +77,7 @@ public class AuthController {
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
         this.refreshTokenService = refreshTokenService;
+        this.bootstrapAdminService = bootstrapAdminService;
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
@@ -88,31 +98,33 @@ public class AuthController {
                 return ResponseEntity.badRequest().body("username and password are required");
             }
 
-            // Allow login via email as identifier as well
-            String identifier = request.getUsername();
+            String identifier = request.getUsername().trim();
+            bootstrapAdminService.ensureBootstrapAdminForLogin(identifier, request.getPassword());
+
             String resolvedUsername = identifier;
-            if (identifier != null && identifier.contains("@")) {
-                String email = identifier.trim().toLowerCase();
+            if (identifier.contains("@")) {
+                String email = identifier.toLowerCase();
                 var byEmail = userRepository.findByEmail(email);
                 if (byEmail.isPresent()) {
                     resolvedUsername = byEmail.get().getUsername();
                 }
             }
-            Authentication auth = authenticationManager.authenticate(
+
+            authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(resolvedUsername, request.getPassword())
             );
             var userDetails = userDetailsService.loadUserByUsername(resolvedUsername);
             Map<String, Object> claims = new HashMap<>();
-            claims.put("roles", userDetails.getAuthorities()
-                    .stream().map(a -> a.getAuthority()).toList());
+            claims.put("roles", userDetails.getAuthorities().stream()
+                    .map(org.springframework.security.core.GrantedAuthority::getAuthority)
+                    .toList());
 
             String accessToken = jwtService.generateAccessToken(userDetails.getUsername(), claims);
-            
-            // Ensure user exists in DB — if not, treat as unauthorized (avoid throwing runtime exception)
+
             var optUser = userRepository.findByUsername(userDetails.getUsername());
             if (optUser.isEmpty()) {
                 log.warn("Authenticated principal '{}' not found in users table", userDetails.getUsername());
-                return ResponseEntity.status(401).body("User not found");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("User not found");
             }
             User user = optUser.get();
 
@@ -120,14 +132,12 @@ public class AuthController {
             try {
                 refreshToken = refreshTokenService.createRefreshToken(user);
             } catch (Exception e) {
-                // Avoid failing the whole login if refresh token subsystem misbehaves
                 log.error("Failed to create refresh token for user {}: {}", user.getUsername(), e.getMessage(), e);
             }
 
             boolean isHttps = httpRequest.isSecure() || "https".equalsIgnoreCase(httpRequest.getHeader("X-Forwarded-Proto"));
             String sameSite = isHttps ? "None" : "Lax";
 
-            // Access token cookie (short-lived)
             ResponseCookie jwtCookie = ResponseCookie.from("JWT", accessToken)
                     .httpOnly(true)
                     .secure(isHttps)
@@ -137,9 +147,6 @@ public class AuthController {
                     .build();
             response.addHeader("Set-Cookie", jwtCookie.toString());
 
-            // REFRESH_TOKEN cookie is always set if token creation succeeded:
-            // - rememberMe=true  -> persistent cookie (DB expiry aligned)
-            // - rememberMe=false -> session cookie (removed when browser closes)
             if (refreshToken != null) {
                 ResponseCookie.ResponseCookieBuilder refreshBuilder = ResponseCookie.from("REFRESH_TOKEN", refreshToken.getToken())
                         .httpOnly(true)
@@ -149,7 +156,9 @@ public class AuthController {
 
                 if (request.isRememberMe()) {
                     Duration ttl = Duration.between(LocalDateTime.now(), refreshToken.getExpiry());
-                    if (ttl.isNegative()) ttl = Duration.ofDays(7); // fallback
+                    if (ttl.isNegative()) {
+                        ttl = Duration.ofDays(7);
+                    }
                     refreshBuilder.maxAge(ttl);
                 }
 
@@ -159,24 +168,21 @@ public class AuthController {
             log.info("User {} logged in successfully (rememberMe={})", userDetails.getUsername(), request.isRememberMe());
             return ResponseEntity.ok(new AuthResponse(accessToken, refreshToken == null ? null : refreshToken.getToken()));
         } catch (AuthenticationException e) {
-            return ResponseEntity.status(401).body("Bad credentials");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Bad credentials");
         } catch (Exception e) {
-            // Log full stacktrace for unexpected errors to help debug 500 during login
             log.error("Unexpected error during login for '{}': {}", request == null ? "<null>" : request.getUsername(), e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Internal server error");
         }
     }
 
-    // NOTE: Refresh token endpoint for JWT token refresh flow
     @PostMapping("/refresh")
     @Transactional
     public ResponseEntity<?> refresh(@RequestBody(required = false) RefreshRequest request,
                                      HttpServletRequest httpRequest,
                                      HttpServletResponse httpResponse) {
         try {
-            String refreshTokenValue = (request != null ? request.getRefreshToken() : null);
+            String refreshTokenValue = request != null ? request.getRefreshToken() : null;
             if (refreshTokenValue == null || refreshTokenValue.trim().isEmpty()) {
-                // Try cookie
                 if (httpRequest.getCookies() != null) {
                     for (Cookie cookie : httpRequest.getCookies()) {
                         if ("REFRESH_TOKEN".equals(cookie.getName())) {
@@ -186,35 +192,29 @@ public class AuthController {
                     }
                 }
             }
+
             if (refreshTokenValue == null || refreshTokenValue.trim().isEmpty()) {
-                return ResponseEntity.status(400).body("Refresh token is required");
+                return ResponseEntity.badRequest().body("Refresh token is required");
             }
 
-            // Find and validate refresh token
             RefreshToken refreshToken = refreshTokenService.findByToken(refreshTokenValue)
                     .orElseThrow(() -> new RuntimeException("Invalid refresh token"));
 
             if (!refreshToken.isValid()) {
                 refreshTokenService.revokeByToken(refreshTokenValue);
-                // Clear cookies if invalid
-                boolean isHttps = httpRequest.isSecure() || "https".equalsIgnoreCase(httpRequest.getHeader("X-Forwarded-Proto"));
-                ResponseCookie clearJwt = ResponseCookie.from("JWT", "").httpOnly(true).secure(isHttps).path("/").maxAge(Duration.ZERO).sameSite("None").build();
-                ResponseCookie clearRefresh = ResponseCookie.from("REFRESH_TOKEN", "").httpOnly(true).secure(isHttps).path("/").maxAge(Duration.ZERO).sameSite("None").build();
-                httpResponse.addHeader("Set-Cookie", clearJwt.toString());
-                httpResponse.addHeader("Set-Cookie", clearRefresh.toString());
-                return ResponseEntity.status(401).body("Refresh token expired or revoked");
+                clearAuthCookies(httpRequest, httpResponse);
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Refresh token expired or revoked");
             }
 
-            // Generate new access token
             User user = refreshToken.getUser();
             var userDetails = userDetailsService.loadUserByUsername(user.getUsername());
             Map<String, Object> claims = new HashMap<>();
-            claims.put("roles", userDetails.getAuthorities()
-                    .stream().map(a -> a.getAuthority()).toList());
+            claims.put("roles", userDetails.getAuthorities().stream()
+                    .map(org.springframework.security.core.GrantedAuthority::getAuthority)
+                    .toList());
 
             String newAccessToken = jwtService.generateAccessToken(user.getUsername(), claims);
 
-            // Update JWT cookie
             boolean isHttps = httpRequest.isSecure() || "https".equalsIgnoreCase(httpRequest.getHeader("X-Forwarded-Proto"));
             String sameSite = isHttps ? "None" : "Lax";
             ResponseCookie jwtCookie = ResponseCookie.from("JWT", newAccessToken)
@@ -230,236 +230,181 @@ public class AuthController {
             return ResponseEntity.ok(new AuthResponse(newAccessToken, refreshTokenValue));
         } catch (Exception e) {
             log.warn("Failed to refresh token: {}", e.getMessage());
-            return ResponseEntity.status(401).body("Invalid refresh token");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid refresh token");
         }
     }
 
     @PostMapping("/logout")
     public ResponseEntity<?> logout(HttpServletRequest request, HttpServletResponse response) {
-        boolean isHttps = request.isSecure() || "https".equalsIgnoreCase(request.getHeader("X-Forwarded-Proto"));
-        String sameSite = isHttps ? "None" : "Lax";
-        // Try revoke refresh token from cookie
-        if (request.getCookies() != null) {
-            for (Cookie cookie : request.getCookies()) {
-                if ("REFRESH_TOKEN".equals(cookie.getName()) && cookie.getValue() != null && !cookie.getValue().isBlank()) {
-                    try { refreshTokenService.revokeByToken(cookie.getValue()); } catch (Exception ignored) {}
+        try {
+            if (request.getCookies() != null) {
+                for (Cookie cookie : request.getCookies()) {
+                    if ("REFRESH_TOKEN".equals(cookie.getName()) && cookie.getValue() != null && !cookie.getValue().isBlank()) {
+                        refreshTokenService.revokeByToken(cookie.getValue());
+                    }
                 }
             }
+        } catch (Exception e) {
+            log.warn("Failed to revoke refresh token during logout: {}", e.getMessage());
         }
-        // Clear cookies
-        ResponseCookie clearJwt = ResponseCookie.from("JWT", "").httpOnly(true).secure(isHttps).path("/").maxAge(Duration.ZERO).sameSite(sameSite).build();
-        ResponseCookie clearRefresh = ResponseCookie.from("REFRESH_TOKEN", "").httpOnly(true).secure(isHttps).path("/").maxAge(Duration.ZERO).sameSite(sameSite).build();
-        response.addHeader("Set-Cookie", clearJwt.toString());
-        response.addHeader("Set-Cookie", clearRefresh.toString());
+
+        clearAuthCookies(request, response);
         return ResponseEntity.noContent().build();
     }
 
-    // NOTE: User registration endpoint
-    @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
-        try {
-            // Validate input
-            if (request.getEmail() == null || request.getEmail().trim().isEmpty()) {
-                return ResponseEntity.badRequest().body("Email is required");
-            }
-            String email = request.getEmail().trim().toLowerCase();
-            if (!isValidEmail(email)) {
-                return ResponseEntity.badRequest().body("Invalid email format");
-            }
-            if (request.getPassword() == null || request.getPassword().trim().isEmpty()) {
-                return ResponseEntity.badRequest().body("Password is required");
-            }
-
-            // Derive or validate username
-            String username = request.getUsername();
-            if (username == null || username.trim().isEmpty()) {
-                username = deriveUsernameFromEmail(email);
-            } else {
-                username = username.trim();
-            }
-
-            // Check uniqueness
-            if (userRepository.findByUsername(username).isPresent()) {
-                // Try to make username unique by appending a number
-                username = makeUsernameUnique(username);
-            }
-            if (userRepository.existsByEmail(email)) {
-                return ResponseEntity.status(HttpStatus.CONFLICT).body("Email already registered");
-            }
-
-            // Create new user
-            User user = new User();
-            user.setUsername(username);
-            user.setEmail(email);
-            user.setPassword(passwordEncoder.encode(request.getPassword()));
-            
-            // Assign default ROLE_USER
-            Role userRole = roleRepository.findByName("ROLE_USER")
-                    .orElseThrow(() -> new RuntimeException("Default role ROLE_USER not found"));
-            user.setRoles(Set.of(userRole));
-
-            userRepository.save(user);
-
-            // Generate tokens for immediate login
-            var userDetails = userDetailsService.loadUserByUsername(user.getUsername());
-            Map<String, Object> claims = new HashMap<>();
-            claims.put("roles", userDetails.getAuthorities()
-                    .stream().map(a -> a.getAuthority()).toList());
-
-            String accessToken = jwtService.generateAccessToken(user.getUsername(), claims);
-            RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
-
-            log.info("User {} registered successfully (email: {})", user.getUsername(), user.getEmail());
-            return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(new AuthResponse(accessToken, refreshToken.getToken()));
-
-        } catch (Exception e) {
-            log.error("Failed to register user: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Registration failed");
-        }
-    }
-
-    private boolean isValidEmail(String email) {
-        // Simple RFC 5322 compliant-ish regex (kept simple for server-side)
-        Pattern p = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-ZaZ0-9.-]+$");
-        return p.matcher(email).matches();
-    }
-
-    private String deriveUsernameFromEmail(String email) {
-        String base = email.split("@")[0];
-        if (base.isBlank()) base = "user";
-        return makeUsernameUnique(base);
-    }
-
-    private String makeUsernameUnique(String base) {
-        String candidate = base;
-        int suffix = 1;
-        while (userRepository.findByUsername(candidate).isPresent()) {
-            candidate = base + suffix;
-            suffix++;
-            if (suffix > 1000) {
-                throw new IllegalStateException("Unable to generate unique username");
-            }
-        }
-        return candidate;
-    }
-
     @GetMapping("/me")
+    @Transactional(readOnly = true)
     public ResponseEntity<?> me(@AuthenticationPrincipal UserDetails userDetails) {
         if (userDetails == null) {
-            return ResponseEntity.status(401).body("Unauthorized");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
         }
-        var roles = userDetails.getAuthorities().stream()
-                .map(a -> a.getAuthority())
-                .collect(Collectors.toList());
-        Map<String, Object> body = new HashMap<>();
-        body.put("username", userDetails.getUsername());
-        body.put("roles", roles);
-        return ResponseEntity.ok(body);
+
+        return userRepository.findByUsernameFetchDzial(userDetails.getUsername())
+                .<ResponseEntity<?>>map(user -> {
+                    Map<String, Object> body = new HashMap<>();
+                    body.put("id", user.getId());
+                    body.put("username", user.getUsername());
+                    body.put("email", user.getEmail());
+                    body.put("roles", user.getAuthorities().stream()
+                            .map(org.springframework.security.core.GrantedAuthority::getAuthority)
+                            .toList());
+                    body.put("modules", user.getModules());
+                    if (user.getDzial() != null) {
+                        body.put("dzialId", user.getDzial().getId());
+                        body.put("dzialNazwa", user.getDzial().getNazwa());
+                    }
+                    return ResponseEntity.ok(body);
+                })
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found"));
     }
 
-    @Data
-    public static class AuthRequest {
-        @NotBlank(message = "Nazwa użytkownika lub email jest wymagana")
-        private String username; // can be email as well
-        
-        @NotBlank(message = "Hasło jest wymagane")
-        private String password;
-        
-        private boolean rememberMe; // new flag
-        public boolean isRememberMe() { return rememberMe; }
+    @PostMapping("/register")
+    @Transactional
+    public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
+        if (request == null || isBlank(request.getUsername()) || isBlank(request.getPassword()) || isBlank(request.getEmail())) {
+            return ResponseEntity.badRequest().body("username, email and password are required");
+        }
+
+        if (userRepository.findByUsername(request.getUsername().trim()).isPresent()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Username already exists");
+        }
+        if (userRepository.findByEmail(request.getEmail().trim().toLowerCase()).isPresent()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Email already exists");
+        }
+
+        Role userRole = roleRepository.findByName("ROLE_USER")
+                .orElseGet(() -> roleRepository.save(new Role("ROLE_USER")));
+
+        User user = new User();
+        user.setUsername(request.getUsername().trim());
+        user.setEmail(request.getEmail().trim().toLowerCase());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setRoles(Set.of(userRole));
+        user.setModules(request.getModules() == null ? Set.of() : ModulesCatalog.normalizeAndFilter(request.getModules()));
+        userRepository.save(user);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("username", user.getUsername(), "email", user.getEmail()));
     }
 
-    @Data
-    public static class RegisterRequest {
-        private String username; // optional; derived from email if missing
-        
-        @NotBlank(message = "Email jest wymagany")
-        @Email(message = "Email musi być prawidłowym adresem email",
-                regexp = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
-        private String email;    // required
-        
-        @NotBlank(message = "Hasło jest wymagane")
-        @jakarta.validation.constraints.Pattern(regexp = "^(?=.*[A-Z])(?=.*[a-z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$",
-                message = "Hasło musi zawierać co najmniej 8 znaków, jedną dużą literę, małą literę, cyfrę i znak specjalny (@$!%*?&)")
-        private String password; // required
-    }
+    private void clearAuthCookies(HttpServletRequest request, HttpServletResponse response) {
+        boolean isHttps = request.isSecure() || "https".equalsIgnoreCase(request.getHeader("X-Forwarded-Proto"));
+        String sameSite = isHttps ? "None" : "Lax";
 
-    @Data
-    public static class AuthResponse {
-        private final String accessToken;
-        private final String refreshToken;
-        private final String tokenType;
-        private final long expiresIn; // in seconds
-        
-        public AuthResponse(String accessToken) {
-            this.accessToken = accessToken;
-            this.refreshToken = null;
-            this.tokenType = "Bearer";
-            this.expiresIn = 3600; // 1 hour default
-        }
-        
-        public AuthResponse(String accessToken, String refreshToken) {
-            this.accessToken = accessToken;
-            this.refreshToken = refreshToken;
-            this.tokenType = "Bearer";
-            this.expiresIn = 3600; // 1 hour
-        }
-        
-        public AuthResponse(String accessToken, String refreshToken, long expiresIn) {
-            this.accessToken = accessToken;
-            this.refreshToken = refreshToken;
-            this.tokenType = "Bearer";
-            this.expiresIn = expiresIn;
-        }
-
-        // Backward compatibility for the tests that expect "token" field
-        public String getToken() {
-            return accessToken;
-        }
+        ResponseCookie clearJwt = ResponseCookie.from("JWT", "")
+                .httpOnly(true)
+                .secure(isHttps)
+                .path("/")
+                .maxAge(Duration.ZERO)
+                .sameSite(sameSite)
+                .build();
+        ResponseCookie clearRefresh = ResponseCookie.from("REFRESH_TOKEN", "")
+                .httpOnly(true)
+                .secure(isHttps)
+                .path("/")
+                .maxAge(Duration.ZERO)
+                .sameSite(sameSite)
+                .build();
+        response.addHeader("Set-Cookie", clearJwt.toString());
+        response.addHeader("Set-Cookie", clearRefresh.toString());
     }
 
     private AuthRequest resolveAuthRequest(String rawBody,
                                            String usernameParam,
                                            String passwordParam,
                                            Boolean rememberMeParam) {
-        AuthRequest req = new AuthRequest();
+        AuthRequest request = new AuthRequest();
+        request.setUsername(usernameParam);
+        request.setPassword(passwordParam);
+        request.setRememberMe(Boolean.TRUE.equals(rememberMeParam));
 
-        if (rawBody != null && !rawBody.trim().isEmpty()) {
-            try {
-                JsonNode node = lenientJsonMapper.readTree(rawBody);
-                if (node != null && node.isObject()) {
-                    req.setUsername(asNullableText(node.get("username")));
-                    req.setPassword(asNullableText(node.get("password")));
-                    JsonNode rememberNode = node.get("rememberMe");
-                    if (rememberNode != null && !rememberNode.isNull()) {
-                        if (rememberNode.isBoolean()) {
-                            req.setRememberMe(rememberNode.asBoolean());
-                        } else {
-                            req.setRememberMe(Boolean.parseBoolean(rememberNode.asText()));
-                        }
-                    }
+        if (rawBody == null || rawBody.isBlank()) {
+            return request;
+        }
+
+        try {
+            JsonNode root = lenientJsonMapper.readTree(rawBody);
+            if (root != null && root.isObject()) {
+                if (root.hasNonNull("username")) {
+                    request.setUsername(root.get("username").asText());
                 }
-            } catch (Exception e) {
-                throw new IllegalArgumentException("Niepoprawny JSON logowania. Oczekiwano pól: username, password, rememberMe.");
+                if (root.hasNonNull("password")) {
+                    request.setPassword(root.get("password").asText());
+                }
+                if (root.has("rememberMe")) {
+                    request.setRememberMe(root.get("rememberMe").asBoolean(false));
+                }
+                return request;
             }
+        } catch (Exception ignored) {
+            // Fallback below
         }
 
-        if (req.getUsername() == null || req.getUsername().isBlank()) {
-            req.setUsername(usernameParam);
+        if (rawBody.contains("=") && rawBody.contains("&")) {
+            Map<String, String> pairs = new HashMap<>();
+            for (String token : rawBody.split("&")) {
+                int idx = token.indexOf('=');
+                if (idx > 0) {
+                    pairs.put(token.substring(0, idx), token.substring(idx + 1));
+                }
+            }
+            request.setUsername(pairs.getOrDefault("username", request.getUsername()));
+            request.setPassword(pairs.getOrDefault("password", request.getPassword()));
+            request.setRememberMe(Boolean.parseBoolean(pairs.getOrDefault("rememberMe", String.valueOf(request.isRememberMe()))));
+            return request;
         }
-        if (req.getPassword() == null || req.getPassword().isBlank()) {
-            req.setPassword(passwordParam);
-        }
-        if (rememberMeParam != null) {
-            req.setRememberMe(rememberMeParam);
-        }
-        return req;
+
+        return request;
     }
 
-    private String asNullableText(JsonNode node) {
-        if (node == null || node.isNull()) return null;
-        String value = node.asText();
-        return value != null ? value.trim() : null;
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+
+    @Data
+    public static class AuthRequest {
+        @NotBlank
+        private String username;
+        @NotBlank
+        private String password;
+        private boolean rememberMe;
+    }
+
+    @Data
+    public static class AuthResponse {
+        private final String token;
+        private final String refreshToken;
+        private final Instant expiresAt = Instant.now().plus(Duration.ofHours(1));
+    }
+
+    @Data
+    public static class RegisterRequest {
+        @NotBlank
+        private String username;
+        @NotBlank
+        private String password;
+        @NotBlank
+        @Email
+        private String email;
+        private Set<String> modules = new LinkedHashSet<>();
     }
 }

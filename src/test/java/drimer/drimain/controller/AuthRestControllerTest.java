@@ -29,13 +29,18 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(
         classes = DriMainApplication.class,
         properties = {
                 "spring.flyway.enabled=false",
-                "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration"
+                "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration",
+                "app.admin.username=adm",
+                "app.admin.password=123",
+                "app.admin.force-reset=true"
         }
 )
 @ImportAutoConfiguration(exclude = FlywayAutoConfiguration.class)
@@ -60,19 +65,16 @@ class AuthRestControllerTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    private User testUser;
     private final String testUsername = "testuser";
     private final String testPassword = "testpass123";
 
     @BeforeEach
     void setUp() {
-        // Set up MockMvc with Spring Security
         mockMvc = MockMvcBuilders
                 .webAppContextSetup(webApplicationContext)
                 .apply(springSecurity())
                 .build();
 
-        // Create test user with role
         Role userRole = roleRepository.findByName("ROLE_USER")
                 .orElseGet(() -> {
                     Role role = new Role();
@@ -80,7 +82,7 @@ class AuthRestControllerTest {
                     return roleRepository.save(role);
                 });
 
-        testUser = new User();
+        User testUser = userRepository.findByUsername(testUsername).orElseGet(User::new);
         testUser.setUsername(testUsername);
         testUser.setEmail(testUsername + "@local");
         testUser.setPassword(passwordEncoder.encode(testPassword));
@@ -90,12 +92,10 @@ class AuthRestControllerTest {
 
     @Test
     void shouldLoginSuccessfullyWithValidCredentials() throws Exception {
-        // Given
         Map<String, String> loginRequest = new HashMap<>();
         loginRequest.put("username", testUsername);
         loginRequest.put("password", testPassword);
 
-        // When & Then
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(loginRequest)))
@@ -106,61 +106,77 @@ class AuthRestControllerTest {
 
     @Test
     void shouldReturnUnauthorizedWithInvalidCredentials() throws Exception {
-        // Given
         Map<String, String> loginRequest = new HashMap<>();
         loginRequest.put("username", testUsername);
         loginRequest.put("password", "wrongpassword");
 
-        // When & Then
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(loginRequest)))
                 .andExpect(status().isUnauthorized());
     }
 
-                    @Test
-                    void shouldLoginWithLegacyPlaintextShortPasswordAndUpgradeHash() throws Exception {
-                        Role userRole = roleRepository.findByName("ROLE_USER")
-                                .orElseGet(() -> {
-                                    Role role = new Role();
-                                    role.setName("ROLE_USER");
-                                    return roleRepository.save(role);
-                                });
+    @Test
+    void shouldLoginWithLegacyPlaintextShortPasswordAndUpgradeHash() throws Exception {
+        Role userRole = roleRepository.findByName("ROLE_USER")
+                .orElseGet(() -> {
+                    Role role = new Role();
+                    role.setName("ROLE_USER");
+                    return roleRepository.save(role);
+                });
 
-                        User legacyUser = new User();
-                        legacyUser.setUsername("legacy123");
-                        legacyUser.setEmail("legacy123@local");
-                        legacyUser.setPassword("123");
-                        legacyUser.setRoles(Set.of(userRole));
-                        userRepository.save(legacyUser);
+        User legacyUser = userRepository.findByUsername("legacy123").orElseGet(User::new);
+        legacyUser.setUsername("legacy123");
+        legacyUser.setEmail("legacy123@local");
+        legacyUser.setPassword("123");
+        legacyUser.setRoles(Set.of(userRole));
+        userRepository.save(legacyUser);
 
-                        Map<String, String> loginRequest = new HashMap<>();
-                        loginRequest.put("username", "legacy123");
-                        loginRequest.put("password", "123");
+        Map<String, String> loginRequest = new HashMap<>();
+        loginRequest.put("username", "legacy123");
+        loginRequest.put("password", "123");
 
-                        mockMvc.perform(post("/api/auth/login")
-                                        .contentType(MediaType.APPLICATION_JSON)
-                                        .content(objectMapper.writeValueAsString(loginRequest)))
-                                .andExpect(status().isOk())
-                                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                                .andExpect(jsonPath("$.token", notNullValue()));
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.token", notNullValue()));
 
-                        User upgraded = userRepository.findByUsername("legacy123").orElseThrow();
-                        org.junit.jupiter.api.Assertions.assertNotEquals("123", upgraded.getPassword());
-                        org.junit.jupiter.api.Assertions.assertTrue(upgraded.getPassword().startsWith("$2"));
-                        org.junit.jupiter.api.Assertions.assertTrue(passwordEncoder.matches("123", upgraded.getPassword()));
-                    }
+        User upgraded = userRepository.findByUsername("legacy123").orElseThrow();
+        org.junit.jupiter.api.Assertions.assertNotEquals("123", upgraded.getPassword());
+        org.junit.jupiter.api.Assertions.assertTrue(upgraded.getPassword().startsWith("$2"));
+        org.junit.jupiter.api.Assertions.assertTrue(passwordEncoder.matches("123", upgraded.getPassword()));
+    }
+
+    @Test
+    void shouldSelfHealBootstrapAdminLoginWhenAdmUserIsMissing() throws Exception {
+        userRepository.findByUsername("adm").ifPresent(userRepository::delete);
+
+        Map<String, String> loginRequest = new HashMap<>();
+        loginRequest.put("username", "adm");
+        loginRequest.put("password", "123");
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.token", notNullValue()));
+
+        User adm = userRepository.findByUsername("adm").orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals("adm@local", adm.getEmail());
+        org.junit.jupiter.api.Assertions.assertTrue(passwordEncoder.matches("123", adm.getPassword()));
+    }
 
     @Test
     void shouldReturnUnauthorizedForMeEndpointWithoutToken() throws Exception {
-        // When & Then
         mockMvc.perform(get("/api/auth/me"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
     void shouldReturnUserInfoWithValidToken() throws Exception {
-        // Given - Login to get token
         Map<String, String> loginRequest = new HashMap<>();
         loginRequest.put("username", testUsername);
         loginRequest.put("password", testPassword);
@@ -174,7 +190,6 @@ class AuthRestControllerTest {
         String loginResponse = loginResult.getResponse().getContentAsString();
         String token = objectMapper.readTree(loginResponse).get("token").asText();
 
-        // When & Then - Use token to access /me endpoint
         mockMvc.perform(get("/api/auth/me")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
@@ -184,7 +199,6 @@ class AuthRestControllerTest {
 
     @Test
     void shouldReturnUnauthorizedWithInvalidToken() throws Exception {
-        // When & Then
         mockMvc.perform(get("/api/auth/me")
                         .header("Authorization", "Bearer invalid.token.here"))
                 .andExpect(status().isUnauthorized());
@@ -192,7 +206,6 @@ class AuthRestControllerTest {
 
     @Test
     void shouldRefreshAccessTokenWithValidRefreshToken() throws Exception {
-        // Given - login to obtain refresh token
         Map<String, String> loginRequest = new HashMap<>();
         loginRequest.put("username", testUsername);
         loginRequest.put("password", testPassword);
@@ -209,7 +222,6 @@ class AuthRestControllerTest {
         Map<String, String> refreshRequest = new HashMap<>();
         refreshRequest.put("refreshToken", refreshToken);
 
-        // When & Then
         mockMvc.perform(post("/api/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(refreshRequest)))

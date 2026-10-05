@@ -56,9 +56,8 @@ public class DataInitializer implements ApplicationRunner {
         log.info("[INIT] DataInitializer start");
         try {
             final boolean prodProfile = isProdProfileActive();
-            final String effectiveAdminPassword = notBlank(adminPassword)
-                    ? adminPassword
-                    : (prodProfile ? "" : "admin123");
+            final String effectiveAdminUsername = resolveBootstrapAdminUsername();
+            final String effectiveAdminPassword = resolveBootstrapAdminPassword(prodProfile);
             final boolean effectiveAdminForceReset = adminForceReset || !prodProfile;
 
             Role adminRole = ensureRole("ROLE_ADMIN");
@@ -72,12 +71,12 @@ public class DataInitializer implements ApplicationRunner {
             Dzial dz3 = ensureDzial("Technologie");
             log.debug("[INIT] Działy ensured: {} / {} / {}", dz1.getId(), dz2.getId(), dz3.getId());
 
-            Optional<User> adminOpt = userRepository.findByUsername(adminUsername);
-            String bootstrapAdminEmail = buildBootstrapEmail(adminUsername);
+            Optional<User> adminOpt = userRepository.findByUsername(effectiveAdminUsername);
+            String bootstrapAdminEmail = buildBootstrapEmail(effectiveAdminUsername);
 
             if (adminOpt.isPresent()) {
                 if (effectiveAdminForceReset && notBlank(effectiveAdminPassword)) {
-                    log.info("[INIT] Forcing bootstrap admin password reset for user {}", adminUsername);
+                    log.info("[INIT] Forcing bootstrap admin password reset for user {}", effectiveAdminUsername);
                     User u = adminOpt.get();
                     u.setPassword(passwordEncoder.encode(effectiveAdminPassword));
                     u.setRoles(Set.of(adminRole, userRole));
@@ -89,9 +88,9 @@ public class DataInitializer implements ApplicationRunner {
                 }
             } else {
                 if (notBlank(effectiveAdminPassword)) {
-                    log.info("[INIT] Creating bootstrap admin user {} with email {}", adminUsername, bootstrapAdminEmail);
+                    log.info("[INIT] Creating bootstrap admin user {} with email {}", effectiveAdminUsername, bootstrapAdminEmail);
                     User u = new User();
-                    u.setUsername(adminUsername);
+                    u.setUsername(effectiveAdminUsername);
                     u.setEmail(bootstrapAdminEmail);
                     u.setPassword(passwordEncoder.encode(effectiveAdminPassword));
                     u.setRoles(Set.of(adminRole, userRole));
@@ -131,6 +130,17 @@ public class DataInitializer implements ApplicationRunner {
 
     private boolean notBlank(String s) {
         return s != null && !s.trim().isEmpty();
+    }
+
+    private String resolveBootstrapAdminUsername() {
+        return notBlank(adminUsername) ? adminUsername.trim() : "adm";
+    }
+
+    private String resolveBootstrapAdminPassword(boolean prodProfile) {
+        if (notBlank(adminPassword)) {
+            return adminPassword;
+        }
+        return prodProfile ? "123" : "admin123";
     }
 
     private String buildBootstrapEmail(String username) {
