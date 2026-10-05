@@ -1,6 +1,7 @@
+import 'package:dio/browser.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:dio/browser.dart';
+
 import '../util/platform_origin.dart';
 
 class ApiClient {
@@ -14,7 +15,7 @@ class ApiClient {
     void Function()? onSessionExpired,
     Future<String?> Function()? refreshTokenCallback,
   }) {
-    // Prefer explicit param, then runtime config, then build-time define, then web-aware fallback, finally localhost
+    // Prefer explicit param, then runtime config, then build-time define, then web-aware fallback.
     final runtimeBase = kIsWeb ? PlatformOrigin.runtimeApiBase() : null;
     final defineBase = const String.fromEnvironment('API_BASE', defaultValue: '');
 
@@ -30,9 +31,9 @@ class ApiClient {
       }
     }
 
-    if (resolvedBaseUrl.isEmpty) {
-      final origin = kIsWeb ? PlatformOrigin.origin() : null;
-      resolvedBaseUrl = origin ?? 'http://localhost:8080';
+    if (resolvedBaseUrl.isEmpty && !kIsWeb) {
+      // Non-web fallback kept for local tooling/tests.
+      resolvedBaseUrl = 'http://localhost:8080';
     }
 
     final dio = Dio(
@@ -50,7 +51,7 @@ class ApiClient {
       dio.httpClientAdapter = adapter;
     }
 
-    // Dodaję Interceptor do obsługi 401 i odświeżania tokenu
+    // Dodaje Interceptor do obslugi 401 i odswiezania tokenu
     if (refreshTokenCallback != null) {
       dio.interceptors.add(
         _AuthInterceptor(dio, refreshTokenCallback, onTokenRefreshed, onSessionExpired),
@@ -95,7 +96,7 @@ class ApiClient {
   }
 }
 
-/// Interceptor obsługujący wygaśnięte tokeny JWT (401 błędy)
+/// Interceptor obslugujacy wygasniete tokeny JWT (401 bledy)
 class _AuthInterceptor extends Interceptor {
   static const String _retryKey = '__authRetried__';
   final Dio _dio;
@@ -117,7 +118,7 @@ class _AuthInterceptor extends Interceptor {
     final request = err.requestOptions;
     final alreadyRetried = request.extra[_retryKey] == true;
 
-    // Nie odświeżaj tokenu dla endpointów auth ani dla requestu już ponowionego
+    // Nie odswiezaj tokenu dla endpointow auth ani dla requestu juz ponowionego
     if (statusCode == 401 && !alreadyRetried && !_isAuthEndpoint(request.path)) {
       try {
         final newToken = await _refreshTokenCallback();
@@ -125,7 +126,7 @@ class _AuthInterceptor extends Interceptor {
           _sessionExpiredNotified = false;
           _onTokenRefreshed?.call(newToken);
 
-          // Powtórz oryginalny request z nowym tokenem tylko raz
+          // Powtorz oryginalny request z nowym tokenem tylko raz
           final headers = Map<String, dynamic>.from(request.headers);
           headers['Authorization'] = 'Bearer $newToken';
           final extra = Map<String, dynamic>.from(request.extra);
@@ -146,7 +147,7 @@ class _AuthInterceptor extends Interceptor {
           _onSessionExpired?.call();
         }
       } catch (_) {
-        // Chwilowy problem sieci lub inny błąd - nie wylogowuj automatycznie.
+        // Chwilowy problem sieci lub inny blad - nie wylogowuj automatycznie.
       }
     }
     return handler.next(err);

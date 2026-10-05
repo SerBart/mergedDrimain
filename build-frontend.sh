@@ -3,7 +3,8 @@ set -e
 
 echo "Building Flutter frontend..."
 
-API_BASE=${API_BASE:-"http://localhost:8080"}
+# API_BASE is optional. When empty, frontend resolves base URL at runtime.
+API_BASE=${API_BASE:-""}
 
 cd frontend
 
@@ -21,3 +22,4 @@ cp -r build/web/* ../src/main/resources/static/
 
 echo "Flutter frontend build complete!"
 echo "Static resources updated in src/main/resources/static/"
+

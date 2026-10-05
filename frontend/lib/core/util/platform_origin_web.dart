@@ -1,3 +1,5 @@
+import 'dart:js_util' as js_util;
+
 String? origin() {
   try {
     final uri = Uri.base;
@@ -11,6 +13,20 @@ String? origin() {
 }
 
 String? runtimeApiBase() {
-  return null;
-}
+  try {
+    final config = js_util.getProperty<Object?>(js_util.globalThis, '__DRIMAIN_CONFIG__');
+    if (config == null) {
+      return null;
+    }
 
+    final value = js_util.getProperty<Object?>(config, 'API_BASE');
+    final apiBase = value?.toString().trim();
+    if (apiBase == null || apiBase.isEmpty) {
+      return null;
+    }
+    return apiBase;
+  } catch (_) {
+    return null;
+  }
+
+}
