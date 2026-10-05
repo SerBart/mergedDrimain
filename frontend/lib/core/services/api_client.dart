@@ -82,7 +82,12 @@ class ApiClient {
       return origin!;
     }
 
-    if (host.endsWith('.up.railway.app') || host.startsWith('site-')) {
+    if (host.endsWith('.up.railway.app')) {
+      // Railway deployments should call their own backend by default.
+      return origin!;
+    }
+
+    if (host.startsWith('site-')) {
       return 'https://app.drimain.com';
     }
 
