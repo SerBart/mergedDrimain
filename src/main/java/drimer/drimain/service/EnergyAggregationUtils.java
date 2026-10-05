@@ -5,6 +5,7 @@ import drimer.drimain.model.EnergyReading;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -15,6 +16,11 @@ import java.util.List;
 import java.util.Map;
 
 final class EnergyAggregationUtils {
+
+    // Guardrails for rejecting unrealistic meter-total jumps caused by bad mappings.
+    private static final BigDecimal SPIKE_MULTIPLIER = new BigDecimal("4");
+    private static final BigDecimal SPIKE_MARGIN_KWH = new BigDecimal("0.5");
+    private static final BigDecimal DEFAULT_MAX_POWER_KW = new BigDecimal("500");
 
     private EnergyAggregationUtils() {
     }
@@ -93,6 +99,39 @@ final class EnergyAggregationUtils {
             return BigDecimal.ZERO;
         }
 
+        List<EnergyReading> ordered = readings.stream()
+                .filter(r -> r.getRecordedAt() != null && r.getEnergyKwhTotal() != null)
+                .sorted(Comparator.comparing(EnergyReading::getRecordedAt))
+                .toList();
+
+        if (ordered.size() < 2) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal deltaSum = BigDecimal.ZERO;
+        EnergyReading previous = ordered.get(0);
+        for (int i = 1; i < ordered.size(); i++) {
+            EnergyReading current = ordered.get(i);
+            BigDecimal step = current.getEnergyKwhTotal().subtract(previous.getEnergyKwhTotal());
+
+            if (step.compareTo(BigDecimal.ZERO) <= 0) {
+                previous = current;
+                continue;
+            }
+
+            if (isUnrealisticStep(previous, current, step)) {
+                previous = current;
+                continue;
+            }
+
+            deltaSum = deltaSum.add(step);
+            previous = current;
+        }
+
+        if (deltaSum.compareTo(BigDecimal.ZERO) > 0) {
+            return deltaSum;
+        }
+
         EnergyReading first = readings.stream()
                 .filter(r -> r.getRecordedAt() != null)
                 .min(Comparator.comparing(EnergyReading::getRecordedAt))
@@ -115,6 +154,43 @@ final class EnergyAggregationUtils {
         long minutes = Math.max(1, java.time.Duration.between(first.getRecordedAt(), last.getRecordedAt()).toMinutes());
         BigDecimal hours = BigDecimal.valueOf(minutes).divide(BigDecimal.valueOf(60), 6, RoundingMode.HALF_UP);
         return averagePower.multiply(hours).max(BigDecimal.ZERO);
+    }
+
+    private static boolean isUnrealisticStep(EnergyReading previous, EnergyReading current, BigDecimal stepKwh) {
+        if (previous == null || current == null || previous.getRecordedAt() == null || current.getRecordedAt() == null) {
+            return false;
+        }
+
+        long seconds = Math.max(1L, Duration.between(previous.getRecordedAt(), current.getRecordedAt()).getSeconds());
+        BigDecimal hours = BigDecimal.valueOf(seconds)
+                .divide(BigDecimal.valueOf(3600), 6, RoundingMode.HALF_UP);
+
+        BigDecimal referencePower = averagePositive(previous.getPowerKw(), current.getPowerKw());
+        if (referencePower == null) {
+            referencePower = DEFAULT_MAX_POWER_KW;
+        }
+
+        BigDecimal plausibleMax = referencePower
+                .multiply(hours)
+                .multiply(SPIKE_MULTIPLIER)
+                .add(SPIKE_MARGIN_KWH);
+
+        return stepKwh.compareTo(plausibleMax) > 0;
+    }
+
+    private static BigDecimal averagePositive(BigDecimal a, BigDecimal b) {
+        boolean validA = a != null && a.compareTo(BigDecimal.ZERO) > 0;
+        boolean validB = b != null && b.compareTo(BigDecimal.ZERO) > 0;
+        if (validA && validB) {
+            return a.add(b).divide(BigDecimal.valueOf(2), 6, RoundingMode.HALF_UP);
+        }
+        if (validA) {
+            return a;
+        }
+        if (validB) {
+            return b;
+        }
+        return null;
     }
 
     private static BigDecimal totalPower(List<EnergyReading> readings) {

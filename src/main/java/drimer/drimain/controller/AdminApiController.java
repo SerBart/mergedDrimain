@@ -6,6 +6,7 @@ import drimer.drimain.repository.*;
 import drimer.drimain.security.ModulesCatalog;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.LazyInitializationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -285,8 +286,18 @@ public class AdminApiController {
     }
 
     @PostMapping("/users")
+    @Transactional
     @ResponseStatus(HttpStatus.CREATED)
     public UserDTO createUser(@Valid @RequestBody UserCreateRequest req) {
+        userRepository.findByUsername(req.getUsername())
+                .ifPresent(existing -> {
+                    throw new IllegalArgumentException("Nazwa użytkownika jest już zajęta");
+                });
+        userRepository.findByEmail(req.getEmail())
+                .ifPresent(existing -> {
+                    throw new IllegalArgumentException("Email jest już zajęty");
+                });
+
         User user = new User();
         user.setUsername(req.getUsername());
         user.setPassword(passwordEncoder.encode(req.getPassword()));
@@ -315,9 +326,21 @@ public class AdminApiController {
     }
 
     @PutMapping("/users/{id}")
+    @Transactional
     public UserDTO updateUser(@PathVariable Long id, @Valid @RequestBody UserCreateRequest req) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        userRepository.findByUsername(req.getUsername())
+                .filter(existing -> !Objects.equals(existing.getId(), id))
+                .ifPresent(existing -> {
+                    throw new IllegalArgumentException("Nazwa użytkownika jest już zajęta");
+                });
+        userRepository.findByEmail(req.getEmail())
+                .filter(existing -> !Objects.equals(existing.getId(), id))
+                .ifPresent(existing -> {
+                    throw new IllegalArgumentException("Email jest już zajęty");
+                });
 
         user.setUsername(req.getUsername());
         user.setEmail(req.getEmail());
@@ -433,11 +456,19 @@ public class AdminApiController {
         UserDTO dto = new UserDTO();
         dto.setId(user.getId());
         dto.setUsername(user.getUsername());
-        dto.setRoles(user.getRoles().stream().map(Role::getName).collect(Collectors.toSet()));
+        dto.setRoles(user.getRoles() == null
+                ? Set.of()
+                : user.getRoles().stream().map(Role::getName).collect(Collectors.toSet()));
         dto.setEmail(user.getEmail());
-        if (user.getDzial() != null) {
-            dto.setDzialId(user.getDzial().getId());
-            dto.setDzialNazwa(user.getDzial().getNazwa());
+        try {
+            if (user.getDzial() != null) {
+                dto.setDzialId(user.getDzial().getId());
+                dto.setDzialNazwa(user.getDzial().getNazwa());
+            }
+        } catch (LazyInitializationException | IllegalStateException ex) {
+            // Zwróć DTO bez danych działu zamiast 500 przy niezaładowanej relacji LAZY.
+            dto.setDzialId(null);
+            dto.setDzialNazwa(null);
         }
         dto.setModules(user.getModules());
         return dto;

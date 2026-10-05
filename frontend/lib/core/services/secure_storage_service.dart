@@ -1,29 +1,27 @@
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'secure_storage_service_io.dart' if (dart.library.html) 'secure_storage_service_web.dart' as impl;
 
 class SecureStorageService {
   static const _tokenKey = 'auth_token';
   static const _refreshKey = 'refresh_token';
   static const _rememberKey = 'remember_me';
 
-  final _storage = const FlutterSecureStorage();
+  Future<void> saveToken(String token) => impl.writeString(_tokenKey, token);
+  Future<String?> readToken() => impl.readString(_tokenKey);
 
-  Future<void> saveToken(String token) => _storage.write(key: _tokenKey, value: token);
-  Future<String?> readToken() => _storage.read(key: _tokenKey);
+  Future<void> saveRefreshToken(String token) => impl.writeString(_refreshKey, token);
+  Future<String?> readRefreshToken() => impl.readString(_refreshKey);
+  Future<void> clearRefreshToken() => impl.deleteByKey(_refreshKey);
 
-  Future<void> saveRefreshToken(String token) => _storage.write(key: _refreshKey, value: token);
-  Future<String?> readRefreshToken() => _storage.read(key: _refreshKey);
-  Future<void> clearRefreshToken() => _storage.delete(key: _refreshKey);
-
-  Future<void> saveRememberMe(bool value) => _storage.write(key: _rememberKey, value: value ? '1' : '0');
+  Future<void> saveRememberMe(bool value) => impl.writeString(_rememberKey, value ? '1' : '0');
   Future<bool> readRememberMe() async {
-    final value = await _storage.read(key: _rememberKey);
+    final value = await impl.readString(_rememberKey);
     if (value == null) return true;
     return value == '1';
   }
 
-  Future<void> writeString(String key, String value) => _storage.write(key: key, value: value);
-  Future<String?> readString(String key) => _storage.read(key: key);
-  Future<void> deleteByKey(String key) => _storage.delete(key: key);
+  Future<void> writeString(String key, String value) => impl.writeString(key, value);
+  Future<String?> readString(String key) => impl.readString(key);
+  Future<void> deleteByKey(String key) => impl.deleteByKey(key);
 
-  Future<void> clear() => _storage.deleteAll();
+  Future<void> clear() => impl.clear();
 }

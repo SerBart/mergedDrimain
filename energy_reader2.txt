@@ -1,0 +1,219 @@
+INSTRUKCJA NAPRAWY `energy_reader.py` (dokladnie co usunac i co podmienic)
+
+Cel:
+- uporzadkowac skrypt po mieszanych poprawkach,
+- zostawic 2 liczniki: machineId=160 (stary) i machineId=181 (NR32),
+- poprawnie wybierac funkcje rejestrow: holding/input per profil.
+
+UWAGA:
+- Edytujesz plik na Raspberry: /home/pi/mergedDrimain/scripts/energy_reader.py
+- Po zmianach zrob test skladni i restart uslugi (komendy na koncu).
+
+==================================================
+1) USUN DUPLIKAT PROFILI
+==================================================
+W pliku sa DWIE definicje:
+- METER_PROFILES = {...}
+- get_meter_profile(...)
+
+Zostaw TYLKO JEDNA (najlepiej ta ponizej) i usun cala druga kopie.
+Docelowo ma zostac JEDEN blok:
+
+METER_PROFILES = {
+    160: {
+        "meter_type": "LUMEL_NMID30_1",
+        "reg_fn": "holding",
+        "reg_voltage_idx": 0,
+        "reg_current_idx": 6,
+        "reg_power_idx": 12,
+        "reg_energy_total_idx": 72,
+        "power_divider": 1000.0,
+    },
+    181: {
+        "meter_type": "LUMEL_NR32",
+        "reg_fn": "holding",
+        "reg_voltage_idx": 0,
+        "reg_current_idx": 6,
+        "reg_power_idx": 12,
+        "reg_energy_total_idx": 72,
+        "power_divider": 1000.0,
+    },
+}
+
+def get_meter_profile(machine_id: int):
+    return METER_PROFILES.get(machine_id, METER_PROFILES[160])
+
+
+==================================================
+2) PODMIEN CALA FUNKCJE `read_registers(...)`
+==================================================
+USUN obecna wersje `read_registers` (u Ciebie jest "sklejona" i ma dwa przebiegi naraz).
+Wklej zamiast niej DOKLADNIE to:
+
+    def read_registers(self, start_addr, count, slave_id, reg_fn="holding"):
+        """Odczyt rejestrow Modbus."""
+        if not self.client or not MODBUS_AVAILABLE:
+            return None
+
+        try:
+            kwargs = {
+                "address": start_addr,
+                "count": count,
+                "unit": slave_id,  # pymodbus 2.x
+            }
+            if MODBUS_API == "3.x":
+                kwargs = {
+                    "address": start_addr,
+                    "count": count,
+                    "slave": slave_id,  # pymodbus 3.x
+                }
+
+            if reg_fn == "input":
+                result = self.client.read_input_registers(**kwargs)
+            else:
+                result = self.client.read_holding_registers(**kwargs)
+
+            if result is not None and not result.isError():
+                return result.registers
+
+            if result is not None and result.isError():
+                logger.error(f"Exception response from slave={slave_id}, fn={reg_fn}: {result}")
+
+        except ConnectionException:
+            logger.warning("⚠ Utrata polaczenia z miernikiem")
+            self.connect()
+        except Exception as e:
+            logger.error(f"Blad odczytu: {e}")
+
+        return None
+
+
+==================================================
+3) PODMIEN CALA FUNKCJE `read_energy_data(...)`
+==================================================
+USUN obecna wersje `read_energy_data` (u Ciebie ma podwojny odczyt i nadpisuje `regs`).
+Wklej zamiast niej DOKLADNIE to:
+
+    def read_energy_data(self, machine_id, slave_id):
+        """Odczyt danych energii wg profilu maszyny."""
+        if DEMO_MODE:
+            logger.info("[DEMO_MODE] Wysylam dane testowe")
+            return self._dummy_data()
+
+        if not MODBUS_AVAILABLE:
+            logger.warning("⚠ Modbus niedostepny - zwracam dane testowe")
+            return self._dummy_data()
+
+        profile = get_meter_profile(machine_id)
+
+        regs = self.read_registers(
+            start_addr=0,
+            count=100,
+            slave_id=slave_id,
+            reg_fn=profile["reg_fn"],
+        )
+        if not regs:
+            return None
+
+        try:
+            reg_voltage_idx = profile["reg_voltage_idx"]
+            reg_current_idx = profile["reg_current_idx"]
+            reg_power_idx = profile["reg_power_idx"]
+            reg_energy_total_idx = profile["reg_energy_total_idx"]
+            power_divider = float(profile.get("power_divider", 1000.0))
+
+            voltage_v = self.regs_to_float(regs, reg_voltage_idx)
+            current_a = self.regs_to_float(regs, reg_current_idx)
+            power_kw = self.regs_to_float(regs, reg_power_idx) / power_divider
+            energy_kwh_total = self.regs_to_float(regs, reg_energy_total_idx)
+
+            return {
+                "voltageV": round(voltage_v, 1),
+                "currentA": round(current_a, 2),
+                "powerKw": round(power_kw, 2),
+                "energyKwhTotal": round(energy_kwh_total, 1),
+            }
+        except Exception as e:
+            logger.error(f"✗ Blad konwersji danych machineId={machine_id}, slave={slave_id}: {e}")
+            return None
+
+
+==================================================
+4) POPRAW JEDNA LINIE Z KLUCZEM API
+==================================================
+ZAMIEN:
+DRIMAIN_API_KEY = os.getenv("ENERGY_INGEST_KEY", "k7F2mQ9xL4vN8pR1sT6wY3zA5cD0eHjB")
+
+NA:
+DRIMAIN_API_KEY = os.getenv("ENERGY_INGEST_KEY", "")
+
+(klucz trzymaj tylko w /etc/drimain-energy-reader.env)
+
+
+==================================================
+5) SPRAWDZ, CZY RUN() MA PETLE PO TARGETACH
+==================================================
+W `run()` ma byc:
+
+for target in METER_TARGETS:
+    data = self.read_energy_data(target.machine_id, target.slave_id)
+    if data:
+        if self.send_to_api(data, target.machine_id, target.slave_id):
+            success_count += 1
+            error_count = 0
+        else:
+            error_count += 1
+    else:
+        error_count += 1
+        logger.warning(
+            f"⚠ Nie udalo sie odczytac miernika machineId={target.machine_id} slave={target.slave_id} (bledy: {error_count})"
+        )
+
+
+==================================================
+6) USTAWIENIA W /etc/drimain-energy-reader.env
+==================================================
+Powinno byc (minimum):
+
+METER_TARGETS=160:1,181:2
+MODBUS_MODE=rtu
+SERIAL_PORT=/dev/ttyUSB0
+BAUD_RATE=9600
+PARITY=N
+STOP_BITS=1
+BYTE_SIZE=8
+
+Dla map rejestrow per licznik (opcjonalnie, jesli chcesz pozniej przez env):
+METER_TYPE_160=LUMEL_NMID30_1
+METER_TYPE_181=LUMEL_NR32
+
+
+==================================================
+7) TEST PO ZMIANACH (Raspberry)
+==================================================
+1) Zatrzymaj usluge:
+
+sudo systemctl stop drimain-energy-reader.service
+
+2) Sprawdz skladnie:
+
+python3 -m py_compile /home/pi/mergedDrimain/scripts/energy_reader.py
+
+3) Uruchom usluge:
+
+sudo systemctl start drimain-energy-reader.service
+
+4) Logi na zywo:
+
+sudo journalctl -u drimain-energy-reader.service -f
+
+
+==================================================
+8) JESLI DALEJ BEDA 131/132 DLA slave=2
+==================================================
+To znaczy, ze flow skryptu jest juz OK, ale mapa NR32 jest niepoprawna.
+Wtedy trzeba dostroic:
+- reg_fn (input vs holding),
+- reg_power_idx / reg_voltage_idx / reg_current_idx / reg_energy_total_idx
+w profilu machineId=181.
+

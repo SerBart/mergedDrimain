@@ -3,10 +3,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
 import '../core/providers/app_providers.dart';
 import '../routing/app_router.dart';
+
+const String _appVersion = String.fromEnvironment('APP_VERSION', defaultValue: '0.1.0+1');
 
 class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
   final String? title;
@@ -22,7 +23,6 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authStateProvider);
     final notifsAsync = ref.watch(notificationsListProvider);
-    final versionFuture = PackageInfo.fromPlatform();
     final username = auth?.username ?? '';
     final initials = username.isNotEmpty ? username.substring(0, 1).toUpperCase() : '';
     final scheme = Theme.of(context).colorScheme;
@@ -181,19 +181,14 @@ class TopAppBar extends ConsumerWidget implements PreferredSizeWidget {
                 icon: const Icon(Icons.more_vert, color: Colors.white),
                 itemBuilder: (ctx) => [
                   PopupMenuItem(
+                    enabled: false,
                     value: 0,
-                    child: FutureBuilder<PackageInfo>(
-                      future: versionFuture,
-                      builder: (ctx, snap) {
-                        final ver = snap.hasData ? snap.data!.version : '...';
-                        return Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Wersja'),
-                            Text(ver, style: const TextStyle(fontWeight: FontWeight.w700)),
-                          ],
-                        );
-                      },
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Wersja'),
+                        Text(_appVersion, style: const TextStyle(fontWeight: FontWeight.w700)),
+                      ],
                     ),
                   ),
                 ],

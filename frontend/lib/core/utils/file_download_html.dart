@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:html' as html;
+import 'package:web/web.dart' as web;
 
 bool downloadBytesAsFile({
   required String fileName,
@@ -10,10 +10,11 @@ bool downloadBytesAsFile({
     if (bytes.isEmpty) return false;
     final data = base64Encode(bytes);
     final href = 'data:$mimeType;base64,$data';
-    final anchor = html.AnchorElement(href: href)
+    final anchor = web.document.createElement('a') as web.HTMLAnchorElement
+      ..href = href
       ..download = fileName
       ..style.display = 'none';
-    html.document.body?.children.add(anchor);
+    web.document.body?.append(anchor);
     anchor.click();
     anchor.remove();
     return true;

@@ -1,15 +1,15 @@
-import 'dart:html' as html;
+import 'package:web/web.dart' as web;
 
 void navigateToDashboardWeb() {
   try {
     // Use absolute path — causes full page reload to dashboard
-    html.window.location.href = '/dashboard';
+    web.window.location.href = '/dashboard';
   } catch (_) {}
 }
 
 void reloadCurrentPage() {
   try {
-    html.window.location.reload();
+    web.window.location.reload();
   } catch (_) {}
 }
 

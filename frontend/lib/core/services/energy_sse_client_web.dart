@@ -7,73 +7,83 @@ Stream<Map<String, dynamic>> connectEnergySse({
   required String token,
   required Map<String, dynamic> queryParameters,
 }) {
-  final controller = StreamController<Map<String, dynamic>>();
+  late final StreamController<Map<String, dynamic>> controller;
   final uri = _buildUri(
     baseUrl: baseUrl,
     token: token,
     queryParameters: queryParameters,
   );
-
-  final eventSource = html.EventSource(
-    uri.toString(),
-    withCredentials: true,
-  );
-
-  final subscriptions = <StreamSubscription<dynamic>>[];
+  final eventSource = html.EventSource(uri.toString());
+  final listeners = <MapEntry<String, html.EventListener>>[];
   var closed = false;
-  var errorForwarded = false;
-
-  Future<void> closeConnection() async {
-    if (closed) return;
-    closed = true;
-    for (final subscription in subscriptions) {
-      await subscription.cancel();
-    }
-    eventSource.close();
-  }
 
   void emitPayload(dynamic rawData) {
     if (rawData == null) return;
+
     try {
       if (rawData is Map) {
         controller.add(rawData.cast<String, dynamic>());
         return;
       }
+
       if (rawData is String && rawData.trim().isNotEmpty) {
-        controller.add((jsonDecode(rawData) as Map).cast<String, dynamic>());
+        final decoded = jsonDecode(rawData);
+        if (decoded is Map) {
+          controller.add(decoded.cast<String, dynamic>());
+        }
       }
     } catch (_) {
-      // Ignore malformed payload and keep the stream alive.
+      // Ignore malformed payloads and keep the stream alive.
     }
   }
 
-  subscriptions.add(eventSource.onMessage.listen((event) {
-    emitPayload(event.data);
-  }));
-
-  for (final eventName in const ['INIT', 'ENERGY_UPDATE']) {
-    final provider = html.EventStreamProvider<html.MessageEvent>(eventName);
-    subscriptions.add(provider.forTarget(eventSource).listen((event) {
-      emitPayload(event.data);
-    }));
+  void addListener(String eventName, void Function(html.MessageEvent event) handler) {
+    final listener = (html.Event event) {
+      if (event is html.MessageEvent) {
+        handler(event);
+      }
+    };
+    listeners.add(MapEntry(eventName, listener));
+    eventSource.addEventListener(eventName, listener);
   }
 
-  final heartbeatProvider = html.EventStreamProvider<html.MessageEvent>('HEARTBEAT');
-  subscriptions.add(heartbeatProvider.forTarget(eventSource).listen((_) {
-    // Keep-alive event; nothing to do.
-  }));
+  void closeConnection() {
+    if (closed) return;
+    closed = true;
 
-  subscriptions.add(eventSource.onError.listen((_) {
-    if (!controller.isClosed && !errorForwarded) {
-      errorForwarded = true;
+    for (final listener in listeners) {
+      eventSource.removeEventListener(listener.key, listener.value);
+    }
+
+    eventSource.close();
+
+    if (!controller.isClosed) {
+      controller.close();
+    }
+  }
+
+  controller = StreamController<Map<String, dynamic>>(
+    onCancel: closeConnection,
+  );
+
+  addListener('INIT', (event) {
+    emitPayload(event.data);
+  });
+
+  addListener('ENERGY_UPDATE', (event) {
+    emitPayload(event.data);
+  });
+
+  addListener('HEARTBEAT', (_) {
+    // Backend keep-alive ping; no payload to emit.
+  });
+
+  addListener('error', (_) {
+    if (!controller.isClosed) {
       controller.addError(StateError('SSE connection error/closed'));
     }
     closeConnection();
-  }));
-
-  controller.onCancel = () async {
-    await closeConnection();
-  };
+  });
 
   return controller.stream;
 }
@@ -83,30 +93,11 @@ Uri _buildUri({
   required String token,
   required Map<String, dynamic> queryParameters,
 }) {
-  final baseUri = Uri.parse(baseUrl);
-  var path = baseUri.path;
-  if (path.endsWith('/')) {
-    path = path.substring(0, path.length - 1);
-  }
-  if (path.endsWith('/api')) {
-    path = '$path/energia/stream';
-  } else {
-    path = '$path/api/energia/stream';
-  }
-  if (path.isEmpty) {
-    path = '/api/energia/stream';
-  }
-
+  final uri = Uri.parse(baseUrl).resolve('/api/energia/stream');
   final qp = <String, String>{
-    ...baseUri.queryParameters,
+    'token': token,
     for (final entry in queryParameters.entries)
-      if (entry.value != null) entry.key: '${entry.value}',
-    if (token.trim().isNotEmpty) 'token': token.trim(),
+      if (entry.value != null) entry.key: entry.value.toString(),
   };
-
-  return baseUri.replace(
-    path: path,
-    queryParameters: qp.isEmpty ? null : qp,
-  );
+  return uri.replace(queryParameters: qp);
 }
-

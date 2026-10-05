@@ -1,20 +1,11 @@
 #!/usr/bin/env python3
 """
-Drimain Energy Reader - FIXED VERSION 2026-10-02 (supports per-meter config)
-======================================================================
-✓ Obsługuje zmienne per-miernika: REG_VOLTAGE_IDX_160, REG_POWER_IDX_160, etc.
-✓ Obsługuje POWER_DIVIDER_160 - brak dzielenia jeśli = 1
-✓ Konfiguracja: /etc/drimain-energy-reader.env (np. METER_TARGETS=160:1,181:2)
-✓ Czysty kod - bez konfliktów merge'a
-======================================================================
-
-Drimain Energy Reader - odczyt mierników energii Modbus RTU/TCP
-i wysyłka danych do Drimain API.
+Drimain Energy Reader - clean replacement version.
 
 Usage on Raspberry:
-1) keep configuration in /etc/drimain-energy-reader.env
-2) run: python3 /home/bseredyn/Desktop/scripts/energy_reader.py
-3) or via systemd service: systemctl start drimain-energy-reader.service
+1) copy this file over /home/bseredyn/Desktop/scripts/energy_reader.py
+2) keep configuration in /etc/drimain-energy-reader.env
+3) restart systemd service
 """
 
 from __future__ import annotations
@@ -65,11 +56,12 @@ DEFAULT_PROFILE = {
 }
 
 # Per-meter profile candidates.
-# For machine_id=160 and 181, read from env with machine_id suffix
+# For machine_id=181 (NR32) we try a few common variants automatically,
+# because the exact register map may differ by firmware / model revision.
 METER_PROFILE_CANDIDATES: Dict[int, List[dict]] = {
     160: [
         {
-            "name": "160-default (env-based)",
+            "name": "160-default",
             "meter_type": os.getenv("METER_TYPE_160", "LUMEL_NMID30_1"),
             "reg_fn": os.getenv("METER_REG_FN_160", "holding").strip().lower(),
             "reg_voltage_idx": int(os.getenv("REG_VOLTAGE_IDX_160", "0")),
@@ -77,46 +69,46 @@ METER_PROFILE_CANDIDATES: Dict[int, List[dict]] = {
             "reg_power_idx": int(os.getenv("REG_POWER_IDX_160", "12")),
             "reg_energy_total_idx": int(os.getenv("REG_ENERGY_TOTAL_IDX_160", "72")),
             "power_divider": float(os.getenv("POWER_DIVIDER_160", "1000")),
-        },
-        {
-            "name": "160-alt1 (V_idx=2)",
-            "meter_type": os.getenv("METER_TYPE_160", "LUMEL_NMID30_1"),
-            "reg_fn": os.getenv("METER_REG_FN_160", "holding").strip().lower(),
-            "reg_voltage_idx": 2,
-            "reg_current_idx": int(os.getenv("REG_CURRENT_IDX_160", "6")),
-            "reg_power_idx": int(os.getenv("REG_POWER_IDX_160", "12")),
-            "reg_energy_total_idx": int(os.getenv("REG_ENERGY_TOTAL_IDX_160", "72")),
-            "power_divider": float(os.getenv("POWER_DIVIDER_160", "1000")),
-        },
-        {
-            "name": "160-alt2 (V_idx=4)",
-            "meter_type": os.getenv("METER_TYPE_160", "LUMEL_NMID30_1"),
-            "reg_fn": os.getenv("METER_REG_FN_160", "holding").strip().lower(),
-            "reg_voltage_idx": 4,
-            "reg_current_idx": int(os.getenv("REG_CURRENT_IDX_160", "6")),
-            "reg_power_idx": int(os.getenv("REG_POWER_IDX_160", "12")),
-            "reg_energy_total_idx": int(os.getenv("REG_ENERGY_TOTAL_IDX_160", "72")),
-            "power_divider": float(os.getenv("POWER_DIVIDER_160", "1000")),
-        },
-        {
-            "name": "160-alt3 (V_idx=6)",
-            "meter_type": os.getenv("METER_TYPE_160", "LUMEL_NMID30_1"),
-            "reg_fn": os.getenv("METER_REG_FN_160", "holding").strip().lower(),
-            "reg_voltage_idx": 6,
-            "reg_current_idx": int(os.getenv("REG_CURRENT_IDX_160", "6")),
-            "reg_power_idx": int(os.getenv("REG_POWER_IDX_160", "12")),
-            "reg_energy_total_idx": int(os.getenv("REG_ENERGY_TOTAL_IDX_160", "72")),
-            "power_divider": float(os.getenv("POWER_DIVIDER_160", "1000")),
-        },
+        }
     ],
     181: [
         {
-            "name": "181-default",
+            "name": "181-holding-12",
             "meter_type": os.getenv("METER_TYPE_181", "LUMEL_NR32"),
             "reg_fn": os.getenv("METER_REG_FN_181", "holding").strip().lower(),
             "reg_voltage_idx": int(os.getenv("REG_VOLTAGE_IDX_181", "0")),
             "reg_current_idx": int(os.getenv("REG_CURRENT_IDX_181", "6")),
             "reg_power_idx": int(os.getenv("REG_POWER_IDX_181", "12")),
+            "reg_energy_total_idx": int(os.getenv("REG_ENERGY_TOTAL_IDX_181", "72")),
+            "power_divider": float(os.getenv("POWER_DIVIDER_181", "1000")),
+        },
+        {
+            "name": "181-holding-52",
+            "meter_type": os.getenv("METER_TYPE_181", "LUMEL_NR32"),
+            "reg_fn": "holding",
+            "reg_voltage_idx": int(os.getenv("REG_VOLTAGE_IDX_181", "0")),
+            "reg_current_idx": int(os.getenv("REG_CURRENT_IDX_181", "6")),
+            "reg_power_idx": 52,
+            "reg_energy_total_idx": int(os.getenv("REG_ENERGY_TOTAL_IDX_181", "72")),
+            "power_divider": float(os.getenv("POWER_DIVIDER_181", "1000")),
+        },
+        {
+            "name": "181-input-12",
+            "meter_type": os.getenv("METER_TYPE_181", "LUMEL_NR32"),
+            "reg_fn": "input",
+            "reg_voltage_idx": int(os.getenv("REG_VOLTAGE_IDX_181", "0")),
+            "reg_current_idx": int(os.getenv("REG_CURRENT_IDX_181", "6")),
+            "reg_power_idx": int(os.getenv("REG_POWER_IDX_181", "12")),
+            "reg_energy_total_idx": int(os.getenv("REG_ENERGY_TOTAL_IDX_181", "72")),
+            "power_divider": float(os.getenv("POWER_DIVIDER_181", "1000")),
+        },
+        {
+            "name": "181-input-52",
+            "meter_type": os.getenv("METER_TYPE_181", "LUMEL_NR32"),
+            "reg_fn": "input",
+            "reg_voltage_idx": int(os.getenv("REG_VOLTAGE_IDX_181", "0")),
+            "reg_current_idx": int(os.getenv("REG_CURRENT_IDX_181", "6")),
+            "reg_power_idx": 52,
             "reg_energy_total_idx": int(os.getenv("REG_ENERGY_TOTAL_IDX_181", "72")),
             "power_divider": float(os.getenv("POWER_DIVIDER_181", "1000")),
         },
@@ -277,9 +269,7 @@ class EnergyMeterReader:
             return self._dummy_data()
 
         for profile in _profiles_for_machine(machine_id):
-            logger.info(f"[DEBUG] machineId={machine_id} profil={profile['name']} | V_idx={profile['reg_voltage_idx']} I_idx={profile['reg_current_idx']} P_idx={profile['reg_power_idx']} E_idx={profile['reg_energy_total_idx']} P_div={profile['power_divider']}")
             try:
-                # Czytaj każdy parametr osobno (2 rejestry)
                 voltage_regs = self.read_registers(
                     start_addr=profile["reg_voltage_idx"],
                     count=2,
@@ -306,7 +296,6 @@ class EnergyMeterReader:
                 )
 
                 if not voltage_regs or not current_regs or not power_regs or not energy_regs:
-                    logger.warning(f"⚠ Brak odpowiedzi na jakiś rejestr machineId={machine_id} profil={profile['name']}")
                     continue
 
                 voltage_v = self.regs_to_float(voltage_regs, 0)
@@ -314,12 +303,9 @@ class EnergyMeterReader:
                 power_kw = self.regs_to_float(power_regs, 0) / float(profile.get("power_divider", 1000.0))
                 energy_kwh_total = self.regs_to_float(energy_regs, 0)
 
-                logger.info(f"[DEBUG_RAW] V_raw={voltage_regs} I_raw={current_regs} P_raw={power_regs} E_raw={energy_regs}")
-                logger.info(f"[DEBUG_CONV] V={voltage_v} I={current_a} P={power_kw} E={energy_kwh_total}")
-
-                # Jeśli napięcie = 0 lub <100V (nonsensowne dla 230V sieci), to zła mapa - próbuj następny profil
-                if voltage_v == 0.0 or voltage_v < 100.0:
-                    logger.warning(f"⚠ machineId={machine_id} slave={slave_id}: profil {profile['name']} dał V={voltage_v}V (nonsensowne), próbuję kolejny")
+                # Jeśli wszystko wyjdzie 0, to zwykle dalej zła mapa - próbujemy kolejny profil.
+                if machine_id == 181 and voltage_v == 0 and current_a == 0 and power_kw == 0 and energy_kwh_total == 0:
+                    logger.warning(f"⚠ machineId={machine_id} slave={slave_id}: profil {profile['name']} dał same zera, próbuję kolejny")
                     continue
 
                 return {
@@ -389,7 +375,6 @@ class EnergyMeterReader:
         logger.info(f"   Modbus mode: {MODBUS_MODE}")
         logger.info(f"   Demo mode: {'ON' if DEMO_MODE else 'OFF'}")
         logger.info(f"   Interwał: {READ_INTERVAL}s")
-        logger.info(f"   Targets: {', '.join(f'{t.machine_id}:{t.slave_id}' for t in METER_TARGETS)}")
         logger.info("=" * 60)
 
         if not DRIMAIN_API_KEY:

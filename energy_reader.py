@@ -1,42 +1,26 @@
 #!/usr/bin/env python3
 """
-Drimain Energy Reader - FIXED VERSION 2026-10-02 (supports per-meter config)
-======================================================================
-✓ Obsługuje zmienne per-miernika: REG_VOLTAGE_IDX_160, REG_POWER_IDX_160, etc.
-✓ Obsługuje POWER_DIVIDER_160 - brak dzielenia jeśli = 1
-✓ Konfiguracja: /etc/drimain-energy-reader.env (np. METER_TARGETS=160:1,181:2)
-✓ Czysty kod - bez konfliktów merge'a
-======================================================================
-
-Drimain Energy Reader - odczyt mierników energii Modbus RTU/TCP
+Drimain Energy Reader - odczyt mierników energii przez Modbus RTU/TCP
 i wysyłka danych do Drimain API.
-
-Usage on Raspberry:
-1) keep configuration in /etc/drimain-energy-reader.env
-2) run: python3 /home/bseredyn/Desktop/scripts/energy_reader.py
-3) or via systemd service: systemctl start drimain-energy-reader.service
 """
-
-from __future__ import annotations
 
 import logging
 import os
-import random
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import List
 
 import requests
 
-# -------------------- config --------------------
+# ===== KONFIGURACJA =====
+# Zmieniaj wartosci przez /etc/drimain-energy-reader.env na Raspberry.
+
 DRIMAIN_API_URL = os.getenv(
     "DRIMAIN_API_URL",
     "https://mergeddrimain-production.up.railway.app/api/energia/readings",
 )
 DRIMAIN_API_KEY = os.getenv("ENERGY_INGEST_KEY", "")
-
-# Default single-meter fallback
 MASZYNA_ID = int(os.getenv("MASZYNA_ID", "160"))
 METER_SLAVE_ID = int(os.getenv("METER_SLAVE_ID", "1"))
 METER_TARGETS_RAW = os.getenv("METER_TARGETS", "").strip()
@@ -44,6 +28,7 @@ METER_TARGETS_RAW = os.getenv("METER_TARGETS", "").strip()
 MODBUS_MODE = os.getenv("MODBUS_MODE", "rtu").strip().lower()
 METER_IP = os.getenv("METER_IP", "192.168.1.50")
 METER_PORT = int(os.getenv("METER_PORT", "502"))
+
 SERIAL_PORT = os.getenv("SERIAL_PORT", "/dev/ttyUSB0")
 BAUD_RATE = int(os.getenv("BAUD_RATE", "9600"))
 PARITY = os.getenv("PARITY", "N").upper()
@@ -53,101 +38,46 @@ BYTE_SIZE = int(os.getenv("BYTE_SIZE", "8"))
 READ_INTERVAL = int(os.getenv("READ_INTERVAL", "5"))
 DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() in ("1", "true", "yes", "on")
 
-# Base (known-good) mapping for the older meter
-DEFAULT_PROFILE = {
-    "meter_type": os.getenv("METER_TYPE", "LUMEL_NMID30_1"),
-    "reg_fn": os.getenv("METER_REG_FN", "holding").strip().lower(),
-    "reg_voltage_idx": int(os.getenv("REG_VOLTAGE_IDX", "0")),
-    "reg_current_idx": int(os.getenv("REG_CURRENT_IDX", "6")),
-    "reg_power_idx": int(os.getenv("REG_POWER_IDX", "12")),
-    "reg_energy_total_idx": int(os.getenv("REG_ENERGY_TOTAL_IDX", "72")),
-    "power_divider": float(os.getenv("POWER_DIVIDER", "1000")),
-}
+# Domyslne indeksy rejestrow dla starszego, sprawdzonego licznika.
+DEFAULT_VOLTAGE_IDX = int(os.getenv("REG_VOLTAGE_IDX", "0"))
+DEFAULT_CURRENT_IDX = int(os.getenv("REG_CURRENT_IDX", "6"))
+DEFAULT_POWER_IDX = int(os.getenv("REG_POWER_IDX", "12"))
+DEFAULT_ENERGY_TOTAL_IDX = int(os.getenv("REG_ENERGY_TOTAL_IDX", "72"))
+DEFAULT_POWER_DIVIDER = float(os.getenv("POWER_DIVIDER", "1000"))
+DEFAULT_REG_FN = os.getenv("METER_REG_FN", "holding").strip().lower()
 
-# Per-meter profile candidates.
-# For machine_id=160 and 181, read from env with machine_id suffix
-METER_PROFILE_CANDIDATES: Dict[int, List[dict]] = {
-    160: [
-        {
-            "name": "160-default (env-based)",
-            "meter_type": os.getenv("METER_TYPE_160", "LUMEL_NMID30_1"),
-            "reg_fn": os.getenv("METER_REG_FN_160", "holding").strip().lower(),
-            "reg_voltage_idx": int(os.getenv("REG_VOLTAGE_IDX_160", "0")),
-            "reg_current_idx": int(os.getenv("REG_CURRENT_IDX_160", "6")),
-            "reg_power_idx": int(os.getenv("REG_POWER_IDX_160", "12")),
-            "reg_energy_total_idx": int(os.getenv("REG_ENERGY_TOTAL_IDX_160", "72")),
-            "power_divider": float(os.getenv("POWER_DIVIDER_160", "1000")),
-        },
-        {
-            "name": "160-alt1 (V_idx=2)",
-            "meter_type": os.getenv("METER_TYPE_160", "LUMEL_NMID30_1"),
-            "reg_fn": os.getenv("METER_REG_FN_160", "holding").strip().lower(),
-            "reg_voltage_idx": 2,
-            "reg_current_idx": int(os.getenv("REG_CURRENT_IDX_160", "6")),
-            "reg_power_idx": int(os.getenv("REG_POWER_IDX_160", "12")),
-            "reg_energy_total_idx": int(os.getenv("REG_ENERGY_TOTAL_IDX_160", "72")),
-            "power_divider": float(os.getenv("POWER_DIVIDER_160", "1000")),
-        },
-        {
-            "name": "160-alt2 (V_idx=4)",
-            "meter_type": os.getenv("METER_TYPE_160", "LUMEL_NMID30_1"),
-            "reg_fn": os.getenv("METER_REG_FN_160", "holding").strip().lower(),
-            "reg_voltage_idx": 4,
-            "reg_current_idx": int(os.getenv("REG_CURRENT_IDX_160", "6")),
-            "reg_power_idx": int(os.getenv("REG_POWER_IDX_160", "12")),
-            "reg_energy_total_idx": int(os.getenv("REG_ENERGY_TOTAL_IDX_160", "72")),
-            "power_divider": float(os.getenv("POWER_DIVIDER_160", "1000")),
-        },
-        {
-            "name": "160-alt3 (V_idx=6)",
-            "meter_type": os.getenv("METER_TYPE_160", "LUMEL_NMID30_1"),
-            "reg_fn": os.getenv("METER_REG_FN_160", "holding").strip().lower(),
-            "reg_voltage_idx": 6,
-            "reg_current_idx": int(os.getenv("REG_CURRENT_IDX_160", "6")),
-            "reg_power_idx": int(os.getenv("REG_POWER_IDX_160", "12")),
-            "reg_energy_total_idx": int(os.getenv("REG_ENERGY_TOTAL_IDX_160", "72")),
-            "power_divider": float(os.getenv("POWER_DIVIDER_160", "1000")),
-        },
-    ],
-    181: [
-        {
-            "name": "181-default",
-            "meter_type": os.getenv("METER_TYPE_181", "LUMEL_NR32"),
-            "reg_fn": os.getenv("METER_REG_FN_181", "holding").strip().lower(),
-            "reg_voltage_idx": int(os.getenv("REG_VOLTAGE_IDX_181", "0")),
-            "reg_current_idx": int(os.getenv("REG_CURRENT_IDX_181", "6")),
-            "reg_power_idx": int(os.getenv("REG_POWER_IDX_181", "12")),
-            "reg_energy_total_idx": int(os.getenv("REG_ENERGY_TOTAL_IDX_181", "72")),
-            "power_divider": float(os.getenv("POWER_DIVIDER_181", "1000")),
-        },
-    ],
-}
+# ===== KONIEC KONFIGURACJI =====
 
-# -------------------- logging --------------------
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
 logger = logging.getLogger(__name__)
 
-# -------------------- pymodbus import --------------------
+
 try:
-    from pymodbus.client.sync import ModbusSerialClient, ModbusTcpClient
+    # pymodbus 2.x
+    from pymodbus.client.sync import ModbusSerialClient
+    from pymodbus.client.sync import ModbusTcpClient
     from pymodbus.exceptions import ConnectionException
 
     MODBUS_AVAILABLE = True
     MODBUS_API = "2.x"
 except ImportError:
     try:
-        from pymodbus.client import ModbusSerialClient, ModbusTcpClient
+        # pymodbus 3.x
+        from pymodbus.client import ModbusSerialClient
+        from pymodbus.client import ModbusTcpClient
         from pymodbus.exceptions import ConnectionException
 
         MODBUS_AVAILABLE = True
         MODBUS_API = "3.x"
     except ImportError:
+        logger.warning("pymodbus nie zainstalowany - zainstaluj: pip install pymodbus")
         MODBUS_AVAILABLE = False
         MODBUS_API = "none"
-        logger.warning("pymodbus nie zainstalowany - zainstaluj: pip install pymodbus")
 
 
-# -------------------- helpers --------------------
 @dataclass(frozen=True)
 class MeterTarget:
     machine_id: int
@@ -162,11 +92,45 @@ def _parse_meter_targets(raw_value: str) -> List[MeterTarget]:
     parts = [part.strip() for part in raw_value.replace(";", ",").split(",") if part.strip()]
     for part in parts:
         if ":" not in part:
-            raise ValueError(f"Nieprawidłowy wpis METER_TARGETS '{part}'. Użyj formatu maszynaId:slaveId, np. 160:1,181:2")
+            raise ValueError(
+                f"Nieprawidłowy wpis METER_TARGETS '{part}'. Użyj formatu maszynaId:slaveId, np. 160:1,181:2"
+            )
         machine_text, slave_text = [segment.strip() for segment in part.split(":", 1)]
         targets.append(MeterTarget(machine_id=int(machine_text), slave_id=int(slave_text)))
 
+    if not targets:
+        raise ValueError("METER_TARGETS jest puste po sparsowaniu")
+
     return targets
+
+
+def _profile(machine_id: int) -> dict:
+    """Zwraca profil rejestrow dla konkretnej maszyny.
+
+    Domyslnie oba liczniki czytamy holding registers, bo input registers
+    dawaly exception response dla drugiego licznika.
+    """
+    if machine_id == 181:
+        return {
+            "meter_type": os.getenv("METER_TYPE_181", "LUMEL_NR32"),
+            "reg_fn": os.getenv("METER_REG_FN_181", "holding").strip().lower(),
+            "reg_voltage_idx": int(os.getenv("REG_VOLTAGE_IDX_181", str(DEFAULT_VOLTAGE_IDX))),
+            "reg_current_idx": int(os.getenv("REG_CURRENT_IDX_181", str(DEFAULT_CURRENT_IDX))),
+            "reg_power_idx": int(os.getenv("REG_POWER_IDX_181", str(DEFAULT_POWER_IDX))),
+            "reg_energy_total_idx": int(os.getenv("REG_ENERGY_TOTAL_IDX_181", str(DEFAULT_ENERGY_TOTAL_IDX))),
+            "power_divider": float(os.getenv("POWER_DIVIDER_181", str(DEFAULT_POWER_DIVIDER))),
+        }
+
+    # machine_id=160 i fallback
+    return {
+        "meter_type": os.getenv("METER_TYPE_160", os.getenv("METER_TYPE", "LUMEL_NMID30_1")),
+        "reg_fn": os.getenv("METER_REG_FN_160", DEFAULT_REG_FN).strip().lower(),
+        "reg_voltage_idx": int(os.getenv("REG_VOLTAGE_IDX_160", str(DEFAULT_VOLTAGE_IDX))),
+        "reg_current_idx": int(os.getenv("REG_CURRENT_IDX_160", str(DEFAULT_CURRENT_IDX))),
+        "reg_power_idx": int(os.getenv("REG_POWER_IDX_160", str(DEFAULT_POWER_IDX))),
+        "reg_energy_total_idx": int(os.getenv("REG_ENERGY_TOTAL_IDX_160", str(DEFAULT_ENERGY_TOTAL_IDX))),
+        "power_divider": float(os.getenv("POWER_DIVIDER_160", str(DEFAULT_POWER_DIVIDER))),
+    }
 
 
 try:
@@ -176,23 +140,18 @@ except ValueError as exc:
     METER_TARGETS = [MeterTarget(machine_id=MASZYNA_ID, slave_id=METER_SLAVE_ID)]
 
 
-def _profiles_for_machine(machine_id: int) -> List[dict]:
-    if machine_id in METER_PROFILE_CANDIDATES:
-        return METER_PROFILE_CANDIDATES[machine_id]
-    return [DEFAULT_PROFILE]
-
-
-# -------------------- main reader --------------------
 class EnergyMeterReader:
+    """Czytnik mierników energii przez Modbus."""
+
     def __init__(self):
         self.client = None
         self.connection_attempts = 0
         self.last_error = None
-        self.current_port = SERIAL_PORT
         if MODBUS_AVAILABLE:
             self.connect()
 
     def connect(self):
+        """Połączenie z magistralą Modbus."""
         try:
             if MODBUS_MODE == "rtu":
                 self.client = ModbusSerialClient(
@@ -204,7 +163,11 @@ class EnergyMeterReader:
                     timeout=3,
                 )
             else:
-                self.client = ModbusTcpClient(host=METER_IP, port=METER_PORT, timeout=3)
+                self.client = ModbusTcpClient(
+                    host=METER_IP,
+                    port=METER_PORT,
+                    timeout=3,
+                )
 
             if self.client.connect():
                 if MODBUS_MODE == "rtu":
@@ -220,7 +183,9 @@ class EnergyMeterReader:
             self.last_error = str(e)
             if self.connection_attempts >= 3:
                 if MODBUS_MODE == "rtu":
-                    logger.error(f"✗ Brak połączenia z magistralą RS485 ({SERIAL_PORT}) próba {self.connection_attempts}: {e}")
+                    logger.error(
+                        f"✗ Brak połączenia z magistralą RS485 ({SERIAL_PORT}) próba {self.connection_attempts}: {e}"
+                    )
                 else:
                     logger.error(f"✗ Brak połączenia z bramką Modbus TCP (próba {self.connection_attempts}): {e}")
             return False
@@ -231,11 +196,17 @@ class EnergyMeterReader:
             return None
 
         try:
-            kwargs = {"address": start_addr, "count": count}
+            kwargs = {
+                "address": start_addr,
+                "count": count,
+                "unit": slave_id,
+            }
             if MODBUS_API == "3.x":
-                kwargs["slave"] = slave_id
-            else:
-                kwargs["unit"] = slave_id
+                kwargs = {
+                    "address": start_addr,
+                    "count": count,
+                    "slave": slave_id,
+                }
 
             if reg_fn == "input":
                 result = self.client.read_input_registers(**kwargs)
@@ -256,86 +227,65 @@ class EnergyMeterReader:
 
         return None
 
-    @staticmethod
-    def regs_to_float(regs, start_idx):
+    def regs_to_float(self, regs, start_idx):
+        """Konwersja 2x16-bit (big endian) → float32."""
         if not regs or len(regs) <= start_idx + 1:
             return 0.0
-        import struct
 
         high = regs[start_idx]
         low = regs[start_idx + 1]
+
+        import struct
+
         val = (high << 16) | low
         return struct.unpack(">f", struct.pack(">I", val))[0]
 
     def read_energy_data(self, machine_id, slave_id):
         """Odczyt danych energii wg profilu maszyny."""
         if DEMO_MODE:
+            logger.info("[DEMO_MODE] Wysylam dane testowe")
             return self._dummy_data()
 
         if not MODBUS_AVAILABLE:
             logger.warning("⚠ Modbus niedostępny - zwracam dane testowe")
             return self._dummy_data()
 
-        for profile in _profiles_for_machine(machine_id):
-            logger.info(f"[DEBUG] machineId={machine_id} profil={profile['name']} | V_idx={profile['reg_voltage_idx']} I_idx={profile['reg_current_idx']} P_idx={profile['reg_power_idx']} E_idx={profile['reg_energy_total_idx']} P_div={profile['power_divider']}")
-            try:
-                # Czytaj każdy parametr osobno (2 rejestry)
-                voltage_regs = self.read_registers(
-                    start_addr=profile["reg_voltage_idx"],
-                    count=2,
-                    slave_id=slave_id,
-                    reg_fn=profile["reg_fn"],
-                )
-                current_regs = self.read_registers(
-                    start_addr=profile["reg_current_idx"],
-                    count=2,
-                    slave_id=slave_id,
-                    reg_fn=profile["reg_fn"],
-                )
-                power_regs = self.read_registers(
-                    start_addr=profile["reg_power_idx"],
-                    count=2,
-                    slave_id=slave_id,
-                    reg_fn=profile["reg_fn"],
-                )
-                energy_regs = self.read_registers(
-                    start_addr=profile["reg_energy_total_idx"],
-                    count=2,
-                    slave_id=slave_id,
-                    reg_fn=profile["reg_fn"],
-                )
+        profile = _profile(machine_id)
+        regs = self.read_registers(
+            start_addr=0,
+            count=100,
+            slave_id=slave_id,
+            reg_fn=profile["reg_fn"],
+        )
+        if not regs:
+            return None
 
-                if not voltage_regs or not current_regs or not power_regs or not energy_regs:
-                    logger.warning(f"⚠ Brak odpowiedzi na jakiś rejestr machineId={machine_id} profil={profile['name']}")
-                    continue
+        try:
+            reg_voltage_idx = profile["reg_voltage_idx"]
+            reg_current_idx = profile["reg_current_idx"]
+            reg_power_idx = profile["reg_power_idx"]
+            reg_energy_total_idx = profile["reg_energy_total_idx"]
+            power_divider = float(profile.get("power_divider", 1000.0))
 
-                voltage_v = self.regs_to_float(voltage_regs, 0)
-                current_a = self.regs_to_float(current_regs, 0)
-                power_kw = self.regs_to_float(power_regs, 0) / float(profile.get("power_divider", 1000.0))
-                energy_kwh_total = self.regs_to_float(energy_regs, 0)
+            voltage_v = self.regs_to_float(regs, reg_voltage_idx)
+            current_a = self.regs_to_float(regs, reg_current_idx)
+            power_kw = self.regs_to_float(regs, reg_power_idx) / power_divider
+            energy_kwh_total = self.regs_to_float(regs, reg_energy_total_idx)
 
-                logger.info(f"[DEBUG_RAW] V_raw={voltage_regs} I_raw={current_regs} P_raw={power_regs} E_raw={energy_regs}")
-                logger.info(f"[DEBUG_CONV] V={voltage_v} I={current_a} P={power_kw} E={energy_kwh_total}")
+            return {
+                "voltageV": round(voltage_v, 1),
+                "currentA": round(current_a, 2),
+                "powerKw": round(power_kw, 2),
+                "energyKwhTotal": round(energy_kwh_total, 1),
+            }
+        except Exception as e:
+            logger.error(f"✗ Błąd konwersji danych machineId={machine_id}, slave={slave_id}: {e}")
+            return None
 
-                # Jeśli napięcie = 0 lub <100V (nonsensowne dla 230V sieci), to zła mapa - próbuj następny profil
-                if voltage_v == 0.0 or voltage_v < 100.0:
-                    logger.warning(f"⚠ machineId={machine_id} slave={slave_id}: profil {profile['name']} dał V={voltage_v}V (nonsensowne), próbuję kolejny")
-                    continue
+    def _dummy_data(self):
+        """Dane testowe (dla demo bez miernika)."""
+        import random
 
-                return {
-                    "voltageV": round(voltage_v, 1),
-                    "currentA": round(current_a, 2),
-                    "powerKw": round(power_kw, 2),
-                    "energyKwhTotal": round(energy_kwh_total, 1),
-                }
-            except Exception as e:
-                logger.error(f"✗ Błąd konwersji danych machineId={machine_id}, slave={slave_id}, profil={profile['name']}: {e}")
-                continue
-
-        return None
-
-    @staticmethod
-    def _dummy_data():
         return {
             "voltageV": round(230 + random.uniform(-5, 5), 1),
             "currentA": round(10 + random.uniform(-2, 2), 2),
@@ -344,6 +294,7 @@ class EnergyMeterReader:
         }
 
     def send_to_api(self, data, machine_id, slave_id):
+        """Wysłanie danych do Drimain API."""
         payload = {
             "maszynaId": machine_id,
             "deviceId": self._device_id(machine_id, slave_id),
@@ -359,7 +310,12 @@ class EnergyMeterReader:
                 "X-API-KEY": DRIMAIN_API_KEY,
                 "Content-Type": "application/json",
             }
-            response = requests.post(DRIMAIN_API_URL, json=payload, headers=headers, timeout=5)
+            response = requests.post(
+                DRIMAIN_API_URL,
+                json=payload,
+                headers=headers,
+                timeout=5,
+            )
 
             if response.status_code == 201:
                 logger.info(
@@ -382,6 +338,7 @@ class EnergyMeterReader:
             return False
 
     def run(self):
+        """Główna pętla."""
         logger.info("=" * 60)
         logger.info("🚀 Drimain Energy Reader")
         logger.info(f"   API: {DRIMAIN_API_URL}")
@@ -389,7 +346,6 @@ class EnergyMeterReader:
         logger.info(f"   Modbus mode: {MODBUS_MODE}")
         logger.info(f"   Demo mode: {'ON' if DEMO_MODE else 'OFF'}")
         logger.info(f"   Interwał: {READ_INTERVAL}s")
-        logger.info(f"   Targets: {', '.join(f'{t.machine_id}:{t.slave_id}' for t in METER_TARGETS)}")
         logger.info("=" * 60)
 
         if not DRIMAIN_API_KEY:
@@ -406,6 +362,15 @@ class EnergyMeterReader:
         while True:
             try:
                 for target in METER_TARGETS:
+                    profile = _profile(target.machine_id)
+                    logger.debug(
+                        "Reading machineId=%s slave=%s type=%s fn=%s",
+                        target.machine_id,
+                        target.slave_id,
+                        profile["meter_type"],
+                        profile["reg_fn"],
+                    )
+
                     data = self.read_energy_data(target.machine_id, target.slave_id)
                     if data:
                         if self.send_to_api(data, target.machine_id, target.slave_id):
