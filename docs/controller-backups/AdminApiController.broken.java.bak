@@ -1,3 +1,4 @@
+/* Backup placeholder: do not compile.
 package drimer.drimain.controller;
 
 import drimer.drimain.api.dto.*;
@@ -532,4 +533,5 @@ import java.util.stream.Collectors;
         return ex.getMessage() == null ? "Internal server error" : ex.getMessage();
     }
 }
+*/
 

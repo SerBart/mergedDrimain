@@ -118,6 +118,39 @@ class AuthRestControllerTest {
                 .andExpect(status().isUnauthorized());
     }
 
+                    @Test
+                    void shouldLoginWithLegacyPlaintextShortPasswordAndUpgradeHash() throws Exception {
+                        Role userRole = roleRepository.findByName("ROLE_USER")
+                                .orElseGet(() -> {
+                                    Role role = new Role();
+                                    role.setName("ROLE_USER");
+                                    return roleRepository.save(role);
+                                });
+
+                        User legacyUser = new User();
+                        legacyUser.setUsername("legacy123");
+                        legacyUser.setEmail("legacy123@local");
+                        legacyUser.setPassword("123");
+                        legacyUser.setRoles(Set.of(userRole));
+                        userRepository.save(legacyUser);
+
+                        Map<String, String> loginRequest = new HashMap<>();
+                        loginRequest.put("username", "legacy123");
+                        loginRequest.put("password", "123");
+
+                        mockMvc.perform(post("/api/auth/login")
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(objectMapper.writeValueAsString(loginRequest)))
+                                .andExpect(status().isOk())
+                                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                                .andExpect(jsonPath("$.token", notNullValue()));
+
+                        User upgraded = userRepository.findByUsername("legacy123").orElseThrow();
+                        org.junit.jupiter.api.Assertions.assertNotEquals("123", upgraded.getPassword());
+                        org.junit.jupiter.api.Assertions.assertTrue(upgraded.getPassword().startsWith("$2"));
+                        org.junit.jupiter.api.Assertions.assertTrue(passwordEncoder.matches("123", upgraded.getPassword()));
+                    }
+
     @Test
     void shouldReturnUnauthorizedForMeEndpointWithoutToken() throws Exception {
         // When & Then

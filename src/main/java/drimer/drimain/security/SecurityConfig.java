@@ -1,9 +1,12 @@
 package drimer.drimain.security;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -11,19 +14,16 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetailsPasswordService;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.http.HttpMethod;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 
 import java.util.Arrays;
 import java.util.List;
@@ -35,6 +35,7 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final UserDetailsService userDetailsService;
+    private final UserDetailsPasswordService userDetailsPasswordService;
 
     @Value("${app.security.h2-console-enabled:true}")
     private boolean h2ConsoleEnabled;
@@ -51,19 +52,15 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // Enable CORS first so it can handle preflight
                 .cors(cors -> {})
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(reg -> {
-                    // Allow CORS preflight calls
                     reg.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
 
-                    // Public API endpoints
                     reg.requestMatchers("/api/auth/**").permitAll();
                     reg.requestMatchers("/actuator/**").permitAll();
 
-                    // Public GET endpoints for machine lists used by forms
                     reg.requestMatchers(HttpMethod.GET,
                             "/api/meta/maszyny",
                             "/api/meta/maszyny-simple",
@@ -71,24 +68,20 @@ public class SecurityConfig {
                             "/api/maszyny/select"
                     ).permitAll();
 
-                    // H2 console / Swagger (env-controlled)
-                    if (h2ConsoleEnabled) { reg.requestMatchers("/h2-console/**").permitAll(); }
-                    if (swaggerEnabled) { reg.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll(); }
+                    if (h2ConsoleEnabled) {
+                        reg.requestMatchers("/h2-console/**").permitAll();
+                    }
+                    if (swaggerEnabled) {
+                        reg.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll();
+                    }
 
-                    // Raporty: bazowo wymagają uwierzytelnienia; szczegółowe role kontroluje @PreAuthorize w kontrolerze
                     reg.requestMatchers(HttpMethod.POST, "/api/raporty/**").authenticated();
                     reg.requestMatchers(HttpMethod.PUT, "/api/raporty/**").authenticated();
                     reg.requestMatchers(HttpMethod.PATCH, "/api/raporty/**").authenticated();
                     reg.requestMatchers(HttpMethod.DELETE, "/api/raporty/**").authenticated();
 
-                    // Energy ingest from Raspberry Pi uses its own API key, not JWT
                     reg.requestMatchers(HttpMethod.POST, "/api/energia/readings").permitAll();
-
-                    // Wszystkie pozostałe /api/** wymagają uwierzytelnienia
                     reg.requestMatchers("/api/**").authenticated();
-
-                    // Wszystkie trasy inne niż /api/** są publiczne.
-                    // Flutter SPA obsługuje własną autentykację (JWT w localStorage → redirect na /login).
                     reg.anyRequest().permitAll();
                 })
                 .exceptionHandling(e -> e
@@ -96,14 +89,10 @@ public class SecurityConfig {
                         .accessDeniedHandler(accessDeniedHandler())
                 )
                 .headers(h -> {
-                    // Referrer-Policy, X-Content-Type-Options
                     h.referrerPolicy(ref -> ref.policy(org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER));
                     h.contentTypeOptions(org.springframework.security.config.Customizer.withDefaults());
-
-                    // Content-Security-Policy — uwaga: Flutter Web może wymagać 'unsafe-inline'/'unsafe-eval'
                     h.contentSecurityPolicy(csp -> csp.policyDirectives(contentSecurityPolicy));
 
-                    // HSTS — włącz tylko, gdy skonfigurowane (np. w prod za SSL/proxy)
                     if (hstsEnabled) {
                         h.httpStrictTransportSecurity(hsts -> hsts
                                 .includeSubDomains(true)
@@ -112,15 +101,13 @@ public class SecurityConfig {
                         );
                     }
 
-                    // Frame options — sameOrigin pozwala na H2 w tej samej domenie
-                    h.frameOptions(f -> f.sameOrigin());
+                    h.frameOptions(frame -> frame.sameOrigin());
                 });
 
         http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
-    // Global CORS configuration backed by property app.cors.allowed-origins
     @Bean
     public CorsConfigurationSource corsConfigurationSource(
             @Value("${app.cors.allowed-origins:*}") String allowedOriginsProp) {
@@ -130,9 +117,7 @@ public class SecurityConfig {
                 .filter(s -> !s.isEmpty())
                 .toList();
 
-        // Zawsze używaj patterns, aby poprawnie echo-ować origin przy credentials
         config.setAllowedOriginPatterns(allowedOrigins);
-
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setExposedHeaders(Arrays.asList("Set-Cookie", "Authorization", "Content-Type"));
@@ -164,7 +149,6 @@ public class SecurityConfig {
             }
 
             if (wantsHtml) {
-                // HTML request – przekieruj do strony głównej SPA
                 response.sendRedirect("/");
                 return;
             }
@@ -197,14 +181,15 @@ public class SecurityConfig {
 
     @Bean
     public AuthenticationManager authenticationManager() {
-        DaoAuthenticationProvider p = new DaoAuthenticationProvider();
-        p.setPasswordEncoder(passwordEncoder());
-        p.setUserDetailsService(userDetailsService);
-        return new ProviderManager(p);
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setPasswordEncoder(passwordEncoder());
+        provider.setUserDetailsService(userDetailsService);
+        provider.setUserDetailsPasswordService(userDetailsPasswordService);
+        return new ProviderManager(provider);
     }
 
     @Bean
-    public BCryptPasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+    public PasswordEncoder passwordEncoder() {
+        return new LegacyCompatiblePasswordEncoder();
     }
 }

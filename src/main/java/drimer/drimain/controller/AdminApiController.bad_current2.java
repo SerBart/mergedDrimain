@@ -1,4 +1,4 @@
-package drimer.drimain.controller;
+/* Backup archive only. Active implementation is in AdminApiController.java.
 
 import drimer.drimain.api.dto.*;
 import drimer.drimain.model.*;
@@ -532,4 +532,4 @@ import java.util.stream.Collectors;
         return ex.getMessage() == null ? "Internal server error" : ex.getMessage();
     }
 }
-
+*/
