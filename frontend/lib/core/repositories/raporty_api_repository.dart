@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/raport.dart';
 import '../models/maszyna.dart';
@@ -285,13 +286,38 @@ class RaportyApiRepository {
 
   /// Wgrywa zdjęcia do raportu. Zwraca listę nowych pełnych URL-i.
   Future<List<String>> uploadZdjecia(int id, List<XFile> files) async {
+    final payload = <_UploadPayload>[];
+    for (final file in files) {
+      final bytes = await file.readAsBytes();
+      payload.add(_UploadPayload(file.name, bytes));
+    }
+    return _uploadFiles(id, payload);
+  }
+
+  /// Wgrywa pliki PDF do raportu. Zwraca listę nowych pełnych URL-i.
+  Future<List<String>> uploadPdfFiles(int id, List<PlatformFile> files) async {
+    final payload = <_UploadPayload>[];
+    for (final file in files) {
+      final bytes = file.bytes;
+      if (bytes == null || bytes.isEmpty) {
+        continue;
+      }
+      final name = file.name.trim().isEmpty ? 'document.pdf' : file.name.trim();
+      payload.add(_UploadPayload(name, bytes));
+    }
+    if (payload.isEmpty) {
+      return const [];
+    }
+    return _uploadFiles(id, payload);
+  }
+
+  Future<List<String>> _uploadFiles(int id, List<_UploadPayload> files) async {
     final token = await _token();
     final formData = FormData();
     for (final file in files) {
-      final bytes = await file.readAsBytes();
       formData.files.add(MapEntry(
         'zdjecia',
-        MultipartFile.fromBytes(bytes, filename: file.name),
+        MultipartFile.fromBytes(file.bytes, filename: file.name),
       ));
     }
     final resp = await _dio.post(
@@ -390,3 +416,11 @@ class RaportyApiRepository {
     return t;
   }
 }
+
+class _UploadPayload {
+  final String name;
+  final List<int> bytes;
+
+  _UploadPayload(this.name, this.bytes);
+}
+

@@ -655,7 +655,7 @@ class _RaportFormScreenState extends ConsumerState<RaportFormScreen> {
                const SizedBox(width: 12),
                Expanded(
                  child: Text(
-                   'Zdjęcia będą dostępne po zapisaniu raportu',
+                    'Załączniki (zdjęcia i PDF) będą dostępne po zapisaniu raportu',
                    style: TextStyle(
                      fontSize: 13,
                      color: Colors.blue.shade700,

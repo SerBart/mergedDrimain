@@ -48,6 +48,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ByteArrayResource;
+import java.util.Arrays;
 
 @RestController
 @RequestMapping("/api/raporty")
@@ -60,6 +61,10 @@ public class RaportRestController {
 
     private static final Set<String> ALLOWED_SORT_FIELDS = Set.of(
             "id", "dataNaprawy", "typNaprawy", "status", "createdBy", "zgloszenieId"
+    );
+
+    private static final Set<String> ALLOWED_INLINE_CONTENT_TYPES = Set.of(
+            "image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf"
     );
 
     private final RaportRepository raportRepository;
@@ -412,10 +417,7 @@ public class RaportRestController {
 
         try {
             byte[] bytes = file.getBytes();
-            String contentType = file.getContentType();
-            if (contentType == null || contentType.isBlank()) {
-                contentType = "image/jpeg";
-            }
+            String contentType = resolveAndValidateContentType(file.getContentType(), fileExtension, bytes);
             String encoded = Base64.getEncoder().encodeToString(bytes);
             String inlineValue = "inline:" + storedFilename + ":" + contentType + ";base64," + encoded;
             return new StoredPhoto(storedFilename, contentType, inlineValue);
@@ -423,6 +425,59 @@ public class RaportRestController {
             log.error("Failed to save file: {}", originalFilename, e);
             throw new RuntimeException("Failed to save photo: " + e.getMessage(), e);
         }
+    }
+
+    private String resolveAndValidateContentType(String requestedContentType, String extension, byte[] bytes) {
+        String normalizedType = requestedContentType == null ? "" : requestedContentType.trim().toLowerCase();
+        String typeBySignature = detectContentType(bytes);
+
+        if (!normalizedType.isBlank() && ALLOWED_INLINE_CONTENT_TYPES.contains(normalizedType)) {
+            if (!typeBySignature.isBlank() && !normalizedType.equals(typeBySignature)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File content does not match declared content type");
+            }
+            return normalizedType;
+        }
+
+        if (!typeBySignature.isBlank()) {
+            return typeBySignature;
+        }
+
+        if (".pdf".equalsIgnoreCase(extension)) {
+            return "application/pdf";
+        }
+
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only image and PDF files are allowed");
+    }
+
+    private String detectContentType(byte[] bytes) {
+        if (bytes == null || bytes.length < 4) {
+            return "";
+        }
+
+        if (startsWith(bytes, new byte[]{0x25, 0x50, 0x44, 0x46})) return "application/pdf";
+        if (startsWith(bytes, new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF})) return "image/jpeg";
+        if (startsWith(bytes, new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47})) return "image/png";
+        if (startsWith(bytes, "GIF8".getBytes(java.nio.charset.StandardCharsets.US_ASCII))) return "image/gif";
+
+        if (bytes.length >= 12
+                && startsWith(bytes, "RIFF".getBytes(java.nio.charset.StandardCharsets.US_ASCII))
+                && Arrays.equals(Arrays.copyOfRange(bytes, 8, 12), "WEBP".getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
+            return "image/webp";
+        }
+
+        return "";
+    }
+
+    private boolean startsWith(byte[] bytes, byte[] prefix) {
+        if (bytes.length < prefix.length) {
+            return false;
+        }
+        for (int i = 0; i < prefix.length; i++) {
+            if (bytes[i] != prefix[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private record StoredPhoto(String filename, String contentType, String inlineValue) {}

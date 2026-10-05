@@ -1,12 +1,4 @@
-import 'dart:convert';
-import 'dart:typed_data';
-import 'package:dio/dio.dart' as dio;
-import 'package:flutter/services.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
-import '../../widgets/top_app_bar.dart';
+../../widgets/top_app_bar.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/models/raport.dart';
 import '../../widgets/status_chip.dart';
@@ -14,6 +6,8 @@ import '../../widgets/dialogs.dart';
 import '../../core/models/maszyna.dart';
 import '../../core/models/osoba.dart';
 import '../../core/models/part_usage.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../widgets/centered_scroll_card.dart';
 import '../../widgets/pagination_controls.dart';
 import 'raport_form_screen.dart';
@@ -288,14 +282,14 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Nie udało się pobrać zdjęć raportu: $e')),
-      );
+  Future<void> _showAttachments(Raport r) async {
       return;
     }
     if (!mounted) return;
     if (raport.zdjecia.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Ten raport nie ma jeszcze zdjęć do podglądu.')),
-      );
+          SnackBar(content: Text('Nie udało się pobrać załączników raportu: $e')),
       return;
     }
     if (raport.zdjecia.length == 1) {
@@ -307,9 +301,40 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
 
   Future<Raport> _ensureRaportWithPhotos(Raport raport) async {
     if (raport.zdjecia.isNotEmpty) return raport;
-    final fresh = await ref.read(raportyApiRepositoryProvider).fetchById(raport.id);
+      _showSingleAttachment(raport, raport.zdjecia[0]);
     final mock = ref.read(mockRepoProvider);
-    mock.upsertRaport(fresh);
+      _showAttachmentGallery(raport);
+    }
+  }
+
+  bool _isPdfUrl(String url) {
+    final lower = url.toLowerCase();
+    return lower.contains('.pdf') || lower.contains('application/pdf');
+  }
+
+  String _attachmentName(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri != null && uri.pathSegments.isNotEmpty) {
+      return Uri.decodeComponent(uri.pathSegments.last);
+    }
+    final cleaned = url.replaceAll('\\', '/');
+    return cleaned.split('/').last;
+  }
+
+  Future<void> _openAttachmentExternal(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nieprawidłowy URL pliku.')),
+      );
+      return;
+    }
+    final ok = await launchUrl(uri, mode: LaunchMode.platformDefault);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nie udało się otworzyć pliku PDF.')),
+      );
     return fresh;
   }
 
@@ -403,7 +428,49 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
         content: InteractiveViewer(
           child: _photoFromApi(photoUrl, fit: BoxFit.contain),
         ),
-        actions: [
+  void _showSingleAttachment(Raport r, String photoUrl) {
+    if (_isPdfUrl(photoUrl)) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Podgląd PDF'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.picture_as_pdf, color: Colors.red),
+                  SizedBox(width: 8),
+                  Expanded(child: Text('Plik PDF jest gotowy do podglądu.')),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(_attachmentName(photoUrl), style: const TextStyle(fontWeight: FontWeight.w600)),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Zamknij')),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                await _openAttachmentExternal(photoUrl);
+              },
+              child: const Text('Otwórz PDF'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                await _deleteZdjecie(r, photoUrl);
+              },
+              child: const Text('Usuń plik', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Zamknij')),
           TextButton(
             onPressed: () async {
@@ -425,28 +492,47 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
         title: Text('Galeria (${photoUrls.length} zdjęć)'),
         content: SizedBox(
           width: 500,
-          height: 400,
+  void _showAttachmentGallery(Raport r) {
           child: GridView.count(
             crossAxisCount: 2,
             children: photoUrls.map((url) =>
               GestureDetector(
-                onTap: () {
+        title: Text('Załączniki (${photoUrls.length})'),
                   Navigator.pop(ctx);
                   _showSinglePhoto(r, url);
                 },
-                child: Card(
-                  child: _photoFromApi(url, fit: BoxFit.cover),
+          child: ListView.builder(
+            itemCount: photoUrls.length,
+            itemBuilder: (context, index) {
+              final url = photoUrls[index];
+              final isPdf = _isPdfUrl(url);
+              final filename = _attachmentName(url);
+              return ListTile(
+                leading: Icon(isPdf ? Icons.picture_as_pdf : Icons.image, color: isPdf ? Colors.red : Colors.teal),
+                title: Text(filename, maxLines: 1, overflow: TextOverflow.ellipsis),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: isPdf ? 'Otwórz PDF' : 'Podgląd zdjęcia',
+                      icon: Icon(isPdf ? Icons.open_in_new : Icons.visibility),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _showSingleAttachment(r, url);
+                      },
+                    ),
+                    IconButton(
+                      tooltip: 'Usuń',
+                      icon: const Icon(Icons.delete, color: Colors.redAccent),
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        await _deleteZdjecie(r, url);
+                      },
+                    ),
+                  ],
                 ),
-              ),
-            ).toList(),
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Zamknij')),
-        ],
-      ),
-    );
-  }
+              );
+            },
 
   Future<void> _deleteZdjecie(Raport r, String photoUrl) async {
     final confirm = await showConfirmDialog(context, 'Usuń zdjęcie', 'Czy na pewno usunąć to zdjęcie?');
@@ -484,6 +570,44 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
         children: [
           SizedBox(width: 90, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
           Expanded(child: Text(value)),
+  Future<void> _uploadPdf(Raport r) async {
+    final picked = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      type: FileType.custom,
+      allowedExtensions: const ['pdf'],
+      withData: true,
+    );
+    if (picked == null || picked.files.isEmpty) return;
+
+    final files = picked.files.where((f) => f.bytes != null && f.bytes!.isNotEmpty).toList();
+    if (files.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nie udało się odczytać wybranych plików PDF.')),
+      );
+      return;
+    }
+
+    setState(() => _busy = true);
+    try {
+      await ref.read(raportyApiRepositoryProvider).uploadPdfFiles(r.id, files);
+      await _loadFromApi();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Dodano ${files.length} plik(i) PDF')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Błąd przesyłania PDF: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
         ],
       ),
     );
@@ -613,7 +737,7 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                       const DataColumn(label: Text('Sekcja')),
                       DataColumn(label: const Text('Opis'), onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; })),
                       DataColumn(label: const Text('Części'), onSort: (i, asc) => setState(() { _sortColumnIndex = i; _sortAsc = asc; })),
-                      const DataColumn(label: Text('Foto')),
+                      const DataColumn(label: Text('Załączniki')),
                       const DataColumn(label: Text('Akcje')),
                     ],
                     rows: _pageSlice(raporty).map((r) {
@@ -669,106 +793,14 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                                     ),
                                     onPressed: () => _showPhotos(r),
                                  ),
-                                 IconButton(
-                                   tooltip: 'Dodaj zdjęcia',
+                                      ? 'Podgląd (${r.zdjecia.length} załączników)'
+                                      : 'Sprawdź załączniki raportu',
                                    icon: const Icon(Icons.add_a_photo, color: Colors.teal),
-                                   onPressed: _busy ? null : () => _uploadZdjecia(r),
-                                 ),
-                               ],
-                             ),
-                           ),
-                          DataCell(
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  tooltip: 'Podgląd',
-                                  icon: const Icon(Icons.visibility, color: Colors.deepPurple),
-                                  onPressed: () => _showRaportDetails(r),
-                                ),
-                                IconButton(
-                                  tooltip: 'Edytuj',
-                                  icon: const Icon(Icons.edit, color: Colors.blueAccent),
-                                  onPressed: () => context.go('/raport/edytuj/${r.id}')
-                                ),
-                                if (isAdmin)
+                                      Icons.attach_file,
+                                    onPressed: () => _showAttachments(r),
                                   IconButton(
-                                    tooltip: 'Usuń',
-                                    icon: const Icon(Icons.delete, color: Colors.redAccent),
-                                    onPressed: _busy ? null : () async {
-                                      final confirm = await showConfirmDialog(context, 'Usuń raport', 'Czy na pewno usunąć?');
-                                      if (confirm == true) {
-                                        setState(() => _busy = true);
-                                        try {
-                                          await ref.read(raportyApiRepositoryProvider).delete(r.id);
-                                          ref.read(mockRepoProvider).deleteRaport(r.id);
-                                          setState(() {});
-                                          if (mounted) {
-                                            showSuccessDialog(context, 'OK', 'Raport usunięty');
-                                          }
-                                        } catch (e) {
-                                          if (mounted) {
-                                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Błąd usuwania: $e')));
-                                          }
-                                        } finally {
-                                          if (mounted) setState(() => _busy = false);
-                                        }
-                                      }
-                                    },
+                                    tooltip: 'Dodaj PDF',
+                                    icon: const Icon(Icons.picture_as_pdf, color: Colors.redAccent),
+                                    onPressed: _busy ? null : () => _uploadPdf(r),
                                   ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ),
-            ),
-            PaginationControls(
-              totalItems: raporty.length,
-              currentPage: _page,
-              pageSize: _pageSize,
-              pageSizes: _pageSizes,
-              onPageChanged: (page) => setState(() => _page = page),
-              onPageSizeChanged: (size) => setState(() {
-                _pageSize = size;
-                _page = 0;
-              }),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _busy
-            ? null
-            : () async {
-                final ok = await showDialog<bool>(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (ctx) => Dialog(
-                    insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    child: RaportFormScreen(
-                      embedInDialog: true,
-                      onSaved: (r) {
-                        // Raport formularz już robi upsert do mockRepo
-                      },
-                    ),
-                  ),
-                );
-                if (ok == true && mounted) {
-                  await _loadFromApi();
-                  await showSuccessDialog(context, 'OK', 'Raport dodany');
-                  setState(() {});
-                }
-              },
-        icon: const Icon(Icons.add),
-        label: const Text('Nowy'),
-      ),
-    );
-  }
-}
 
