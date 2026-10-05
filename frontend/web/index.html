@@ -17,25 +17,71 @@
     <title>drimain_mobile</title>
     <link rel="manifest" href="manifest.json" />
     <script>
-      window.__DRIMAIN_CONFIG__ = Object.assign(
-        { API_BASE: 'https://app.drimain.com' },
-        window.__DRIMAIN_CONFIG__ || {}
-      );
+      (function () {
+        const isLocalHost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+        const runtimeApiBase = isLocalHost ? 'http://localhost:8080' : location.origin;
+
+        function rewriteApiUrl(inputUrl) {
+          try {
+            const target = new URL(inputUrl, location.origin);
+            const isLegacyLocalApi =
+              (target.hostname === 'localhost' || target.hostname === '127.0.0.1') &&
+              target.port === '8080';
+
+            if (!isLocalHost && isLegacyLocalApi) {
+              return location.origin + target.pathname + target.search + target.hash;
+            }
+            return target.toString();
+          } catch (_) {
+            return inputUrl;
+          }
+        }
+
+        if (typeof window.fetch === 'function') {
+          const originalFetch = window.fetch.bind(window);
+          window.fetch = function (input, init) {
+            if (typeof input === 'string') {
+              input = rewriteApiUrl(input);
+            } else if (input && typeof input.url === 'string') {
+              input = new Request(rewriteApiUrl(input.url), input);
+            }
+            return originalFetch(input, init);
+          };
+        }
+
+        if (window.XMLHttpRequest && window.XMLHttpRequest.prototype) {
+          const originalOpen = window.XMLHttpRequest.prototype.open;
+          window.XMLHttpRequest.prototype.open = function (method, url) {
+            if (typeof url === 'string') {
+              arguments[1] = rewriteApiUrl(url);
+            }
+            return originalOpen.apply(this, arguments);
+          };
+        }
+
+        window.__DRIMAIN_CONFIG__ = Object.assign(
+          { API_BASE: runtimeApiBase },
+          window.__DRIMAIN_CONFIG__ || {}
+        );
+      })();
     </script>
   </head>
   <body>
-    <!-- Jednorazowe wyrejestrowanie wszystkich Service Workerów -->
+    <!-- One-time cleanup of all Service Workers -->
     <script>
-      (function() {
+      (function () {
         try {
           const KEY = 'sw-cleanup-done';
           if ('serviceWorker' in navigator && !localStorage.getItem(KEY)) {
-            navigator.serviceWorker.getRegistrations().then(regs => {
-              Promise.all(regs.map(r => r.unregister())).then(() => {
-                localStorage.setItem(KEY, '1');
-                location.reload();
-              });
-            }).catch(() => {});
+            navigator.serviceWorker
+              .getRegistrations()
+              .then((regs) => {
+                Promise.all(regs.map((r) => r.unregister())).then(() => {
+                  localStorage.setItem(KEY, '1');
+                  location.reload();
+                });
+              })
+              .catch(() => {});
           }
         } catch (e) {}
       })();
