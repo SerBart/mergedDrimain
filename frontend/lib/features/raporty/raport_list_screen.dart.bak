@@ -1,4 +1,3 @@
-/*
 ../../widgets/top_app_bar.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/models/raport.dart';
@@ -23,8 +22,6 @@ class RaportyListScreen extends ConsumerStatefulWidget {
   @override
   ConsumerState<RaportyListScreen> createState() => _RaportyListScreenState();
 }
-*/
-export 'raport_list_screen_fixed.dart';
 
 class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
   String _query = '';
@@ -806,4 +803,5 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                                     icon: const Icon(Icons.picture_as_pdf, color: Colors.redAccent),
                                     onPressed: _busy ? null : () => _uploadPdf(r),
                                   ),
+
 

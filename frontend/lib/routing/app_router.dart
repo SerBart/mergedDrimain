@@ -8,7 +8,7 @@ import '../widgets/app_background.dart';
 // Ekrany
 import '../features/auth/login_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
-import '../features/raporty/raport_list_screen.dart';
+import '../features/raporty/raport_list_screen_fixed.dart';
 import '../features/raporty/raport_form_screen.dart';
 import '../features/czesci/czesci_list_screen.dart';
 import '../features/zgloszenia/zgloszenia_screen_modern.dart';
