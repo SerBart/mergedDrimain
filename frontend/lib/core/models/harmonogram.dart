@@ -10,7 +10,7 @@ class Harmonogram {
   final Osoba? osoba;
   final String status; // PLANOWANE / W TRAKCIE / ZAKONCZONE (z backendu enum)
   final int? durationMinutes;
-  final String? frequency; // TYGODNIOWY / MIESIECZNY / KWARTALNY / POLROCZNY / ROCZNY
+  final String? frequency; // TYGODNIOWY / MIESIECZNY / KWARTALNY / POLROCZNY / ROCZNY / DWULETNI / PIECIOLETNI
   final Dzial? dzial;
   final String? seriesId;
   final DateTime? planEndDate;

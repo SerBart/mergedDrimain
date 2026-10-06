@@ -1,43 +1,4 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../../core/models/dzial.dart';
-import '../../core/models/harmonogram.dart';
-import '../../core/models/maszyna.dart';
-import '../../core/models/osoba.dart';
-import '../../core/providers/app_providers.dart';
-import '../../widgets/modern_date_picker.dart';
-import '../../widgets/top_app_bar.dart';
-import '../raporty/raport_form_screen.dart';
-
-enum DayColorMode { none, dominantFrequency, gradientFrequencies, status }
-
-class PrzegladyScreen extends ConsumerStatefulWidget {
-  const PrzegladyScreen({super.key});
-
-  @override
-  ConsumerState<PrzegladyScreen> createState() => _PrzegladyScreenState();
-}
-
-class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
-  DateTime _currentMonth = DateTime(DateTime.now().year, DateTime.now().month);
-  bool _loading = false;
-  List<Harmonogram> _items = [];
-  List<Maszyna> _maszyny = [];
-  List<Dzial> _dzialy = [];
-  List<Osoba> _osoby = [];
-  bool _loadingMeta = false;
-
-  DayColorMode _colorMode = DayColorMode.dominantFrequency;
-  bool _strongFill = false;
-
-  static const _freqValues = [
-    'TYGODNIOWY',
-    'MIESIECZNY',
-    'KWARTALNY',
-    'POLROCZNY',
-    'ROCZNY',
-  ];
+];
 
   static const Map<String, Color> _freqColors = {
     'TYGODNIOWY': Colors.blue,
@@ -76,6 +37,8 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
   void initState() {
     super.initState();
     _loadAll();
+    'DWULETNI',
+    'PIECIOLETNI',
   }
 
   Future<void> _loadAll() async {
@@ -84,6 +47,8 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
       _loadMeta(),
     ]);
   }
+    'DWULETNI': Colors.teal,
+    'PIECIOLETNI': Colors.brown,
 
   Future<void> _loadMonth() async {
     setState(() => _loading = true);
@@ -99,6 +64,8 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
         String errorMsg = 'Błąd pobierania harmonogramów';
         if (e.toString().contains('401') || e.toString().contains('Sesja wygasła')) {
           errorMsg = 'Sesja wygasła - zaloguj się ponownie';
+    'DWULETNI',
+    'PIECIOLETNI',
         }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -240,6 +207,27 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
     final directDepartment = h.dzial?.nazwa?.trim();
     if (directDepartment != null && directDepartment.isNotEmpty) {
       return directDepartment;
+  String _frequencyLabel(String value) {
+    switch (value.toUpperCase()) {
+      case 'TYGODNIOWY':
+        return 'Co tydzień';
+      case 'MIESIECZNY':
+        return 'Co miesiąc';
+      case 'KWARTALNY':
+        return 'Co kwartał';
+      case 'POLROCZNY':
+        return 'Co pół roku';
+      case 'ROCZNY':
+        return 'Co rok';
+      case 'DWULETNI':
+        return 'Co 2 lata';
+      case 'PIECIOLETNI':
+        return 'Co 5 lat';
+      default:
+        return value;
+    }
+  }
+
     }
     return null;
   }
@@ -275,7 +263,7 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
     if (department != null) lines.add('Dział: $department');
     if (h.maszyna != null) lines.add('Maszyna: ${h.maszyna!.nazwa}');
     if (h.frequency != null && h.frequency!.isNotEmpty) {
-      lines.add('Częstotliwość: ${h.frequency}');
+      lines.add('Częstotliwość: ${_frequencyLabel(h.frequency!)}');
     }
     return lines.join('\n');
   }
@@ -424,14 +412,7 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
                       helperText: 'Domyślnie koniec roku',
                     ),
                     child: InkWell(
-                      onTap: () async {
-                        final picked = await showModernDatePicker(
-                          context: ctx,
-                          title: 'Plan do',
-                          initialDate: planEndDate,
-                          firstDate: selectedDate,
-                          lastDate: DateTime(2035, 12, 31),
-                        );
+                      return DropdownMenuItem(value: f, child: Text(_frequencyLabel(f)));
                         if (picked != null) setLocal(() => planEndDate = picked);
                       },
                       child: Padding(
@@ -678,7 +659,7 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
                             '${planEndDate.year}-${planEndDate.month.toString().padLeft(2, '0')}-${planEndDate.day.toString().padLeft(2, '0')}',
                           ),
                         ),
-                      ),
+                      items: _freqValues.map((f) => DropdownMenuItem(value: f, child: Text(_frequencyLabel(f)))).toList(),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -1168,186 +1149,4 @@ class _PrzegladyScreenState extends ConsumerState<PrzegladyScreen> {
               decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(7)),
             ),
             const SizedBox(width: 6),
-            Text(f, style: const TextStyle(fontSize: 12)),
-          ],
-        );
-      }).toList(),
-    );
-  }
-
-  Color _statusColor(String? status) => _statusColors[status] ?? Colors.blueGrey;
-
-  List<Color> _frequencyColors(List<Harmonogram> events) {
-    final set = <String>{};
-    final colors = <Color>[];
-    for (final e in events) {
-      final f = e.frequency;
-      if (f == null) continue;
-      if (set.add(f)) {
-        colors.add(_colorFor(f).withOpacity(_strongFill ? .65 : .35));
-        if (colors.length == 4) break;
-      }
-    }
-    return colors;
-  }
-
-  Color? _statusDominant(List<Harmonogram> events) {
-    if (events.isEmpty) return null;
-    const order = ['W_TRAKCIE', 'PLANOWANE', 'ZAKONCZONE', 'ANULOWANE'];
-    final statuses = events.map((e) => e.status).toSet();
-    for (final o in order) {
-      if (statuses.contains(o)) return _statusColor(o);
-    }
-    return _statusColor(events.first.status);
-  }
-
-  BoxDecoration _dayDecoration(List<Harmonogram> dayEvents, bool isCurrent) {
-    final baseBorder = BorderRadius.circular(6);
-    if (_colorMode == DayColorMode.none || dayEvents.isEmpty) {
-      return BoxDecoration(
-        color: isCurrent ? Colors.white : Colors.grey.shade100,
-        borderRadius: baseBorder,
-        border: Border.all(color: isCurrent ? Colors.grey.shade300 : Colors.grey.shade200, width: 1),
-      );
-    }
-    switch (_colorMode) {
-      case DayColorMode.dominantFrequency:
-        final c = _dominantColorForEvents(dayEvents) ?? Colors.grey;
-        final fill = c.withOpacity(_strongFill ? .38 : .18);
-        return BoxDecoration(
-          color: fill,
-          borderRadius: baseBorder,
-          border: Border.all(color: c.withOpacity(.55), width: 1),
-        );
-      case DayColorMode.gradientFrequencies:
-        final cols = _frequencyColors(dayEvents);
-        if (cols.length <= 1) {
-          final single = cols.isEmpty
-              ? (_dominantColorForEvents(dayEvents) ?? Colors.grey)
-              : cols.first.withOpacity(1);
-          return BoxDecoration(
-            color: single.withOpacity(_strongFill ? .38 : .18),
-            borderRadius: baseBorder,
-            border: Border.all(color: single.withOpacity(.6), width: 1),
-          );
-        }
-        return BoxDecoration(
-          gradient: LinearGradient(
-            colors: cols,
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: baseBorder,
-          border: Border.all(color: cols.first.withOpacity(.7), width: 1),
-        );
-      case DayColorMode.status:
-        final c = _statusDominant(dayEvents) ?? Colors.grey;
-        return BoxDecoration(
-          color: c.withOpacity(_strongFill ? .42 : .20),
-          borderRadius: baseBorder,
-          border: Border.all(color: c.withOpacity(.55), width: 1),
-        );
-      case DayColorMode.none:
-        return BoxDecoration(
-          color: isCurrent ? Colors.white : Colors.grey.shade100,
-          borderRadius: baseBorder,
-          border: Border.all(color: isCurrent ? Colors.grey.shade300 : Colors.grey.shade200, width: 1),
-        );
-    }
-  }
-
-  void _cycleColorMode() {
-    setState(() {
-      switch (_colorMode) {
-        case DayColorMode.none:
-          _colorMode = DayColorMode.dominantFrequency;
-          break;
-        case DayColorMode.dominantFrequency:
-          _colorMode = DayColorMode.gradientFrequencies;
-          break;
-        case DayColorMode.gradientFrequencies:
-          _colorMode = DayColorMode.status;
-          break;
-        case DayColorMode.status:
-          _colorMode = DayColorMode.none;
-          break;
-      }
-    });
-  }
-
-  String _colorModeLabel() {
-    switch (_colorMode) {
-      case DayColorMode.none:
-        return 'Kolory: brak';
-      case DayColorMode.dominantFrequency:
-        return 'Kolor: dom. częst.';
-      case DayColorMode.gradientFrequencies:
-        return 'Kolor: gradient';
-      case DayColorMode.status:
-        return 'Kolor: status';
-    }
-  }
-
-  IconData _colorModeIcon() {
-    switch (_colorMode) {
-      case DayColorMode.none:
-        return Icons.crop_square;
-      case DayColorMode.dominantFrequency:
-        return Icons.color_lens_outlined;
-      case DayColorMode.gradientFrequencies:
-        return Icons.gradient;
-      case DayColorMode.status:
-        return Icons.flag_circle_outlined;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: TopAppBar(
-        title: 'Przeglądy',
-        showBack: true,
-        extraActions: [
-          Tooltip(
-            message: _colorModeLabel(),
-            child: IconButton(
-              icon: Icon(_colorModeIcon()),
-              onPressed: _loading ? null : _cycleColorMode,
-            ),
-          ),
-          Tooltip(
-            message: _strongFill ? 'Wypełnienie: mocne' : 'Wypełnienie: delikatne',
-            child: IconButton(
-              icon: Icon(_strongFill ? Icons.opacity : Icons.opacity_outlined),
-              onPressed: () => setState(() => _strongFill = !_strongFill),
-            ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _loading ? null : _openAddDialog,
-        icon: const Icon(Icons.add),
-        label: const Text('Dodaj'),
-      ),
-      body: _loading && _items.isEmpty
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadMonth,
-              child: ListView(
-                padding: const EdgeInsets.all(12),
-                children: [
-                  if (_loadingMeta) const LinearProgressIndicator(minHeight: 3),
-                  Card(
-                    elevation: 1,
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: _buildCalendar(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-    );
-  }
-}
-
+            Text(f            Text(_frequencyLabel(f), style: const TextStyle(fontSize: 12)),
