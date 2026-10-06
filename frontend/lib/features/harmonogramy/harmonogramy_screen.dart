@@ -165,7 +165,8 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
       initialDuration: h.durationMinutes,
       initialOpis: h.opis.isEmpty ? null : h.opis,
       initialDzialId: h.dzial?.id ?? h.maszyna?.dzial?.id,
-      onSubmit: (data, maszynaId, osobaId, duration, opis, dzialId) async {
+      showSeriesUpdateOption: (h.frequency ?? '').trim().isNotEmpty || h.seriesId != null,
+      onSubmit: (data, maszynaId, osobaId, duration, opis, dzialId, applyToSeriesFuture) async {
         final api = ref.read(harmonogramyApiRepositoryProvider);
         await api.update(
           id: h.id,
@@ -175,6 +176,7 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
           dzialId: dzialId,
           durationMinutes: duration,
           opis: (opis ?? '').trim(),
+          applyToSeriesFuture: applyToSeriesFuture,
         );
       },
       title: 'Edytuj harmonogram',
@@ -318,7 +320,8 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
     int? initialDuration,
     String? initialOpis,
     int? initialDzialId,
-    Future<void> Function(DateTime, int, int, int?, String?, int?)? onSubmit,
+    bool showSeriesUpdateOption = false,
+    Future<void> Function(DateTime, int, int, int?, String?, int?, bool)? onSubmit,
     String title = 'Nowy harmonogram',
   }) async {
     if (_osoby.isEmpty) {
@@ -354,7 +357,8 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
             initialDuration: initialDuration,
             initialOpis: initialOpis,
             initialDzialId: initialDzialId,
-            onSubmit: (onSubmit ?? (DateTime d, int mId, int oId, int? dur, String? op, int? dzialId) async {
+            showSeriesUpdateOption: showSeriesUpdateOption,
+            onSubmit: (onSubmit ?? (DateTime d, int mId, int oId, int? dur, String? op, int? dzialId, bool applyToSeriesFuture) async {
               final api = ref.read(harmonogramyApiRepositoryProvider);
               await api.create(
                 data: d,
@@ -671,13 +675,14 @@ class _HarmonogramFormSheet extends StatefulWidget {
   final List<Maszyna> maszyny;
   final List<Osoba> osoby;
   final List<Dzial> dzialy;
-  final Future<void> Function(DateTime data, int maszynaId, int osobaId, int? duration, String? opis, int? dzialId) onSubmit;
+  final Future<void> Function(DateTime data, int maszynaId, int osobaId, int? duration, String? opis, int? dzialId, bool applyToSeriesFuture) onSubmit;
   final DateTime? initialDate;
   final int? initialMaszynaId;
   final int? initialOsobaId;
   final int? initialDuration;
   final String? initialOpis;
   final int? initialDzialId;
+  final bool showSeriesUpdateOption;
 
   const _HarmonogramFormSheet({
     required this.title,
@@ -691,6 +696,7 @@ class _HarmonogramFormSheet extends StatefulWidget {
     this.initialDuration,
     this.initialOpis,
     this.initialDzialId,
+    this.showSeriesUpdateOption = false,
   });
 
   @override
@@ -702,6 +708,7 @@ class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
   late DateTime _data;
   late final TextEditingController _opisCtrl;
   late final TextEditingController _durationCtrl;
+  bool _applyToSeriesFuture = true;
   Dzial? _selectedDzial;
   Maszyna? _selectedMaszyna;
   Osoba? _selectedOsoba;
@@ -713,6 +720,7 @@ class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
     _data = widget.initialDate ?? DateTime.now();
     _opisCtrl = TextEditingController(text: widget.initialOpis ?? '');
     _durationCtrl = TextEditingController(text: widget.initialDuration?.toString() ?? '');
+    _applyToSeriesFuture = true;
 
     if (widget.initialOsobaId != null) {
       for (final o in widget.osoby) {
@@ -837,6 +845,45 @@ class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
               maxLines: 2,
               decoration: const InputDecoration(labelText: 'Opis', border: OutlineInputBorder()),
             ),
+            if (widget.showSeriesUpdateOption) ...[
+              const SizedBox(height: 16),
+              Card(
+                elevation: 0,
+                margin: EdgeInsets.zero,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(.45),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.repeat, size: 18, color: Theme.of(context).colorScheme.primary),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Zmiany seryjne',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      CheckboxListTile(
+                        value: _applyToSeriesFuture,
+                        onChanged: (v) => setState(() => _applyToSeriesFuture = v ?? true),
+                        title: const Text('Zastosuj także do kolejnych przeglądów z tej serii'),
+                        subtitle: const Text(
+                          'Włącz, jeśli edycja ma objąć ten wpis i następne przeglądy cykliczne. Wyłącz, aby zmienić tylko bieżący przegląd.',
+                          style: TextStyle(fontSize: 11),
+                        ),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
@@ -854,6 +901,7 @@ class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
                       duration,
                       _opisCtrl.text.trim().isEmpty ? null : _opisCtrl.text.trim(),
                       _selectedDzial?.id,
+                      _applyToSeriesFuture,
                     );
                     if (mounted) Navigator.of(context).pop(true);
                   },
