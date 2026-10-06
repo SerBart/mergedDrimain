@@ -725,17 +725,43 @@ import '../../widgets/top_app_bar.dart';
                       onChanged: (v) => opis = v,
                     ),
                     const SizedBox(height: 16),
-                    CheckboxListTile(
-                      value: applyToFuture,
-                      onChanged: (v) => setLocal(() => applyToFuture = v ?? true),
-                      title: const Text('Zastosuj do przyszłych przeglądów z tej serii'),
-                      controlAffinity: ListTileControlAffinity.leading,
-                      contentPadding: EdgeInsets.zero,
-                      subtitle: const Text(
-                        'Jeśli nie zaznaczysz, zmieni się tylko ten przegląd',
-                        style: TextStyle(fontSize: 11),
+                    if ((item.frequency ?? '').trim().isNotEmpty || item.seriesId != null)
+                      Card(
+                        elevation: 0,
+                        margin: EdgeInsets.zero,
+                        color: Theme.of(ctx).colorScheme.surfaceContainerHighest.withOpacity(.45),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.repeat, size: 18, color: Theme.of(ctx).colorScheme.primary),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'Zmiany seryjne',
+                                    style: TextStyle(fontWeight: FontWeight.w700),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              CheckboxListTile(
+                                value: applyToFuture,
+                                onChanged: (v) => setLocal(() => applyToFuture = v ?? true),
+                                title: const Text('Zastosuj także do kolejnych przeglądów z tej serii'),
+                                subtitle: const Text(
+                                  'Włącz, jeśli edycja ma objąć ten wpis i następne przeglądy cykliczne. Wyłącz, aby zmienić tylko bieżący przegląd.',
+                                  style: TextStyle(fontSize: 11),
+                                ),
+                                controlAffinity: ListTileControlAffinity.leading,
+                                contentPadding: EdgeInsets.zero,
+                                dense: true,
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),

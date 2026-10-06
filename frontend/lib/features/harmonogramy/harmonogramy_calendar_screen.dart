@@ -148,6 +148,43 @@ class _HarmonogramyCalendarScreenState extends ConsumerState<HarmonogramyCalenda
     return 'Harmonogram #${h.id}';
   }
 
+  String? _departmentName(Harmonogram h) {
+    final machineDepartment = h.maszyna?.dzial?.nazwa?.trim();
+    if (machineDepartment != null && machineDepartment.isNotEmpty) {
+      return machineDepartment;
+    }
+    final directDepartment = h.dzial?.nazwa?.trim();
+    if (directDepartment != null && directDepartment.isNotEmpty) {
+      return directDepartment;
+    }
+    return null;
+  }
+
+  String _shortDesc(Harmonogram h) {
+    final parts = <String>[];
+    final department = _departmentName(h);
+    if (department != null) parts.add('Dział: $department');
+    final machine = h.maszyna?.nazwa?.trim();
+    if (machine != null && machine.isNotEmpty) parts.add('Maszyna: $machine');
+    final person = h.osoba?.imieNazwisko.trim();
+    if (person != null && person.isNotEmpty) parts.add('Osoba: $person');
+
+    if (parts.isEmpty) {
+      return 'Brak szczegółów';
+    }
+    return parts.join(' • ');
+  }
+
+  String _eventTooltip(Harmonogram h) {
+    final lines = <String>[_eventTitle(h)];
+    final department = _departmentName(h);
+    if (department != null) lines.add('Dział: $department');
+    if (h.maszyna != null) lines.add('Maszyna: ${h.maszyna!.nazwa}');
+    if (h.osoba != null) lines.add('Osoba: ${h.osoba!.imieNazwisko}');
+    if (h.frequency != null && h.frequency!.isNotEmpty) lines.add('Częstotliwość: ${h.frequency}');
+    return lines.join('\n');
+  }
+
   Future<void> _deleteItem(Harmonogram h) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -196,9 +233,15 @@ class _HarmonogramyCalendarScreenState extends ConsumerState<HarmonogramyCalenda
                 ...events.map((e) {
                   return ListTile(
                     contentPadding: EdgeInsets.zero,
+                    isThreeLine: true,
                     leading: CircleAvatar(radius: 10, backgroundColor: _colorForFreq(e.frequency)),
-                    title: Text(_eventTitle(e), maxLines: 2, overflow: TextOverflow.ellipsis),
-                    subtitle: Text('${e.status} • ${e.osoba?.imieNazwisko ?? '-'}'),
+                    title: Text(
+                      _eventTitle(e),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: Text(_shortDesc(e)),
                     trailing: IconButton(
                       tooltip: 'Usun',
                       icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
@@ -342,18 +385,39 @@ class _HarmonogramyCalendarScreenState extends ConsumerState<HarmonogramyCalenda
                                         Expanded(
                                           child: Align(
                                             alignment: Alignment.bottomLeft,
-                                            child: Wrap(
-                                              spacing: 2,
-                                              runSpacing: 2,
-                                              children: events.take(4).map((e) {
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: events.take(2).map((e) {
                                                 final c = _colorForFreq(e.frequency);
-                                                return Container(
-                                                  width: 12,
-                                                  height: 12,
-                                                  decoration: BoxDecoration(
-                                                    color: c.withOpacity(.2),
-                                                    borderRadius: BorderRadius.circular(6),
-                                                    border: Border.all(color: c, width: 1.5),
+                                                return Padding(
+                                                  padding: const EdgeInsets.only(top: 2),
+                                                  child: Tooltip(
+                                                    message: _eventTooltip(e),
+                                                    child: Row(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        Container(
+                                                          width: 10,
+                                                          height: 10,
+                                                          margin: const EdgeInsets.only(top: 3),
+                                                          decoration: BoxDecoration(
+                                                            color: c.withOpacity(.22),
+                                                            borderRadius: BorderRadius.circular(5),
+                                                            border: Border.all(color: c, width: 1.2),
+                                                          ),
+                                                        ),
+                                                        const SizedBox(width: 4),
+                                                        Expanded(
+                                                          child: Text(
+                                                            _shortDesc(e),
+                                                            maxLines: 2,
+                                                            overflow: TextOverflow.ellipsis,
+                                                            style: const TextStyle(fontSize: 9.5, height: 1.05),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
                                                   ),
                                                 );
                                               }).toList(),
