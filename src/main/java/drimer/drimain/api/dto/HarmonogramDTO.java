@@ -1,7 +1,7 @@
 package drimer.drimain.api.dto;
 
-import drimer.drimain.model.enums.StatusHarmonogramu;
 import drimer.drimain.model.enums.HarmonogramOkres;
+import drimer.drimain.model.enums.StatusHarmonogramu;
 import lombok.Data;
 
 import java.time.LocalDate;

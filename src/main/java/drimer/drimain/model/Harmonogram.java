@@ -1,8 +1,21 @@
 package drimer.drimain.model;
 
-import drimer.drimain.model.enums.StatusHarmonogramu;
 import drimer.drimain.model.enums.HarmonogramOkres;
-import jakarta.persistence.*;
+import drimer.drimain.model.enums.StatusHarmonogramu;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+
 import java.time.LocalDate;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -16,7 +29,6 @@ public class Harmonogram {
     private Long id;
 
     private LocalDate data;
-
     private String opis;
 
     @ManyToOne
@@ -36,7 +48,7 @@ public class Harmonogram {
     private StatusHarmonogramu status = StatusHarmonogramu.PLANOWANE;
 
     @Column(name = "duration_minutes")
-    private Integer durationMinutes; // czas trwania w minutach
+    private Integer durationMinutes;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "frequency", length = 20)
@@ -48,12 +60,11 @@ public class Harmonogram {
     @Column(name = "plan_end_date")
     private LocalDate planEndDate;
 
-    @ElementCollection
+    @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "harmonogram_zalaczniki", joinColumns = @JoinColumn(name = "harmonogram_id"))
     @Column(name = "sciezka_zalacznika", columnDefinition = "TEXT")
     private Set<String> zalaczniki = new LinkedHashSet<>();
 
-    // Gettery / settery
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -68,17 +79,22 @@ public class Harmonogram {
 
     public Osoba getOsoba() { return osoba; }
     public void setOsoba(Osoba osoba) { this.osoba = osoba; }
+
     public Dzial getDzial() { return dzial; }
     public void setDzial(Dzial dzial) { this.dzial = dzial; }
+
     public StatusHarmonogramu getStatus() { return status; }
     public void setStatus(StatusHarmonogramu status) { this.status = status; }
 
     public Integer getDurationMinutes() { return durationMinutes; }
     public void setDurationMinutes(Integer durationMinutes) { this.durationMinutes = durationMinutes; }
+
     public HarmonogramOkres getFrequency() { return frequency; }
     public void setFrequency(HarmonogramOkres frequency) { this.frequency = frequency; }
+
     public String getSeriesId() { return seriesId; }
     public void setSeriesId(String seriesId) { this.seriesId = seriesId; }
+
     public LocalDate getPlanEndDate() { return planEndDate; }
     public void setPlanEndDate(LocalDate planEndDate) { this.planEndDate = planEndDate; }
 

@@ -12,15 +12,17 @@ import java.util.List;
 
 @Repository
 public interface HarmonogramRepository extends JpaRepository<Harmonogram, Long> {
+
     List<Harmonogram> findByDataBetween(LocalDate start, LocalDate end);
 
-    // Eager fetch dla relacji używanych w DTO, by uniknąć LazyInitializationException
-    @Query("select distinct h from Harmonogram h left join fetch h.dzial left join fetch h.maszyna left join fetch h.osoba")
+    @Query("select distinct h from Harmonogram h left join fetch h.dzial left join fetch h.maszyna left join fetch h.osoba left join fetch h.zalaczniki")
     List<Harmonogram> findAllWithJoins();
 
-    // Filtrowanie po dacie z join fetchami
-    @Query("select distinct h from Harmonogram h left join fetch h.dzial left join fetch h.maszyna left join fetch h.osoba where h.data between :start and :end")
+    @Query("select distinct h from Harmonogram h left join fetch h.dzial left join fetch h.maszyna left join fetch h.osoba left join fetch h.zalaczniki where h.data between :start and :end")
     List<Harmonogram> findByDataBetweenWithJoins(@Param("start") LocalDate start, @Param("end") LocalDate end);
+
+    @Query("select distinct h from Harmonogram h left join fetch h.dzial left join fetch h.maszyna left join fetch h.osoba left join fetch h.zalaczniki where h.id = :id")
+    List<Harmonogram> findByIdWithJoins(@Param("id") Long id);
 
     List<Harmonogram> findBySeriesIdAndDataAfterOrderByDataAsc(String seriesId, LocalDate date);
 
@@ -28,6 +30,5 @@ public interface HarmonogramRepository extends JpaRepository<Harmonogram, Long> 
 
     long countBySeriesIdAndDataAfter(String seriesId, LocalDate date);
 
-    // Liczba harmonogramów powiązanych z maszyną
     long countByMaszyna_Id(Long maszynaId);
 }

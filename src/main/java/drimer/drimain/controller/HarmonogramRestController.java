@@ -70,6 +70,7 @@ public class HarmonogramRestController {
     private final NotificationService notificationService;
 
     @GetMapping
+    @Transactional(readOnly = true)
     public List<HarmonogramDTO> list(@RequestParam Optional<Integer> year, @RequestParam Optional<Integer> month) {
         List<Harmonogram> entities;
         if (year.isPresent()) {
@@ -92,8 +93,10 @@ public class HarmonogramRestController {
     }
 
     @GetMapping("/{id}")
+    @Transactional(readOnly = true)
     public HarmonogramDTO get(@PathVariable Long id) {
-        Harmonogram h = harmonogramRepository.findById(id)
+        Harmonogram h = harmonogramRepository.findByIdWithJoins(id).stream()
+                .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Harmonogram not found"));
         return toDto(h);
     }
@@ -102,22 +105,22 @@ public class HarmonogramRestController {
     @ResponseStatus(HttpStatus.CREATED)
     @Transactional
     public HarmonogramDTO create(@Valid @RequestBody HarmonogramCreateRequest req) {
-        final Maszyna maszyna = req.getMaszynaId() != null
+        Maszyna maszyna = req.getMaszynaId() != null
                 ? maszynaRepository.findById(req.getMaszynaId())
                 .orElseThrow(() -> new IllegalArgumentException("Maszyna not found"))
                 : null;
-        final Osoba osoba = req.getOsobaId() != null
+        Osoba osoba = req.getOsobaId() != null
                 ? osobaRepository.findById(req.getOsobaId())
                 .orElseThrow(() -> new IllegalArgumentException("Osoba not found"))
                 : null;
-        final var dzial = req.getDzialId() != null
+        var dzial = req.getDzialId() != null
                 ? dzialRepository.findById(req.getDzialId())
                 .orElseThrow(() -> new IllegalArgumentException("Dzial not found"))
                 : null;
 
         LocalDate planEndDate = req.getPlanEndDate() != null ? req.getPlanEndDate() : DEFAULT_PLAN_END_DATE;
         if (planEndDate.isBefore(req.getData())) {
-            throw new IllegalArgumentException("Data końca planu nie może być wcześniejsza niż data pierwszego przeglądu");
+            throw new IllegalArgumentException("Data konca planu nie moze byc wczesniejsza niz data pierwszego przegladu");
         }
 
         Harmonogram first = new Harmonogram();
@@ -135,11 +138,13 @@ public class HarmonogramRestController {
         List<Harmonogram> toSave = new ArrayList<>();
         toSave.add(first);
         if (req.getFrequency() != null) {
-            LocalDate nextDate = first.getData();
+            LocalDate nextPlannedDate = first.getData();
             while (true) {
-                nextDate = nextDate(nextDate, req.getFrequency());
-                if (nextDate.isAfter(planEndDate)) break;
-                toSave.add(cloneForSeries(first, nextDate, StatusHarmonogramu.PLANOWANE));
+                nextPlannedDate = nextDate(nextPlannedDate, req.getFrequency());
+                if (nextPlannedDate.isAfter(planEndDate)) {
+                    break;
+                }
+                toSave.add(cloneForSeries(first, nextPlannedDate, StatusHarmonogramu.PLANOWANE));
             }
         }
 
@@ -154,7 +159,7 @@ public class HarmonogramRestController {
                     "/harmonogramy/" + first.getId()
             );
         } catch (Exception ex) {
-            log.warn("Nie udało się utworzyć powiadomienia dla harmonogramu", ex);
+            log.warn("Nie udalo sie utworzyc powiadomienia dla harmonogramu", ex);
         }
 
         return toDto(first);
@@ -166,8 +171,8 @@ public class HarmonogramRestController {
         Harmonogram h = harmonogramRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Harmonogram not found"));
 
-        final boolean applyToSeriesFuture = Boolean.TRUE.equals(req.getApplyToSeriesFuture());
-        final LocalDate originalDate = h.getData();
+        boolean applyToSeriesFuture = Boolean.TRUE.equals(req.getApplyToSeriesFuture());
+        LocalDate originalDate = h.getData();
 
         if (req.getData() != null) h.setData(req.getData());
         if (req.getOpis() != null) h.setOpis(req.getOpis());
@@ -192,13 +197,13 @@ public class HarmonogramRestController {
             h.setPlanEndDate(DEFAULT_PLAN_END_DATE);
         }
         if (h.getData() != null && h.getPlanEndDate().isBefore(h.getData())) {
-            throw new IllegalArgumentException("Data końca planu nie może być wcześniejsza niż data przeglądu");
+            throw new IllegalArgumentException("Data konca planu nie moze byc wczesniejsza niz data przegladu");
         }
 
         harmonogramRepository.save(h);
 
         if (applyToSeriesFuture && h.getSeriesId() != null && !h.getSeriesId().isBlank() && h.getFrequency() != null) {
-            final List<Harmonogram> futurePlanned = harmonogramRepository
+            List<Harmonogram> futurePlanned = harmonogramRepository
                     .findBySeriesIdAndDataGreaterThanEqualAndStatus(h.getSeriesId(), originalDate, StatusHarmonogramu.PLANOWANE)
                     .stream()
                     .filter(item -> !item.getId().equals(h.getId()))
@@ -212,7 +217,9 @@ public class HarmonogramRestController {
             LocalDate next = h.getData();
             while (true) {
                 next = nextDate(next, h.getFrequency());
-                if (next.isAfter(h.getPlanEndDate())) break;
+                if (next.isAfter(h.getPlanEndDate())) {
+                    break;
+                }
                 regenerated.add(cloneForSeries(h, next, StatusHarmonogramu.PLANOWANE));
             }
             if (!regenerated.isEmpty()) {
@@ -243,7 +250,7 @@ public class HarmonogramRestController {
         result.put("status", h.getStatus());
         result.put("planFinished", planFinished);
         if (planFinished) {
-            result.put("message", "Plan przeglądów zakończony");
+            result.put("message", "Plan przegladow zakonczony");
         }
         return result;
     }
@@ -263,16 +270,20 @@ public class HarmonogramRestController {
 
         List<String> uploaded = new ArrayList<>();
         for (MultipartFile file : zalaczniki) {
-            if (file == null || file.isEmpty()) continue;
+            if (file == null || file.isEmpty()) {
+                continue;
+            }
             StoredAttachment stored = saveFile(file);
-            h.getZalaczniki().add(stored.inlineValue());
-            uploaded.add(stored.filename());
+            h.getZalaczniki().add(stored.inlineValue);
+            uploaded.add(stored.filename);
         }
+
         harmonogramRepository.save(h);
         return uploaded;
     }
 
     @GetMapping("/{id}/zalaczniki/{filename}")
+    @Transactional(readOnly = true)
     @PreAuthorize("hasAnyRole('ADMIN','BIURO','USER')")
     public ResponseEntity<Resource> downloadZalacznik(@PathVariable Long id, @PathVariable String filename) {
         Harmonogram h = harmonogramRepository.findById(id)
@@ -280,7 +291,8 @@ public class HarmonogramRestController {
 
         String normalizedFilename = java.net.URLDecoder.decode(filename, StandardCharsets.UTF_8);
         String inlinePrefix = "inline:" + normalizedFilename + ":";
-        var inline = h.getZalaczniki().stream()
+
+        Optional<String> inline = h.getZalaczniki().stream()
                 .filter(path -> path != null && path.startsWith(inlinePrefix))
                 .findFirst();
 
@@ -292,6 +304,7 @@ public class HarmonogramRestController {
         int marker = inlinePayload.indexOf(";base64,");
         String contentType = marker > 0 ? inlinePayload.substring(0, marker) : "application/octet-stream";
         String encoded = marker > 0 ? inlinePayload.substring(marker + 8) : inlinePayload;
+
         try {
             byte[] decoded = Base64.getDecoder().decode(encoded);
             return ResponseEntity.ok()
@@ -325,6 +338,7 @@ public class HarmonogramRestController {
         dto.setFrequency(h.getFrequency());
         dto.setSeriesId(h.getSeriesId());
         dto.setPlanEndDate(h.getPlanEndDate());
+
         dto.setZalaczniki(normalizeAttachments(h.getZalaczniki()));
 
         if (h.getDzial() != null) {
@@ -338,18 +352,21 @@ public class HarmonogramRestController {
             SimpleMaszynaDTO maszynaDto = new SimpleMaszynaDTO();
             maszynaDto.setId(h.getMaszyna().getId());
             maszynaDto.setNazwa(h.getMaszyna().getNazwa());
+
             if (h.getMaszyna().getDzial() != null) {
                 SimpleDzialDTO d = new SimpleDzialDTO();
                 d.setId(h.getMaszyna().getDzial().getId());
                 d.setNazwa(h.getMaszyna().getDzial().getNazwa());
                 maszynaDto.setDzial(d);
             }
+
             if (h.getMaszyna().getSekcja() != null) {
                 SimpleSekcjaDTO s = new SimpleSekcjaDTO();
                 s.setId(h.getMaszyna().getSekcja().getId());
                 s.setNazwa(h.getMaszyna().getSekcja().getNazwa());
                 maszynaDto.setSekcja(s);
             }
+
             dto.setMaszyna(maszynaDto);
         }
 
@@ -369,7 +386,9 @@ public class HarmonogramRestController {
         }
         return attachments.stream()
                 .map(path -> {
-                    if (path == null) return null;
+                    if (path == null) {
+                        return null;
+                    }
                     String value = path.trim();
                     if (value.startsWith("inline:")) {
                         int first = value.indexOf(':');
@@ -400,15 +419,24 @@ public class HarmonogramRestController {
     }
 
     private LocalDate nextDate(LocalDate current, HarmonogramOkres frequency) {
-        return switch (frequency) {
-            case TYGODNIOWY -> current.plusWeeks(1);
-            case MIESIECZNY -> current.plusMonths(1);
-            case KWARTALNY -> current.plusMonths(3);
-            case POLROCZNY -> current.plusMonths(6);
-            case ROCZNY -> current.plusYears(1);
-            case DWULETNI -> current.plusYears(2);
-            case PIECIOLETNI -> current.plusYears(5);
-        };
+        switch (frequency) {
+            case TYGODNIOWY:
+                return current.plusWeeks(1);
+            case MIESIECZNY:
+                return current.plusMonths(1);
+            case KWARTALNY:
+                return current.plusMonths(3);
+            case POLROCZNY:
+                return current.plusMonths(6);
+            case ROCZNY:
+                return current.plusYears(1);
+            case DWULETNI:
+                return current.plusYears(2);
+            case PIECIOLETNI:
+                return current.plusYears(5);
+            default:
+                throw new IllegalArgumentException("Unsupported frequency: " + frequency);
+        }
     }
 
     private StoredAttachment saveFile(MultipartFile file) {
@@ -496,5 +524,15 @@ public class HarmonogramRestController {
         return lastDotIndex > 0 ? filename.substring(lastDotIndex).toLowerCase() : "";
     }
 
-    private record StoredAttachment(String filename, String contentType, String inlineValue) {}
+    private static final class StoredAttachment {
+        private final String filename;
+        private final String contentType;
+        private final String inlineValue;
+
+        private StoredAttachment(String filename, String contentType, String inlineValue) {
+            this.filename = filename;
+            this.contentType = contentType;
+            this.inlineValue = inlineValue;
+        }
+    }
 }
