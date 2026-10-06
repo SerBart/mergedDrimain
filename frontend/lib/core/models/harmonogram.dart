@@ -1,58 +1,110 @@
+import 'dzial.dart';
 import 'maszyna.dart';
 import 'osoba.dart';
-import 'dzial.dart';
 
 class Harmonogram {
   final int id;
-  final DateTime? data; // tylko data (bez czasu)
-  final String opis;
+  final DateTime? data;
   final Maszyna? maszyna;
   final Osoba? osoba;
-  final String status; // PLANOWANE / W TRAKCIE / ZAKONCZONE (z backendu enum)
-  final int? durationMinutes;
-  final String? frequency; // TYGODNIOWY / MIESIECZNY / KWARTALNY / POLROCZNY / ROCZNY / DWULETNI / PIECIOLETNI
   final Dzial? dzial;
-  final String? seriesId;
+  final int? durationMinutes;
+  final String opis;
+  final String status;
+  final String? frequency; // TYGODNIOWY / MIESIECZNY / KWARTALNY / POLROCZNY / ROCZNY / DWULETNI / PIECIOLETNI
   final DateTime? planEndDate;
+  final String? seriesId;
 
-  Harmonogram({
+  const Harmonogram({
     required this.id,
-    required this.data,
-    required this.opis,
-    required this.maszyna,
-    required this.osoba,
-    required this.status,
-    required this.durationMinutes,
-    required this.frequency,
-    required this.dzial,
-    required this.seriesId,
-    required this.planEndDate,
+    this.data,
+    this.maszyna,
+    this.osoba,
+    this.dzial,
+    this.durationMinutes,
+    this.opis = '',
+    this.status = 'PLANOWANE',
+    this.frequency,
+    this.planEndDate,
+    this.seriesId,
   });
 
-  factory Harmonogram.fromJson(Map<String, dynamic> j) {
-    final String? dataStr = j['data'] as String?;
-    DateTime? d;
-    if (dataStr != null && dataStr.isNotEmpty) {
-      // LocalDate -> "YYYY-MM-DD"
-      d = DateTime.tryParse(dataStr);
-    }
-    final String? planEndDateStr = j['planEndDate'] as String?;
-    DateTime? planEndDate;
-    if (planEndDateStr != null && planEndDateStr.isNotEmpty) {
-      planEndDate = DateTime.tryParse(planEndDateStr);
-    }
+  factory Harmonogram.fromJson(Map<String, dynamic> json) {
     return Harmonogram(
-      id: (j['id'] as num?)?.toInt() ?? 0,
-      data: d,
-      opis: (j['opis'] ?? '').toString(),
-      maszyna: j['maszyna'] != null ? Maszyna.fromJson(j['maszyna']) : null,
-      osoba: j['osoba'] != null ? Osoba.fromJson(j['osoba']) : null,
-      status: (j['status'] ?? '').toString(),
-      durationMinutes: (j['durationMinutes'] as num?)?.toInt(),
-      frequency: (j['frequency'] ?? j['freq'])?.toString(),
-      dzial: j['dzial'] != null ? Dzial.fromJson(j['dzial']) : null,
-      seriesId: j['seriesId']?.toString(),
-      planEndDate: planEndDate,
+      id: _toInt(json['id']) ?? 0,
+      data: _toDate(json['data']),
+      maszyna: _toMap(json['maszyna']) != null
+          ? Maszyna.fromJson(_toMap(json['maszyna'])!)
+          : null,
+      osoba: _toMap(json['osoba']) != null
+          ? Osoba.fromJson(_toMap(json['osoba'])!)
+          : null,
+      dzial: _toMap(json['dzial']) != null
+          ? Dzial.fromJson(_toMap(json['dzial'])!)
+          : null,
+      durationMinutes: _toInt(json['durationMinutes']),
+      opis: (json['opis'] ?? '').toString(),
+      status: (json['status'] ?? 'PLANOWANE').toString(),
+      frequency: json['frequency']?.toString(),
+      planEndDate: _toDate(json['planEndDate']),
+      seriesId: json['seriesId']?.toString(),
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      if (data != null) 'data': _formatDateOnly(data!),
+      if (maszyna != null) 'maszyna': maszyna!.toJson(),
+      if (osoba != null) 'osoba': osoba!.toJson(),
+      if (dzial != null) 'dzial': dzial!.toJson(),
+      if (durationMinutes != null) 'durationMinutes': durationMinutes,
+      'opis': opis,
+      'status': status,
+      if (frequency != null) 'frequency': frequency,
+      if (planEndDate != null) 'planEndDate': _formatDateOnly(planEndDate!),
+      if (seriesId != null) 'seriesId': seriesId,
+    };
+  }
+
+  static Map<String, dynamic>? _toMap(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return value.cast<String, dynamic>();
+    return null;
+  }
+
+  static int? _toInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '');
+  }
+
+  static DateTime? _toDate(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+
+    final raw = value.toString().trim();
+    if (raw.isEmpty) return null;
+
+    final parsed = DateTime.tryParse(raw);
+    if (parsed != null) return parsed;
+
+    final normalized = raw.replaceAll('/', '-');
+    final parts = normalized.split('-');
+    if (parts.length == 3) {
+      final y = int.tryParse(parts[0]);
+      final m = int.tryParse(parts[1]);
+      final d = int.tryParse(parts[2]);
+      if (y != null && m != null && d != null) {
+        return DateTime(y, m, d);
+      }
+    }
+    return null;
+  }
+
+  static String _formatDateOnly(DateTime d) {
+    final mm = d.month.toString().padLeft(2, '0');
+    final dd = d.day.toString().padLeft(2, '0');
+    return '${d.year}-$mm-$dd';
   }
 }

@@ -24,6 +24,9 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
   bool _busy = false;
   bool _editDialogAttempted = false;
   String _query = '';
+  int _sortCol = 0;
+  bool _asc = false;
+  String _statusFilter = 'WSZYSTKIE';
 
   @override
   void initState() {
@@ -78,18 +81,62 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
 
   List<Raport> _filtered(List<Raport> source) {
     final q = _query.trim().toLowerCase();
-    final list = q.isEmpty
-        ? [...source]
-        : source.where((r) {
-            return r.typNaprawy.toLowerCase().contains(q) ||
-                r.opis.toLowerCase().contains(q) ||
-                r.status.toLowerCase().contains(q) ||
-                (r.maszyna?.nazwa.toLowerCase().contains(q) ?? false) ||
-                (r.maszyna?.dzial?.nazwa.toLowerCase().contains(q) ?? false) ||
-                (r.osoba?.imieNazwisko.toLowerCase().contains(q) ?? false);
-          }).toList();
+    final statusFilterUpper = _statusFilter.toUpperCase();
 
-    list.sort((a, b) => b.dataNaprawy.compareTo(a.dataNaprawy));
+    final list = source.where((r) {
+      final statusUpper = r.status.toUpperCase();
+      final normalizedStatus = statusUpper
+          .replaceAll('Ą', 'A')
+          .replaceAll('Ć', 'C')
+          .replaceAll('Ę', 'E')
+          .replaceAll('Ł', 'L')
+          .replaceAll('Ń', 'N')
+          .replaceAll('Ó', 'O')
+          .replaceAll('Ś', 'S')
+          .replaceAll('Ź', 'Z')
+          .replaceAll('Ż', 'Z');
+
+      final byStatus = statusFilterUpper == 'WSZYSTKIE' ||
+          statusUpper == statusFilterUpper ||
+          normalizedStatus == statusFilterUpper;
+
+      if (!byStatus) return false;
+      if (q.isEmpty) return true;
+
+      return r.typNaprawy.toLowerCase().contains(q) ||
+          r.opis.toLowerCase().contains(q) ||
+          r.status.toLowerCase().contains(q) ||
+          (r.maszyna?.nazwa.toLowerCase().contains(q) ?? false) ||
+          (r.maszyna?.dzial?.nazwa.toLowerCase().contains(q) ?? false) ||
+          (r.osoba?.imieNazwisko.toLowerCase().contains(q) ?? false);
+    }).toList();
+
+    list.sort((a, b) {
+      int cmp;
+      switch (_sortCol) {
+        case 0:
+          cmp = a.dataNaprawy.compareTo(b.dataNaprawy);
+          break;
+        case 1:
+          cmp = (a.maszyna?.nazwa ?? '').compareTo(b.maszyna?.nazwa ?? '');
+          break;
+        case 2:
+          cmp = a.typNaprawy.compareTo(b.typNaprawy);
+          break;
+        case 3:
+          cmp = a.status.compareTo(b.status);
+          break;
+        case 4:
+          cmp = (a.osoba?.imieNazwisko ?? '').compareTo(b.osoba?.imieNazwisko ?? '');
+          break;
+        case 5:
+          cmp = a.zdjecia.length.compareTo(b.zdjecia.length);
+          break;
+        default:
+          cmp = a.opis.compareTo(b.opis);
+      }
+      return _asc ? cmp : -cmp;
+    });
     return list;
   }
 
@@ -420,6 +467,33 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
     return '$name ($dep)';
   }
 
+  String _fmtDate(DateTime d) {
+    return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  }
+
+  Color _statusColor(String status) {
+    switch (status.toUpperCase()) {
+      case 'NOWY':
+        return Colors.indigo;
+      case 'W TOKU':
+        return Colors.orange;
+      case 'OCZEKUJE':
+        return Colors.purple;
+      case 'ZAKOŃCZONY':
+      case 'ZAKONCZONY':
+        return Colors.green;
+      default:
+        return Colors.blueGrey;
+    }
+  }
+
+  void _onSort(int columnIndex, bool ascending) {
+    setState(() {
+      _sortCol = columnIndex;
+      _asc = ascending;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final repo = ref.watch(mockRepoProvider);
@@ -433,78 +507,144 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
         icon: const Icon(Icons.add),
         label: const Text('Nowy raport'),
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadFromApi,
-        child: AbsorbPointer(
-          absorbing: _busy,
-          child: ListView(
-            padding: const EdgeInsets.all(12),
-            children: [
-              TextField(
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.search),
-                  labelText: 'Szukaj (maszyna, status, osoba, opis...)',
-                ),
-                onChanged: (v) => setState(() => _query = v),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+            child: TextField(
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                labelText: 'Szukaj (maszyna, status, osoba, opis...)',
               ),
-              const SizedBox(height: 12),
-              if (_busy) const LinearProgressIndicator(minHeight: 3),
-              const SizedBox(height: 8),
-              if (all.isEmpty)
-                const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text('Brak raportów do wyświetlenia.'),
+              onChanged: (v) => setState(() => _query = v),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: Wrap(
+              spacing: 8,
+              children: [
+                for (final s in const ['WSZYSTKIE', 'NOWY', 'W TOKU', 'OCZEKUJE', 'ZAKONCZONY'])
+                  ChoiceChip(
+                    label: Text(s == 'WSZYSTKIE' ? 'Wszystkie' : s),
+                    selected: _statusFilter == s,
+                    onSelected: (_) => setState(() => _statusFilter = s),
                   ),
-                )
-              else
-                ...all.map(
-                  (r) => Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.description_outlined),
-                      title: Text(_machineLabel(r)),
-                      subtitle: Text('${r.typNaprawy} • ${r.dataNaprawy.toIso8601String().split('T').first} • ${r.status}\n${r.opis.isEmpty ? '(brak opisu)' : r.opis}'),
-                      isThreeLine: true,
-                      trailing: Wrap(
-                        spacing: 2,
-                        children: [
-                          IconButton(
-                            tooltip: 'Załączniki (${r.zdjecia.length})',
-                            icon: Icon(Icons.attach_file, color: r.zdjecia.isNotEmpty ? Colors.teal : Colors.orange),
-                            onPressed: () => _showAttachments(r),
-                          ),
-                          IconButton(
-                            tooltip: 'Dodaj zdjęcia',
-                            icon: const Icon(Icons.add_a_photo, color: Colors.teal),
-                            onPressed: () => _uploadZdjecia(r),
-                          ),
-                          IconButton(
-                            tooltip: 'Dodaj PDF',
-                            icon: const Icon(Icons.picture_as_pdf, color: Colors.redAccent),
-                            onPressed: () => _uploadPdf(r),
-                          ),
-                          IconButton(
-                            tooltip: 'Edytuj',
-                            icon: const Icon(Icons.edit_outlined),
-                            onPressed: () => _openEditDialog(r.id),
-                          ),
-                          if (isAdmin)
-                            IconButton(
-                              tooltip: 'Usuń raport',
-                              icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                              onPressed: () => _deleteRaport(r),
-                            ),
+              ],
+            ),
+          ),
+          if (_busy) const LinearProgressIndicator(minHeight: 3),
+          const Divider(height: 1),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _loadFromApi,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(12),
+                children: [
+                  if (all.isEmpty)
+                    const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text('Brak raportów do wyświetlenia.'),
+                      ),
+                    )
+                  else
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: DataTable(
+                        sortColumnIndex: _sortCol,
+                        sortAscending: _asc,
+                        columns: [
+                          DataColumn(label: const Text('Data'), onSort: _onSort),
+                          DataColumn(label: const Text('Maszyna'), onSort: _onSort),
+                          DataColumn(label: const Text('Typ'), onSort: _onSort),
+                          DataColumn(label: const Text('Status'), onSort: _onSort),
+                          DataColumn(label: const Text('Osoba'), onSort: _onSort),
+                          DataColumn(label: const Text('Załączniki'), onSort: _onSort),
+                          DataColumn(label: const Text('Opis'), onSort: _onSort),
+                          const DataColumn(label: Text('Akcje')),
                         ],
+                        rows: all.map((r) {
+                          final statusColor = _statusColor(r.status);
+                          return DataRow(
+                            cells: [
+                              DataCell(Text(_fmtDate(r.dataNaprawy))),
+                              DataCell(Text(_machineLabel(r))),
+                              DataCell(Text(r.typNaprawy)),
+                              DataCell(
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: statusColor.withOpacity(.12),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    r.status,
+                                    style: TextStyle(color: statusColor, fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                              ),
+                              DataCell(Text(r.osoba?.imieNazwisko ?? '-')),
+                              DataCell(Text('${r.zdjecia.length}')),
+                              DataCell(
+                                SizedBox(
+                                  width: 280,
+                                  child: Text(
+                                    r.opis.isEmpty ? '(brak opisu)' : r.opis,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                              DataCell(
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      tooltip: 'Załączniki (${r.zdjecia.length})',
+                                      icon: Icon(
+                                        Icons.attach_file,
+                                        color: r.zdjecia.isNotEmpty ? Colors.teal : Colors.orange,
+                                      ),
+                                      onPressed: () => _showAttachments(r),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Dodaj zdjęcia',
+                                      icon: const Icon(Icons.add_a_photo, color: Colors.teal),
+                                      onPressed: () => _uploadZdjecia(r),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Dodaj PDF',
+                                      icon: const Icon(Icons.picture_as_pdf, color: Colors.redAccent),
+                                      onPressed: () => _uploadPdf(r),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Edytuj',
+                                      icon: const Icon(Icons.edit_outlined),
+                                      onPressed: () => _openEditDialog(r.id),
+                                    ),
+                                    if (isAdmin)
+                                      IconButton(
+                                        tooltip: 'Usuń raport',
+                                        icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                                        onPressed: () => _deleteRaport(r),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          );
+                        }).toList(),
                       ),
                     ),
-                  ),
-                ),
-              const SizedBox(height: 70),
-            ],
+                  const SizedBox(height: 70),
+                ],
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
-

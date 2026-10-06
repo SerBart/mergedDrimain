@@ -516,6 +516,7 @@ class _DashboardItemState extends State<_DashboardItem> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final width = MediaQuery.of(context).size.width;
     final compactMobile = width < 420;
     final mobile = width < 720;
