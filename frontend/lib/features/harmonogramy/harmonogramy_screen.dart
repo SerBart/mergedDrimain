@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -165,10 +166,12 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
       initialDuration: h.durationMinutes,
       initialOpis: h.opis.isEmpty ? null : h.opis,
       initialDzialId: h.dzial?.id ?? h.maszyna?.dzial?.id,
+      initialFrequency: h.frequency,
+      initialPlanEndDate: h.planEndDate,
       showSeriesUpdateOption: (h.frequency ?? '').trim().isNotEmpty || h.seriesId != null,
-      onSubmit: (data, maszynaId, osobaId, duration, opis, dzialId, applyToSeriesFuture) async {
+      onSubmit: (data, maszynaId, osobaId, duration, opis, dzialId, frequency, planEndDate, applyToSeriesFuture, attachments) async {
         final api = ref.read(harmonogramyApiRepositoryProvider);
-        await api.update(
+        final saved = await api.update(
           id: h.id,
           data: data,
           maszynaId: maszynaId,
@@ -176,8 +179,21 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
           dzialId: dzialId,
           durationMinutes: duration,
           opis: (opis ?? '').trim(),
+          frequency: frequency,
+          planEndDate: planEndDate,
           applyToSeriesFuture: applyToSeriesFuture,
         );
+        if (attachments.isNotEmpty) {
+          try {
+            await api.uploadZalaczniki(saved.id, attachments);
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Przegląd zapisany, ale błąd załączników: $e')),
+              );
+            }
+          }
+        }
       },
       title: 'Edytuj harmonogram',
     );
@@ -320,8 +336,10 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
     int? initialDuration,
     String? initialOpis,
     int? initialDzialId,
+    String? initialFrequency,
+    DateTime? initialPlanEndDate,
     bool showSeriesUpdateOption = false,
-    Future<void> Function(DateTime, int, int, int?, String?, int?, bool)? onSubmit,
+    Future<void> Function(DateTime, int, int, int?, String?, int?, String?, DateTime?, bool, List<PlatformFile>)? onSubmit,
     String title = 'Nowy harmonogram',
   }) async {
     if (_osoby.isEmpty) {
@@ -357,17 +375,32 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
             initialDuration: initialDuration,
             initialOpis: initialOpis,
             initialDzialId: initialDzialId,
+            initialFrequency: initialFrequency,
+            initialPlanEndDate: initialPlanEndDate,
             showSeriesUpdateOption: showSeriesUpdateOption,
-            onSubmit: (onSubmit ?? (DateTime d, int mId, int oId, int? dur, String? op, int? dzialId, bool applyToSeriesFuture) async {
+            onSubmit: (onSubmit ?? (DateTime d, int mId, int oId, int? dur, String? op, int? dzialId, String? frequency, DateTime? planEndDate, bool applyToSeriesFuture, List<PlatformFile> attachments) async {
               final api = ref.read(harmonogramyApiRepositoryProvider);
-              await api.create(
+              final saved = await api.create(
                 data: d,
                 maszynaId: mId,
                 osobaId: oId,
                 dzialId: dzialId,
+                frequency: frequency,
+                planEndDate: planEndDate,
                 opis: op,
                 durationMinutes: dur,
               );
+              if (attachments.isNotEmpty) {
+                try {
+                  await api.uploadZalaczniki(saved.id, attachments);
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Przegląd zapisany, ale błąd załączników: $e')),
+                    );
+                  }
+                }
+              }
             }),
           ),
         ),
@@ -675,13 +708,26 @@ class _HarmonogramFormSheet extends StatefulWidget {
   final List<Maszyna> maszyny;
   final List<Osoba> osoby;
   final List<Dzial> dzialy;
-  final Future<void> Function(DateTime data, int maszynaId, int osobaId, int? duration, String? opis, int? dzialId, bool applyToSeriesFuture) onSubmit;
+  final Future<void> Function(
+    DateTime data,
+    int maszynaId,
+    int osobaId,
+    int? duration,
+    String? opis,
+    int? dzialId,
+    String? frequency,
+    DateTime? planEndDate,
+    bool applyToSeriesFuture,
+    List<PlatformFile> attachments,
+  ) onSubmit;
   final DateTime? initialDate;
   final int? initialMaszynaId;
   final int? initialOsobaId;
   final int? initialDuration;
   final String? initialOpis;
   final int? initialDzialId;
+  final String? initialFrequency;
+  final DateTime? initialPlanEndDate;
   final bool showSeriesUpdateOption;
 
   const _HarmonogramFormSheet({
@@ -696,6 +742,8 @@ class _HarmonogramFormSheet extends StatefulWidget {
     this.initialDuration,
     this.initialOpis,
     this.initialDzialId,
+    this.initialFrequency,
+    this.initialPlanEndDate,
     this.showSeriesUpdateOption = false,
   });
 
@@ -706,9 +754,12 @@ class _HarmonogramFormSheet extends StatefulWidget {
 class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
   final _formKey = GlobalKey<FormState>();
   late DateTime _data;
+  late DateTime _planEndDate;
   late final TextEditingController _opisCtrl;
   late final TextEditingController _durationCtrl;
+  String? _frequency;
   bool _applyToSeriesFuture = true;
+  final List<PlatformFile> _selectedAttachments = [];
   Dzial? _selectedDzial;
   Maszyna? _selectedMaszyna;
   Osoba? _selectedOsoba;
@@ -718,6 +769,8 @@ class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
   void initState() {
     super.initState();
     _data = widget.initialDate ?? DateTime.now();
+    _frequency = widget.initialFrequency;
+    _planEndDate = widget.initialPlanEndDate ?? DateTime(DateTime.now().year, 12, 31);
     _opisCtrl = TextEditingController(text: widget.initialOpis ?? '');
     _durationCtrl = TextEditingController(text: widget.initialDuration?.toString() ?? '');
     _applyToSeriesFuture = true;
@@ -764,6 +817,48 @@ class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
     }
   }
 
+  Future<void> _pickAttachments() async {
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      withData: true,
+      type: FileType.custom,
+      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
+    );
+    if (result == null || result.files.isEmpty) return;
+    setState(() {
+      _selectedAttachments.addAll(result.files.where((f) => f.bytes != null && f.bytes!.isNotEmpty));
+    });
+  }
+
+  void _removeAttachment(int index) {
+    setState(() => _selectedAttachments.removeAt(index));
+  }
+
+  void _clearAttachments() {
+    setState(() => _selectedAttachments.clear());
+  }
+
+  String _frequencyLabel(String? value) {
+    switch (value) {
+      case 'TYGODNIOWY':
+        return 'Co tydzień';
+      case 'MIESIECZNY':
+        return 'Co miesiąc';
+      case 'KWARTALNY':
+        return 'Co kwartał';
+      case 'POLROCZNY':
+        return 'Co pół roku';
+      case 'ROCZNY':
+        return 'Co rok';
+      case 'DWULETNI':
+        return 'Co 2 lata';
+      case 'PIECIOLETNI':
+        return 'Co 5 lat';
+      default:
+        return 'Jednorazowy';
+    }
+  }
+
   @override
   void dispose() {
     _opisCtrl.dispose();
@@ -800,6 +895,54 @@ class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
                 ),
               ),
             ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String?>(
+              value: _frequency,
+              decoration: const InputDecoration(labelText: 'Częstotliwość', border: OutlineInputBorder()),
+              items: const [
+                DropdownMenuItem<String?>(value: null, child: Text('Jednorazowy')),
+                DropdownMenuItem<String?>(value: 'TYGODNIOWY', child: Text('Co tydzień')),
+                DropdownMenuItem<String?>(value: 'MIESIECZNY', child: Text('Co miesiąc')),
+                DropdownMenuItem<String?>(value: 'KWARTALNY', child: Text('Co kwartał')),
+                DropdownMenuItem<String?>(value: 'POLROCZNY', child: Text('Co pół roku')),
+                DropdownMenuItem<String?>(value: 'ROCZNY', child: Text('Co rok')),
+                DropdownMenuItem<String?>(value: 'DWULETNI', child: Text('Co 2 lata')),
+                DropdownMenuItem<String?>(value: 'PIECIOLETNI', child: Text('Co 5 lat')),
+              ],
+              onChanged: (v) => setState(() => _frequency = v),
+            ),
+            if (_frequency != null) ...[
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Powtarzanie: ${_frequencyLabel(_frequency)}',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                ),
+              ),
+            ],
+            if (_frequency != null) ...[
+              const SizedBox(height: 12),
+              InputDecorator(
+                decoration: const InputDecoration(labelText: 'Plan do', border: OutlineInputBorder()),
+                child: InkWell(
+                  onTap: () async {
+                    final picked = await showModernDatePicker(
+                      context: context,
+                      title: 'Plan do',
+                      initialDate: _planEndDate,
+                      firstDate: _data,
+                      lastDate: DateTime(2035, 12, 31),
+                    );
+                    if (picked != null) setState(() => _planEndDate = picked);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text('${_planEndDate.year}-${_planEndDate.month.toString().padLeft(2, '0')}-${_planEndDate.day.toString().padLeft(2, '0')}'),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             DropdownButtonFormField<Dzial?>(
               value: _selectedDzial,
@@ -844,6 +987,79 @@ class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
               controller: _opisCtrl,
               maxLines: 2,
               decoration: const InputDecoration(labelText: 'Opis', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              elevation: 0,
+              margin: EdgeInsets.zero,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(.35),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.attach_file, size: 18, color: Theme.of(context).colorScheme.primary),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Załączniki',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Możesz dodać PDF lub zdjęcia do przeglądu.',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                    ),
+                    const SizedBox(height: 10),
+                    if (_selectedAttachments.isEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(.7),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.black12),
+                        ),
+                        child: const Text('Brak wybranych plików'),
+                      )
+                    else
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (var i = 0; i < _selectedAttachments.length; i++)
+                            InputChip(
+                              label: Text(_selectedAttachments[i].name),
+                              avatar: const Icon(Icons.insert_drive_file_outlined, size: 18),
+                              onDeleted: () => _removeAttachment(i),
+                            ),
+                        ],
+                      ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _pickAttachments,
+                            icon: const Icon(Icons.upload_file_outlined),
+                            label: const Text('Dodaj pliki'),
+                          ),
+                        ),
+                        if (_selectedAttachments.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          TextButton(
+                            onPressed: _clearAttachments,
+                            child: const Text('Wyczyść'),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ),
             if (widget.showSeriesUpdateOption) ...[
               const SizedBox(height: 16),
@@ -901,7 +1117,10 @@ class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
                       duration,
                       _opisCtrl.text.trim().isEmpty ? null : _opisCtrl.text.trim(),
                       _selectedDzial?.id,
+                      _frequency,
+                      _frequency == null ? null : _planEndDate,
                       _applyToSeriesFuture,
+                      List<PlatformFile>.unmodifiable(_selectedAttachments),
                     );
                     if (mounted) Navigator.of(context).pop(true);
                   },

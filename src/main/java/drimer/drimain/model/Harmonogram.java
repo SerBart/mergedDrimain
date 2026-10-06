@@ -4,6 +4,8 @@ import drimer.drimain.model.enums.StatusHarmonogramu;
 import drimer.drimain.model.enums.HarmonogramOkres;
 import jakarta.persistence.*;
 import java.time.LocalDate;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "harmonogramy")
@@ -46,6 +48,11 @@ public class Harmonogram {
     @Column(name = "plan_end_date")
     private LocalDate planEndDate;
 
+    @ElementCollection
+    @CollectionTable(name = "harmonogram_zalaczniki", joinColumns = @JoinColumn(name = "harmonogram_id"))
+    @Column(name = "sciezka_zalacznika", columnDefinition = "TEXT")
+    private Set<String> zalaczniki = new LinkedHashSet<>();
+
     // Gettery / settery
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -74,4 +81,7 @@ public class Harmonogram {
     public void setSeriesId(String seriesId) { this.seriesId = seriesId; }
     public LocalDate getPlanEndDate() { return planEndDate; }
     public void setPlanEndDate(LocalDate planEndDate) { this.planEndDate = planEndDate; }
+
+    public Set<String> getZalaczniki() { return zalaczniki; }
+    public void setZalaczniki(Set<String> zalaczniki) { this.zalaczniki = zalaczniki; }
 }

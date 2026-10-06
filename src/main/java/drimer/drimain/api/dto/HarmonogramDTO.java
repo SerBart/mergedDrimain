@@ -5,6 +5,7 @@ import drimer.drimain.model.enums.HarmonogramOkres;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Data
 public class HarmonogramDTO {
@@ -19,4 +20,5 @@ public class HarmonogramDTO {
     private SimpleDzialDTO dzial;
     private String seriesId;
     private LocalDate planEndDate;
+    private List<String> zalaczniki;
 }
