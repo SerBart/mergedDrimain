@@ -1,19 +1,5 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../../core/models/dzial.dart';
-import '../../core/models/harmonogram.dart';
-import '../../core/models/maszyna.dart';
-import '../../core/models/osoba.dart';
-import '../../core/providers/app_providers.dart';
-import '../../widgets/modern_date_picker.dart';
-import '../../widgets/top_app_bar.dart';
-import '../../widgets/pagination_controls.dart';
-
 class HarmonogramyScreen extends ConsumerStatefulWidget {
-  const HarmonogramyScreen({super.key, this.title = 'Harmonogramy'});
-
-  final String title;
+  const HarmonogramyScreen({super.key});
 
   @override
   ConsumerState<HarmonogramyScreen> createState() => _HarmonogramyScreenState();
@@ -21,9 +7,18 @@ class HarmonogramyScreen extends ConsumerStatefulWidget {
 
 class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
   bool _loading = true;
-  List<Harmonogram> _items = [];
-  List<Maszyna> _maszyny = [];
-  List<Osoba> _osoby = [];
+  int _currentPage = 0;
+  int _pageSize = 10;
+  final Set<int> _selectedIds = <int>{};
+  bool _bulkDeleting = false;
+
+  static const List<int> _pageSizes = [10, 20, 50, 100];
+
+  bool get _isPrzegladyView => widget.title == 'Przeglądy';
+
+  const HarmonogramyScreen({super.key, this.title = 'Harmonogramy'});
+
+  final String title;
   List<Dzial> _dzialy = [];
 
   int? _year = DateTime.now().year;
@@ -33,10 +28,6 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
 
   int _sortCol = 0;
   bool _asc = true;
-  int _currentPage = 0;
-  int _pageSize = 10;
-
-  static const List<int> _pageSizes = [10, 20, 50, 100];
 
   @override
   void initState() {
@@ -47,6 +38,10 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
   Future<void> _loadAll() async {
     setState(() => _loading = true);
     try {
+      int _currentPage = 0;
+      int _pageSize = 10;
+
+      static const List<int> _pageSizes = [10, 20, 50, 100];
       final harmonogramyApi = ref.read(harmonogramyApiRepositoryProvider);
       final metaApi = ref.read(metaApiRepositoryProvider);
       final results = await Future.wait([
@@ -60,6 +55,10 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
       _maszyny = results[1] as List<Maszyna>;
       _osoby = results[2] as List<Osoba>;
       _dzialy = results[3] as List<Dzial>;
+
+      // Usuń zaznaczenia elementów, które już nie istnieją po odświeżeniu.
+      final availableIds = _items.map((e) => e.id).toSet();
+      _selectedIds.removeWhere((id) => !availableIds.contains(id));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -70,72 +69,72 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
     }
   }
 
-  List<Harmonogram> _filteredAndSorted() {
-    Iterable<Harmonogram> list = _items;
-
-    if (_statusFilter != 'WSZYSTKIE') {
-      list = list.where((h) => h.status.toUpperCase() == _statusFilter);
-    }
-
-    final q = _query.trim().toLowerCase();
-    if (q.isNotEmpty) {
-      list = list.where((h) {
-        final machineName = h.maszyna?.nazwa.toLowerCase() ?? '';
-        final machineDept = h.maszyna?.dzial?.nazwa.toLowerCase() ?? '';
-        final directDept = h.dzial?.nazwa.toLowerCase() ?? '';
-        final section = h.maszyna?.sekcja?.nazwa.toLowerCase() ?? '';
-        final person = h.osoba?.imieNazwisko.toLowerCase() ?? '';
-        return h.opis.toLowerCase().contains(q) ||
-            machineName.contains(q) ||
-            machineDept.contains(q) ||
-            directDept.contains(q) ||
-            section.contains(q) ||
-            person.contains(q) ||
-            _frequencyLabel(h.frequency).toLowerCase().contains(q);
-      });
-    }
-
-    final out = list.toList();
-    out.sort((a, b) {
-      int cmp;
-      switch (_sortCol) {
-        case 0:
-          cmp = (a.data ?? DateTime.fromMillisecondsSinceEpoch(0))
-              .compareTo(b.data ?? DateTime.fromMillisecondsSinceEpoch(0));
-          break;
-        case 1:
-          cmp = (a.maszyna?.nazwa ?? '').compareTo(b.maszyna?.nazwa ?? '');
-          break;
-        case 2:
-          cmp = (a.maszyna?.dzial?.nazwa ?? a.dzial?.nazwa ?? '')
-              .compareTo(b.maszyna?.dzial?.nazwa ?? b.dzial?.nazwa ?? '');
-          break;
-        case 3:
-          cmp = (a.osoba?.imieNazwisko ?? '').compareTo(b.osoba?.imieNazwisko ?? '');
-          break;
-        case 4:
-          cmp = (a.durationMinutes ?? 0).compareTo(b.durationMinutes ?? 0);
-          break;
-        case 5:
-          cmp = (a.frequency ?? '').compareTo(b.frequency ?? '');
-          break;
-        case 6:
-          cmp = a.status.compareTo(b.status);
-          break;
-        default:
-          cmp = a.opis.compareTo(b.opis);
+  void _togglePageSelection(List<Harmonogram> pageRows, bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedIds.addAll(pageRows.map((e) => e.id));
+      } else {
+        _selectedIds.removeAll(pageRows.map((e) => e.id));
       }
-      return _asc ? cmp : -cmp;
     });
-
-    return out;
   }
 
-  List<Harmonogram> _pageSlice(List<Harmonogram> list) {
-    final totalPages = list.isEmpty ? 1 : (list.length / _pageSize).ceil();
-    final page = _currentPage.clamp(0, totalPages - 1);
-    final start = page * _pageSize;
-    return list.skip(start).take(_pageSize).toList();
+  void _toggleRowSelection(int id, bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedIds.add(id);
+      } else {
+        _selectedIds.remove(id);
+      }
+    });
+  }
+
+  Future<void> _deleteSelected() async {
+    if (_selectedIds.isEmpty) return;
+
+    final selectedCount = _selectedIds.length;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Usuń zaznaczone przeglądy'),
+        content: Text('Czy na pewno usunąć $selectedCount zaznaczonych pozycji?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Anuluj'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Usuń'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _bulkDeleting = true);
+    try {
+      final repo = ref.read(harmonogramyApiRepositoryProvider);
+      final ids = _selectedIds.toList();
+      for (final id in ids) {
+        await repo.delete(id);
+      }
+      if (!mounted) return;
+      setState(() => _selectedIds.clear());
+      await _loadAll();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Usunięto $selectedCount pozycji.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Błąd grupowego usuwania: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _bulkDeleting = false);
+    }
   }
 
   Future<void> _addNew() async {
@@ -339,14 +338,11 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
   @override
   Widget build(BuildContext context) {
     final rows = _filteredAndSorted();
-    final pageRows = _pageSlice(rows);
-    final totalPages = rows.isEmpty ? 1 : (rows.length / _pageSize).ceil();
-    final effectivePage = _currentPage.clamp(0, totalPages - 1);
 
     return Scaffold(
       appBar: TopAppBar(title: widget.title, showBack: true),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _addNew,
+        onPressed: _bulkDeleting ? null : _addNew,
         icon: const Icon(Icons.add),
         label: const Text('Dodaj'),
       ),
@@ -354,7 +350,7 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                Padding(
+      appBar: TopAppBar(title: widget.title, showBack: true),
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
                   child: Row(
                     children: [
@@ -367,10 +363,7 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                               .map((y) => DropdownMenuItem(value: y, child: Text(y.toString())))
                               .toList(),
                           onChanged: (v) async {
-                            setState(() {
-                              _year = v;
-                              _currentPage = 0;
-                            });
+                            setState(() => _year = v);
                             await _loadAll();
                           },
                         ),
@@ -380,15 +373,15 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                         width: 160,
                         child: DropdownButtonFormField<int>(
                           value: _month,
-                          decoration: const InputDecoration(labelText: 'Miesiąc'),
+                            setState(() {
+                              _year = v;
+                              _currentPage = 0;
+                            });
                           items: [null, ...List<int>.generate(12, (i) => i + 1)]
                               .map((m) => DropdownMenuItem(value: m, child: Text(m == null ? 'Wszystkie' : m.toString().padLeft(2, '0'))))
                               .toList(),
                           onChanged: (v) async {
-                            setState(() {
-                              _month = v;
-                              _currentPage = 0;
-                            });
+                            setState(() => _month = v);
                             await _loadAll();
                           },
                         ),
@@ -398,12 +391,12 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                         child: TextField(
                           decoration: const InputDecoration(
                             labelText: 'Szukaj (opis / maszyna / osoba / okres)',
-                            prefixIcon: Icon(Icons.search),
+                            setState(() {
+                              _month = v;
+                              _currentPage = 0;
+                            });
                           ),
-                          onChanged: (v) => setState(() {
-                            _query = v;
-                            _currentPage = 0;
-                          }),
+                          onChanged: (v) => setState(() => _query = v),
                         ),
                       ),
                     ],
@@ -414,18 +407,74 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                   child: Wrap(
                     spacing: 8,
                     children: [
-                      for (final s in const ['WSZYSTKIE', 'PLANOWANE', 'W_TRAKCIE', 'ZAKONCZONE'])
-                        ChoiceChip(
-                          label: Text(_statusLabel(s)),
-                          selected: _statusFilter == s,
-                          onSelected: (_) => setState(() {
-                            _statusFilter = s;
-                            _currentPage = 0;
-                          }),
-                        ),
+                      ChoiceChip(
+                        label: Text(_statusLabel('WSZYSTKIE')),
+                        selected: _statusFilter == 'WSZYSTKIE',
+                        onSelected: (_) => setState(() => _statusFilter = 'WSZYSTKIE'),
+                      ),
+                      ChoiceChip(
+                        label: Text(_statusLabel('PLANOWANE')),
+                        selected: _statusFilter == 'PLANOWANE',
+                        onSelected: (_) => setState(() => _statusFilter = 'PLANOWANE'),
+                      ),
+                      ChoiceChip(
+                        label: Text(_statusLabel('W_TRAKCIE')),
+                        selected: _statusFilter == 'W_TRAKCIE',
+                        onSelected: (_) => setState(() => _statusFilter = 'W_TRAKCIE'),
+                      ),
+                      ChoiceChip(
+                        label: Text(_statusLabel('ZAKONCZONE')),
+                        selected: _statusFilter == 'ZAKONCZONE',
+                        onSelected: (_) => setState(() => _statusFilter = 'ZAKONCZONE'),
+                      ),
+                      ChoiceChip(
+                        label: Text(_statusLabel('BRAK_CZESCI')),
+                        selected: _statusFilter == 'BRAK_CZESCI',
+                        onSelected: (_) => setState(() => _statusFilter = 'BRAK_CZESCI'),
+                      ),
+                      ChoiceChip(
+                        label: Text(_statusLabel('OCZEKIWANIE_NA_CZESC')),
+                        selected: _statusFilter == 'OCZEKIWANIE_NA_CZESC',
+                        onSelected: (_) => setState(() => _statusFilter = 'OCZEKIWANIE_NA_CZESC'),
+                      ),
                     ],
                   ),
                 ),
+                if (_isPrzegladyView)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _selectedIds.isEmpty
+                                ? 'Zaznacz kilka pozycji, aby usunąć grupowo.'
+                                : 'Zaznaczono: ${_selectedIds.length}',
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: pageRows.isEmpty || _bulkDeleting
+                              ? null
+                              : () => _togglePageSelection(pageRows, !allOnPageSelected),
+                          icon: Icon(allOnPageSelected ? Icons.deselect : Icons.select_all),
+                          label: Text(allOnPageSelected ? 'Odznacz stronę' : 'Zaznacz stronę'),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton.icon(
+                          onPressed: _selectedIds.isEmpty || _bulkDeleting ? null : _deleteSelected,
+                          icon: _bulkDeleting
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.delete_sweep_outlined),
+                          label: const Text('Usuń zaznaczone'),
+                        ),
+                      ],
+                    ),
+                  ),
                 const Divider(height: 1),
                 Expanded(
                   child: RefreshIndicator(
@@ -434,6 +483,25 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.all(12),
                       children: [
+                        DataTable(
+                          sortColumnIndex: _sortCol,
+                          sortAscending: _asc,
+                          columns: [
+                            if (_isPrzegladyView)
+                              DataColumn(
+                                label: Checkbox(
+                                  value: allOnPageSelected,
+                                  onChanged: pageRows.isEmpty || _bulkDeleting
+                                      ? null
+                                      : (v) => _togglePageSelection(pageRows, v ?? false),
+                                ),
+                              ),
+                            DataColumn(label: const Text('Data'), onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; })),
+                            DataColumn(label: const Text('Maszyna'), onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; })),
+                            DataColumn(label: const Text('Dział'), onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; })),
+                            DataColumn(label: const Text('Osoba'), onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; })),
+                            DataColumn(numeric: true, label: const Text('Czas [min]'), onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; })),
+                            DataColumn(label: const Text('Okres'), onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; })),
                         if (rows.isEmpty)
                           const Card(
                             child: Padding(
@@ -458,6 +526,15 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                                           sortColumnIndex: _sortCol,
                                           sortAscending: _asc,
                                           columns: [
+                                            if (_isPrzegladyView)
+                                              DataColumn(
+                                                label: Checkbox(
+                                                  value: allOnPageSelected,
+                                                  onChanged: pageRows.isEmpty || _bulkDeleting
+                                                      ? null
+                                                      : (v) => _togglePageSelection(pageRows, v ?? false),
+                                                ),
+                                              ),
                                             DataColumn(label: const Text('Data'), onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; })),
                                             DataColumn(label: const Text('Maszyna'), onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; })),
                                             DataColumn(label: const Text('Dział'), onSort: (i, asc) => setState(() { _sortCol = i; _asc = asc; })),
@@ -469,44 +546,59 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                                             const DataColumn(label: Text('Akcje')),
                                           ],
                                           rows: pageRows.map((h) {
-                                            return DataRow(cells: [
-                                              DataCell(Text(_fmtDate(h.data))),
-                                              DataCell(Text(h.maszyna?.nazwa ?? '-')),
-                                              DataCell(Text(h.maszyna?.dzial?.nazwa ?? h.dzial?.nazwa ?? '-')),
-                                              DataCell(Text(h.osoba?.imieNazwisko ?? '-')),
-                                              DataCell(Text((h.durationMinutes ?? 0).toString())),
-                                              DataCell(Text(_frequencyLabel(h.frequency))),
-                                              DataCell(Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                decoration: BoxDecoration(
-                                                  color: _statusColor(h.status).withOpacity(.12),
-                                                  borderRadius: BorderRadius.circular(12),
-                                                ),
-                                                child: Text(
-                                                  _statusLabel(h.status),
-                                                  style: TextStyle(color: _statusColor(h.status), fontWeight: FontWeight.w600),
-                                                ),
-                                              )),
-                                              DataCell(SizedBox(
-                                                width: 240,
-                                                child: Text(h.opis, maxLines: 2, overflow: TextOverflow.ellipsis),
-                                              )),
-                                              DataCell(Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  IconButton(
-                                                    tooltip: 'Edytuj',
-                                                    icon: const Icon(Icons.edit, color: Colors.blueAccent),
-                                                    onPressed: () => _editItem(h),
+                                            return DataRow(
+                                              selected: _selectedIds.contains(h.id),
+                                              onSelectChanged: _isPrzegladyView && !_bulkDeleting
+                                                  ? (v) => _toggleRowSelection(h.id, v ?? false)
+                                                  : null,
+                                              cells: [
+                                                if (_isPrzegladyView)
+                                                  DataCell(
+                                                    Checkbox(
+                                                      value: _selectedIds.contains(h.id),
+                                                      onChanged: _bulkDeleting
+                                                          ? null
+                                                          : (v) => _toggleRowSelection(h.id, v ?? false),
+                                                    ),
                                                   ),
-                                                  IconButton(
-                                                    tooltip: 'Usuń',
-                                                    icon: const Icon(Icons.delete, color: Colors.redAccent),
-                                                    onPressed: () => _deleteItem(h),
+                                                DataCell(Text(_fmtDate(h.data))),
+                                                DataCell(Text(h.maszyna?.nazwa ?? '-')),
+                                                DataCell(Text(h.maszyna?.dzial?.nazwa ?? h.dzial?.nazwa ?? '-')),
+                                                DataCell(Text(h.osoba?.imieNazwisko ?? '-')),
+                                                DataCell(Text((h.durationMinutes ?? 0).toString())),
+                                                DataCell(Text(_frequencyLabel(h.frequency))),
+                                                DataCell(Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                  decoration: BoxDecoration(
+                                                    color: _statusColor(h.status).withOpacity(.12),
+                                                    borderRadius: BorderRadius.circular(12),
                                                   ),
-                                                ],
-                                              )),
-                                            ]);
+                                                  child: Text(
+                                                    _statusLabel(h.status),
+                                                    style: TextStyle(color: _statusColor(h.status), fontWeight: FontWeight.w600),
+                                                  ),
+                                                )),
+                                                DataCell(SizedBox(
+                                                  width: 240,
+                                                  child: Text(h.opis, maxLines: 2, overflow: TextOverflow.ellipsis),
+                                                )),
+                                                DataCell(Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    IconButton(
+                                                      tooltip: 'Edytuj',
+                                                      icon: const Icon(Icons.edit, color: Colors.blueAccent),
+                                                      onPressed: () => _editItem(h),
+                                                    ),
+                                                    IconButton(
+                                                      tooltip: 'Usuń',
+                                                      icon: const Icon(Icons.delete, color: Colors.redAccent),
+                                                      onPressed: () => _deleteItem(h),
+                                                    ),
+                                                  ],
+                                                )),
+                                              ]);
+                                            );
                                           }).toList(),
                                         ),
                                       ),
@@ -532,15 +624,6 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                               });
                             },
                           ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-    );
-  }
-}
 
 class _HarmonogramFormSheet extends StatefulWidget {
   final String title;
