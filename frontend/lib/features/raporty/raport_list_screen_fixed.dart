@@ -10,6 +10,7 @@ import '../../core/models/raport.dart';
 import '../../core/providers/app_providers.dart';
 import '../../widgets/top_app_bar.dart';
 import 'raport_form_screen.dart';
+import '../../widgets/pagination_controls.dart';
 
 class RaportyListScreen extends ConsumerStatefulWidget {
   const RaportyListScreen({super.key, this.editRaportId});
@@ -27,6 +28,10 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
   int _sortCol = 0;
   bool _asc = false;
   String _statusFilter = 'WSZYSTKIE';
+  int _currentPage = 0;
+  int _pageSize = 10;
+
+  static const List<int> _pageSizes = [10, 20, 50, 100];
 
   @override
   void initState() {
@@ -138,6 +143,13 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
       return _asc ? cmp : -cmp;
     });
     return list;
+  }
+
+  List<Raport> _pageSlice(List<Raport> list) {
+    final totalPages = list.isEmpty ? 1 : (list.length / _pageSize).ceil();
+    final page = _currentPage.clamp(0, totalPages - 1);
+    final start = page * _pageSize;
+    return list.skip(start).take(_pageSize).toList();
   }
 
   Future<void> _openNewDialog() async {
@@ -498,6 +510,9 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
   Widget build(BuildContext context) {
     final repo = ref.watch(mockRepoProvider);
     final all = _filtered(repo.getRaporty());
+    final pageRows = _pageSlice(all);
+    final totalPages = all.isEmpty ? 1 : (all.length / _pageSize).ceil();
+    final effectivePage = _currentPage.clamp(0, totalPages - 1);
     final isAdmin = ref.watch(authStateProvider)?.role == AppRoles.admin;
 
     return Scaffold(
@@ -556,11 +571,12 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                           scrollDirection: Axis.horizontal,
                           child: ConstrainedBox(
                             constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                            child: Card(
-                              margin: EdgeInsets.zero,
-                              child: Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: Center(
+                            child: Align(
+                              alignment: Alignment.topCenter,
+                              child: Card(
+                                margin: EdgeInsets.zero,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
                                   child: DataTable(
                                     sortColumnIndex: _sortCol,
                                     sortAscending: _asc,
@@ -574,7 +590,7 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                                       DataColumn(label: const Text('Opis'), onSort: _onSort),
                                       const DataColumn(label: Text('Akcje')),
                                     ],
-                                    rows: all.map((r) {
+                                    rows: pageRows.map((r) {
                                       final statusColor = _statusColor(r.status);
                                       return DataRow(
                                         cells: [
@@ -651,6 +667,22 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                             ),
                           ),
                         );
+                      },
+                    ),
+                  if (all.isNotEmpty)
+                    PaginationControls(
+                      totalItems: all.length,
+                      currentPage: effectivePage,
+                      pageSize: _pageSize,
+                      pageSizes: _pageSizes,
+                      onPageChanged: (page) {
+                        setState(() => _currentPage = page);
+                      },
+                      onPageSizeChanged: (size) {
+                        setState(() {
+                          _pageSize = size;
+                          _currentPage = 0;
+                        });
                       },
                     ),
                   const SizedBox(height: 70),
