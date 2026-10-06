@@ -550,93 +550,108 @@ class _RaportyListScreenState extends ConsumerState<RaportyListScreen> {
                       ),
                     )
                   else
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: DataTable(
-                        sortColumnIndex: _sortCol,
-                        sortAscending: _asc,
-                        columns: [
-                          DataColumn(label: const Text('Data'), onSort: _onSort),
-                          DataColumn(label: const Text('Maszyna'), onSort: _onSort),
-                          DataColumn(label: const Text('Typ'), onSort: _onSort),
-                          DataColumn(label: const Text('Status'), onSort: _onSort),
-                          DataColumn(label: const Text('Osoba'), onSort: _onSort),
-                          DataColumn(label: const Text('Załączniki'), onSort: _onSort),
-                          DataColumn(label: const Text('Opis'), onSort: _onSort),
-                          const DataColumn(label: Text('Akcje')),
-                        ],
-                        rows: all.map((r) {
-                          final statusColor = _statusColor(r.status);
-                          return DataRow(
-                            cells: [
-                              DataCell(Text(_fmtDate(r.dataNaprawy))),
-                              DataCell(Text(_machineLabel(r))),
-                              DataCell(Text(r.typNaprawy)),
-                              DataCell(
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: statusColor.withOpacity(.12),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    r.status,
-                                    style: TextStyle(color: statusColor, fontWeight: FontWeight.w600),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        return SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                            child: Card(
+                              margin: EdgeInsets.zero,
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Center(
+                                  child: DataTable(
+                                    sortColumnIndex: _sortCol,
+                                    sortAscending: _asc,
+                                    columns: [
+                                      DataColumn(label: const Text('Data'), onSort: _onSort),
+                                      DataColumn(label: const Text('Maszyna'), onSort: _onSort),
+                                      DataColumn(label: const Text('Typ'), onSort: _onSort),
+                                      DataColumn(label: const Text('Status'), onSort: _onSort),
+                                      DataColumn(label: const Text('Osoba'), onSort: _onSort),
+                                      DataColumn(label: const Text('Załączniki'), onSort: _onSort),
+                                      DataColumn(label: const Text('Opis'), onSort: _onSort),
+                                      const DataColumn(label: Text('Akcje')),
+                                    ],
+                                    rows: all.map((r) {
+                                      final statusColor = _statusColor(r.status);
+                                      return DataRow(
+                                        cells: [
+                                          DataCell(Text(_fmtDate(r.dataNaprawy))),
+                                          DataCell(Text(_machineLabel(r))),
+                                          DataCell(Text(r.typNaprawy)),
+                                          DataCell(
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: statusColor.withOpacity(.12),
+                                                borderRadius: BorderRadius.circular(12),
+                                              ),
+                                              child: Text(
+                                                r.status,
+                                                style: TextStyle(color: statusColor, fontWeight: FontWeight.w600),
+                                              ),
+                                            ),
+                                          ),
+                                          DataCell(Text(r.osoba?.imieNazwisko ?? '-')),
+                                          DataCell(Text('${r.zdjecia.length}')),
+                                          DataCell(
+                                            SizedBox(
+                                              width: 280,
+                                              child: Text(
+                                                r.opis.isEmpty ? '(brak opisu)' : r.opis,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ),
+                                          DataCell(
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                IconButton(
+                                                  tooltip: 'Załączniki (${r.zdjecia.length})',
+                                                  icon: Icon(
+                                                    Icons.attach_file,
+                                                    color: r.zdjecia.isNotEmpty ? Colors.teal : Colors.orange,
+                                                  ),
+                                                  onPressed: () => _showAttachments(r),
+                                                ),
+                                                IconButton(
+                                                  tooltip: 'Dodaj zdjęcia',
+                                                  icon: const Icon(Icons.add_a_photo, color: Colors.teal),
+                                                  onPressed: () => _uploadZdjecia(r),
+                                                ),
+                                                IconButton(
+                                                  tooltip: 'Dodaj PDF',
+                                                  icon: const Icon(Icons.picture_as_pdf, color: Colors.redAccent),
+                                                  onPressed: () => _uploadPdf(r),
+                                                ),
+                                                IconButton(
+                                                  tooltip: 'Edytuj',
+                                                  icon: const Icon(Icons.edit_outlined),
+                                                  onPressed: () => _openEditDialog(r.id),
+                                                ),
+                                                if (isAdmin)
+                                                  IconButton(
+                                                    tooltip: 'Usuń raport',
+                                                    icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                                                    onPressed: () => _deleteRaport(r),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    }).toList(),
                                   ),
                                 ),
                               ),
-                              DataCell(Text(r.osoba?.imieNazwisko ?? '-')),
-                              DataCell(Text('${r.zdjecia.length}')),
-                              DataCell(
-                                SizedBox(
-                                  width: 280,
-                                  child: Text(
-                                    r.opis.isEmpty ? '(brak opisu)' : r.opis,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ),
-                              DataCell(
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      tooltip: 'Załączniki (${r.zdjecia.length})',
-                                      icon: Icon(
-                                        Icons.attach_file,
-                                        color: r.zdjecia.isNotEmpty ? Colors.teal : Colors.orange,
-                                      ),
-                                      onPressed: () => _showAttachments(r),
-                                    ),
-                                    IconButton(
-                                      tooltip: 'Dodaj zdjęcia',
-                                      icon: const Icon(Icons.add_a_photo, color: Colors.teal),
-                                      onPressed: () => _uploadZdjecia(r),
-                                    ),
-                                    IconButton(
-                                      tooltip: 'Dodaj PDF',
-                                      icon: const Icon(Icons.picture_as_pdf, color: Colors.redAccent),
-                                      onPressed: () => _uploadPdf(r),
-                                    ),
-                                    IconButton(
-                                      tooltip: 'Edytuj',
-                                      icon: const Icon(Icons.edit_outlined),
-                                      onPressed: () => _openEditDialog(r.id),
-                                    ),
-                                    if (isAdmin)
-                                      IconButton(
-                                        tooltip: 'Usuń raport',
-                                        icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                                        onPressed: () => _deleteRaport(r),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          );
-                        }).toList(),
-                      ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   const SizedBox(height: 70),
                 ],
