@@ -155,7 +155,7 @@ public class EnergyService {
 
         EnergyOverviewDTO overview = new EnergyOverviewDTO();
         overview.setZakresDni(normalizedDays);
-        overview.setBucketMinutes(15);
+        overview.setBucketMinutes(1);
         overview.setGeneratedAt(OffsetDateTime.now(ZoneOffset.UTC));
         overview.setScopeType(normalizedScope.name());
         overview.setScopeLabel(buildScopeLabel(normalizedScope, dzialId, maszynaId));
@@ -460,9 +460,8 @@ public class EnergyService {
             return BigDecimal.ZERO;
         }
 
-        List<EnergyHistoryPointDTO> points = EnergyAggregationUtils.aggregateHistory(windowReadings, 1);
-        return points.stream()
-                .map(EnergyHistoryPointDTO::getPowerKw)
+        return windowReadings.stream()
+                .map(EnergyReading::getPowerKw)
                 .filter(Objects::nonNull)
                 .max(BigDecimal::compareTo)
                 .orElse(BigDecimal.ZERO)

@@ -87,7 +87,7 @@ public class EnergyController {
             @RequestParam(name = "from", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam(name = "to", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @RequestParam(name = "days", defaultValue = "7") int days,
-            @RequestParam(name = "bucketMinutes", defaultValue = "5") int bucketMinutes) {
+            @RequestParam(name = "bucketMinutes", defaultValue = "1") int bucketMinutes) {
         return energyService.history(EnergyScopeType.from(scope), dzialId, maszynaId, from, to, days, bucketMinutes);
     }
 
@@ -98,7 +98,7 @@ public class EnergyController {
             @RequestParam(name = "dzialId", required = false) Long dzialId,
             @RequestParam(name = "maszynaId", required = false) Long maszynaId,
             @RequestParam(name = "days", defaultValue = "7") int days,
-            @RequestParam(name = "bucketMinutes", defaultValue = "5") int bucketMinutes) {
+            @RequestParam(name = "bucketMinutes", defaultValue = "1") int bucketMinutes) {
         EnergyScopeType scopeType = EnergyScopeType.from(scope);
         List<EnergyHistoryPointDTO> points = energyService.history(scopeType, dzialId, maszynaId, days, bucketMinutes);
         String csv = buildHistoryCsv(points);
@@ -118,7 +118,7 @@ public class EnergyController {
     public List<EnergyHistoryPointDTO> history(
             @PathVariable Long maszynaId,
             @RequestParam(name = "days", defaultValue = "7") int days,
-            @RequestParam(name = "bucketMinutes", defaultValue = "5") int bucketMinutes) {
+            @RequestParam(name = "bucketMinutes", defaultValue = "1") int bucketMinutes) {
         return energyService.history(EnergyScopeType.MASZYNA, null, maszynaId, days, bucketMinutes);
     }
 

@@ -92,7 +92,7 @@ class EnergiaApiRepository {
   Future<List<EnergyHistoryPoint>> fetchHistory({
     EnergyScope scope = EnergyScope.total,
     int days = 7,
-    int bucketMinutes = 15,
+    int bucketMinutes = 1,
     int? dzialId,
     int? maszynaId,
     DateTime? from,
@@ -119,7 +119,7 @@ class EnergiaApiRepository {
   Future<String> fetchHistoryCsv({
     EnergyScope scope = EnergyScope.total,
     int days = 7,
-    int bucketMinutes = 5,
+    int bucketMinutes = 1,
     int? dzialId,
     int? maszynaId,
   }) async {

@@ -88,7 +88,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
   void _startHistoryAutoRefresh() {
     _historyAutoRefreshTimer?.cancel();
     _historyAutoRefreshTimer = Timer.periodic(
-      const Duration(minutes: 5),
+      const Duration(minutes: 1),
       (_) {
         _reloadHistorySilently();
       },
@@ -177,7 +177,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
       final points = await repo.fetchHistory(
         scope: _scope,
         days: _selectedDays,
-        bucketMinutes: 5,
+        bucketMinutes: 1,
         dzialId: _scope == EnergyScope.dzial ? _selectedDzialId : null,
         maszynaId: _scope == EnergyScope.maszyna ? _selectedMaszynaId : null,
         from: _historyDateRange?.start,
@@ -209,7 +209,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
       final points = await repo.fetchHistory(
         scope: _scope,
         days: _selectedDays,
-        bucketMinutes: 5,
+        bucketMinutes: 1,
         dzialId: _scope == EnergyScope.dzial ? _selectedDzialId : null,
         maszynaId: _scope == EnergyScope.maszyna ? _selectedMaszynaId : null,
         from: _analysisDateRange!.start,
@@ -251,7 +251,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
             scopeType: _scope.apiValue,
             scopeLabel: _scope.label,
             zakresDni: _selectedDays,
-            bucketMinutes: 5,
+            bucketMinutes: 1,
             generatedAt: DateTime.now(),
             totalPowerKw: 0,
             todayEnergyKwh: 0,
@@ -311,7 +311,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
             scopeType: _scope.apiValue,
             scopeLabel: _scope.label,
             zakresDni: _selectedDays,
-            bucketMinutes: 5,
+            bucketMinutes: 1,
             generatedAt: DateTime.now(),
             totalPowerKw: 0,
             todayEnergyKwh: 0,
@@ -373,7 +373,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
       final points = await repo.fetchHistory(
         scope: _scope,
         days: _selectedDays,
-        bucketMinutes: 5,
+        bucketMinutes: 1,
         dzialId: _scope == EnergyScope.dzial ? _selectedDzialId : null,
         maszynaId: _scope == EnergyScope.maszyna ? _selectedMaszynaId : null,
         from: _historyDateRange?.start,
@@ -650,7 +650,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
       final csv = await repo.fetchHistoryCsv(
         scope: _scope,
         days: _selectedDays,
-        bucketMinutes: 5,
+        bucketMinutes: 1,
         dzialId: _scope == EnergyScope.dzial ? _selectedDzialId : null,
         maszynaId: _scope == EnergyScope.maszyna ? _selectedMaszynaId : null,
       );
@@ -802,7 +802,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
         scopeType: _scope.apiValue,
         scopeLabel: _scope.label,
         zakresDni: _selectedDays,
-        bucketMinutes: 5,
+        bucketMinutes: 1,
         generatedAt: DateTime.now(),
         totalPowerKw: 0,
         todayEnergyKwh: 0,
@@ -1290,7 +1290,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
                       ),
                       const SizedBox(height: 4),
                       const Text(
-                        'Moc chwilowa i lista maszyn odświeżają się live co kilka sekund. Historia zapisuje snapshoty co 5 minut.',
+                        'Moc chwilowa i lista maszyn odświeżają się live co kilka sekund. Historia zapisuje snapshoty co 1 minutę.',
                         style: TextStyle(fontSize: 12, color: Colors.black54),
                       ),
                     ],

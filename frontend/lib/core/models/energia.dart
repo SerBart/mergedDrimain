@@ -145,7 +145,7 @@ class EnergyOverview {
       scopeType: (json['scopeType'] ?? 'TOTAL').toString(),
       scopeLabel: (json['scopeLabel'] ?? 'Całość zakładu').toString(),
       zakresDni: (json['zakresDni'] as num?)?.toInt() ?? 1,
-      bucketMinutes: (json['bucketMinutes'] as num?)?.toInt() ?? 5,
+      bucketMinutes: (json['bucketMinutes'] as num?)?.toInt() ?? 1,
       generatedAt: rawDate != null ? DateTime.tryParse(rawDate) : null,
       totalPowerKw: (json['totalPowerKw'] as num?)?.toDouble() ?? 0.0,
       todayEnergyKwh: (json['todayEnergyKwh'] as num?)?.toDouble() ?? 0.0,
