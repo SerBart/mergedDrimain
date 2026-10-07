@@ -6,6 +6,7 @@ import '../../core/models/dzial.dart';
 import '../../core/models/harmonogram.dart';
 import '../../core/models/maszyna.dart';
 import '../../core/models/osoba.dart';
+import '../../core/models/sekcja.dart';
 import '../../core/providers/app_providers.dart';
 import '../../widgets/centered_scroll_card.dart';
 import '../../widgets/modern_date_picker.dart';
@@ -761,9 +762,12 @@ class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
   bool _applyToSeriesFuture = true;
   final List<PlatformFile> _selectedAttachments = [];
   Dzial? _selectedDzial;
+  Sekcja? _selectedSekcja;
   Maszyna? _selectedMaszyna;
   Osoba? _selectedOsoba;
   List<Maszyna> _maszynyDlaDzialu = [];
+  List<Sekcja> _sekcjeDlaDzialu = [];
+  List<Maszyna> _maszynyDlaSekcji = [];
 
   @override
   void initState() {
@@ -796,6 +800,7 @@ class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
         if (m.id == widget.initialMaszynaId) {
           _selectedMaszyna = m;
           if (_selectedDzial == null) _selectedDzial = m.dzial;
+          _selectedSekcja = m.sekcja;
           break;
         }
       }
@@ -809,11 +814,28 @@ class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
     } else {
       _maszynyDlaDzialu = widget.maszyny.where((m) => m.dzial?.id == _selectedDzial!.id).toList();
     }
-    if (_selectedMaszyna != null && !_maszynyDlaDzialu.any((m) => m.id == _selectedMaszyna!.id)) {
+
+    final sekcjeById = <int, Sekcja>{};
+    for (final m in _maszynyDlaDzialu) {
+      for (final s in m.sekcje) {
+        sekcjeById.putIfAbsent(s.id, () => s);
+      }
+    }
+    _sekcjeDlaDzialu = sekcjeById.values.toList()..sort((a, b) => a.nazwa.compareTo(b.nazwa));
+
+    if (_selectedSekcja != null && !_sekcjeDlaDzialu.any((s) => s.id == _selectedSekcja!.id)) {
+      _selectedSekcja = null;
+    }
+
+    _maszynyDlaSekcji = _selectedSekcja == null
+        ? List<Maszyna>.from(_maszynyDlaDzialu)
+        : _maszynyDlaDzialu.where((m) => m.sekcje.any((s) => s.id == _selectedSekcja!.id)).toList();
+
+    if (_selectedMaszyna != null && !_maszynyDlaSekcji.any((m) => m.id == _selectedMaszyna!.id)) {
       _selectedMaszyna = null;
     }
-    if (_selectedMaszyna == null && _maszynyDlaDzialu.isNotEmpty) {
-      _selectedMaszyna = _maszynyDlaDzialu.first;
+    if (_selectedMaszyna == null && _maszynyDlaSekcji.isNotEmpty) {
+      _selectedMaszyna = _maszynyDlaSekcji.first;
     }
   }
 
@@ -953,6 +975,20 @@ class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
               ],
               onChanged: (v) => setState(() {
                 _selectedDzial = v;
+                _selectedSekcja = null;
+                _refreshMaszyny();
+              }),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<Sekcja?>(
+              value: _selectedSekcja,
+              decoration: const InputDecoration(labelText: 'Sekcja', border: OutlineInputBorder()),
+              items: [
+                const DropdownMenuItem<Sekcja?>(value: null, child: Text('Brak')),
+                ..._sekcjeDlaDzialu.map((s) => DropdownMenuItem<Sekcja?>(value: s, child: Text(s.nazwa))),
+              ],
+              onChanged: (v) => setState(() {
+                _selectedSekcja = v;
                 _refreshMaszyny();
               }),
             ),
@@ -962,9 +998,16 @@ class _HarmonogramFormSheetState extends State<_HarmonogramFormSheet> {
               decoration: const InputDecoration(labelText: 'Maszyna', border: OutlineInputBorder()),
               items: [
                 const DropdownMenuItem<Maszyna?>(value: null, child: Text('Brak')),
-                ..._maszynyDlaDzialu.map((m) => DropdownMenuItem<Maszyna?>(value: m, child: Text(m.nazwa))),
+                ..._maszynyDlaSekcji.map((m) => DropdownMenuItem<Maszyna?>(value: m, child: Text(m.nazwa))),
               ],
-              onChanged: (v) => setState(() => _selectedMaszyna = v),
+              onChanged: (v) => setState(() {
+                _selectedMaszyna = v;
+                if (v == null) return;
+                if (_selectedSekcja != null && !v.sekcje.any((s) => s.id == _selectedSekcja!.id)) {
+                  _selectedSekcja = v.sekcja;
+                  _refreshMaszyny();
+                }
+              }),
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<Osoba?>(
