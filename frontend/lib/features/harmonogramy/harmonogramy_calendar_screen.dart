@@ -111,6 +111,13 @@ class _HarmonogramyCalendarScreenState extends ConsumerState<HarmonogramyCalenda
     return _freqColors[frequency.toUpperCase()] ?? Colors.blueGrey;
   }
 
+  bool _isCompleted(Harmonogram h) => h.status.trim().toUpperCase() == 'ZAKONCZONE';
+
+  String _statusAwareDesc(Harmonogram h) {
+    final base = _shortDesc(h);
+    return _isCompleted(h) ? '✓ Wykonane • $base' : base;
+  }
+
   BoxDecoration _dayDecoration(List<Harmonogram> events, bool isCurrentMonth) {
     final baseBorder = Border.all(color: Colors.black12);
     if (!isCurrentMonth) {
@@ -241,7 +248,7 @@ class _HarmonogramyCalendarScreenState extends ConsumerState<HarmonogramyCalenda
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
-                    subtitle: Text(_shortDesc(e)),
+                    subtitle: Text(_statusAwareDesc(e)),
                     trailing: IconButton(
                       tooltip: 'Usun',
                       icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
@@ -389,7 +396,7 @@ class _HarmonogramyCalendarScreenState extends ConsumerState<HarmonogramyCalenda
                                               mainAxisSize: MainAxisSize.min,
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: events.take(2).map((e) {
-                                                final c = _colorForFreq(e.frequency);
+                                                final c = _isCompleted(e) ? Colors.green : _colorForFreq(e.frequency);
                                                 return Padding(
                                                   padding: const EdgeInsets.only(top: 2),
                                                   child: Tooltip(
@@ -410,7 +417,7 @@ class _HarmonogramyCalendarScreenState extends ConsumerState<HarmonogramyCalenda
                                                         const SizedBox(width: 4),
                                                         Expanded(
                                                           child: Text(
-                                                            _shortDesc(e),
+                                                            _statusAwareDesc(e),
                                                             maxLines: 2,
                                                             overflow: TextOverflow.ellipsis,
                                                             style: const TextStyle(fontSize: 9.5, height: 1.05),
