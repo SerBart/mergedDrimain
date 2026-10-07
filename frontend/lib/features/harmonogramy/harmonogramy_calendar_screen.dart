@@ -113,6 +113,25 @@ class _HarmonogramyCalendarScreenState extends ConsumerState<HarmonogramyCalenda
 
   bool _isCompleted(Harmonogram h) => h.status.trim().toUpperCase() == 'ZAKONCZONE';
 
+  Widget _completedBadge({double fontSize = 8.0}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: Colors.green.shade700,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        'WYKONANE',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: fontSize,
+          fontWeight: FontWeight.w700,
+          height: 1.0,
+        ),
+      ),
+    );
+  }
+
   String _statusAwareDesc(Harmonogram h) {
     final base = _shortDesc(h);
     return _isCompleted(h) ? '✓ Wykonane • $base' : base;
@@ -132,6 +151,14 @@ class _HarmonogramyCalendarScreenState extends ConsumerState<HarmonogramyCalenda
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(8),
         border: baseBorder,
+      );
+    }
+
+    if (events.any(_isCompleted)) {
+      return BoxDecoration(
+        color: Colors.green.withOpacity(.10),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.green.shade700, width: 1.8),
       );
     }
 
@@ -248,7 +275,15 @@ class _HarmonogramyCalendarScreenState extends ConsumerState<HarmonogramyCalenda
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
-                    subtitle: Text(_statusAwareDesc(e)),
+                    subtitle: Row(
+                      children: [
+                        if (_isCompleted(e)) ...[
+                          _completedBadge(fontSize: 9),
+                          const SizedBox(width: 6),
+                        ],
+                        Expanded(child: Text(_shortDesc(e))),
+                      ],
+                    ),
                     trailing: IconButton(
                       tooltip: 'Usun',
                       icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
@@ -396,7 +431,8 @@ class _HarmonogramyCalendarScreenState extends ConsumerState<HarmonogramyCalenda
                                               mainAxisSize: MainAxisSize.min,
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: events.take(2).map((e) {
-                                                final c = _isCompleted(e) ? Colors.green : _colorForFreq(e.frequency);
+                                                final completed = _isCompleted(e);
+                                                final c = completed ? Colors.green.shade700 : _colorForFreq(e.frequency);
                                                 return Padding(
                                                   padding: const EdgeInsets.only(top: 2),
                                                   child: Tooltip(
@@ -415,12 +451,21 @@ class _HarmonogramyCalendarScreenState extends ConsumerState<HarmonogramyCalenda
                                                           ),
                                                         ),
                                                         const SizedBox(width: 4),
+                                                        if (completed) ...[
+                                                          _completedBadge(),
+                                                          const SizedBox(width: 4),
+                                                        ],
                                                         Expanded(
                                                           child: Text(
                                                             _statusAwareDesc(e),
                                                             maxLines: 2,
                                                             overflow: TextOverflow.ellipsis,
-                                                            style: const TextStyle(fontSize: 9.5, height: 1.05),
+                                                            style: TextStyle(
+                                                              fontSize: 9.5,
+                                                              height: 1.05,
+                                                              color: completed ? Colors.green.shade900 : null,
+                                                              fontWeight: completed ? FontWeight.w600 : FontWeight.w400,
+                                                            ),
                                                           ),
                                                         ),
                                                       ],
