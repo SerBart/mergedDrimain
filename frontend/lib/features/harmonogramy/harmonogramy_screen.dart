@@ -1,7 +1,10 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/constants/app_roles.dart';
 import '../../core/models/dzial.dart';
 import '../../core/models/harmonogram.dart';
 import '../../core/models/maszyna.dart';
@@ -202,6 +205,13 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
   }
 
   Future<void> _deleteItem(Harmonogram h) async {
+    final isAdmin = ref.read(authStateProvider)?.role == AppRoles.admin;
+    if (!isAdmin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tylko administrator może usuwać przeglądy.')),
+      );
+      return;
+    }
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -241,6 +251,225 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Błąd zmiany statusu: $e')));
     }
+  }
+
+  bool _isPdfUrl(String url) {
+    final lower = url.toLowerCase();
+    return lower.contains('.pdf') || lower.contains('application/pdf');
+  }
+
+  String _attachmentName(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri != null && uri.pathSegments.isNotEmpty) {
+      return Uri.decodeComponent(uri.pathSegments.last);
+    }
+    return url.replaceAll('\\', '/').split('/').last;
+  }
+
+  Future<void> _openAttachmentExternal(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nieprawidłowy adres załącznika.')),
+      );
+      return;
+    }
+
+    final ok = await launchUrl(uri, mode: LaunchMode.platformDefault);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nie udało się otworzyć załącznika.')),
+      );
+    }
+  }
+
+  Future<void> _deleteAttachment(Harmonogram h, String url) async {
+    setState(() => _loading = true);
+    try {
+      await ref.read(harmonogramyApiRepositoryProvider).deleteZalacznik(h.id, url);
+      await _loadAll();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Usunięto załącznik.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Błąd usuwania załącznika: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _showSingleAttachment(Harmonogram h, String url) async {
+    final isPdf = _isPdfUrl(url);
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(isPdf ? 'Plik PDF' : 'Załącznik'),
+        content: Text(_attachmentName(url)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Zamknij')),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _openAttachmentExternal(url);
+            },
+            child: Text(isPdf ? 'Otwórz PDF' : 'Otwórz'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _deleteAttachment(h, url);
+            },
+            child: const Text('Usuń', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showAttachments(Harmonogram h) async {
+    if (h.zalaczniki.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ten przegląd nie ma jeszcze załączników.')),
+      );
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Załączniki (${h.zalaczniki.length})'),
+        content: SizedBox(
+          width: 620,
+          height: 420,
+          child: ListView.builder(
+            itemCount: h.zalaczniki.length,
+            itemBuilder: (context, index) {
+              final url = h.zalaczniki[index];
+              final isPdf = _isPdfUrl(url);
+              return ListTile(
+                leading: Icon(isPdf ? Icons.picture_as_pdf : Icons.image, color: isPdf ? Colors.red : Colors.teal),
+                title: Text(_attachmentName(url), maxLines: 1, overflow: TextOverflow.ellipsis),
+                trailing: Wrap(
+                  spacing: 4,
+                  children: [
+                    IconButton(
+                      tooltip: isPdf ? 'Otwórz PDF' : 'Otwórz',
+                      icon: Icon(isPdf ? Icons.open_in_new : Icons.visibility),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _showSingleAttachment(h, url);
+                      },
+                    ),
+                    IconButton(
+                      tooltip: 'Usuń',
+                      icon: const Icon(Icons.delete, color: Colors.redAccent),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _deleteAttachment(h, url);
+                      },
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Zamknij')),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _uploadZdjecia(Harmonogram h) async {
+    final picker = ImagePicker();
+    final picked = await picker.pickMultiImage(imageQuality: 85);
+    if (picked.isEmpty) return;
+
+    setState(() => _loading = true);
+    try {
+      await ref.read(harmonogramyApiRepositoryProvider).uploadZdjecia(h.id, picked);
+      await _loadAll();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Dodano ${picked.length} zdjęć.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Błąd przesyłania zdjęć: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _uploadPdf(Harmonogram h) async {
+    final picked = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      type: FileType.custom,
+      allowedExtensions: const ['pdf'],
+      withData: true,
+    );
+    if (picked == null || picked.files.isEmpty) return;
+
+    final files = picked.files.where((f) => f.bytes != null && f.bytes!.isNotEmpty).toList();
+    if (files.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nie udało się odczytać wybranych PDF.')),
+      );
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      await ref.read(harmonogramyApiRepositoryProvider).uploadPdfFiles(h.id, files);
+      await _loadAll();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Dodano ${files.length} plik(i) PDF.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Błąd przesyłania PDF: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Widget _attachmentActionIcon(int count) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        const Icon(Icons.attach_file),
+        if (count > 0)
+          Positioned(
+            right: -5,
+            top: -4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              decoration: BoxDecoration(
+                color: Colors.teal,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              constraints: const BoxConstraints(minWidth: 16, minHeight: 14),
+              child: Text(
+                count > 99 ? '99+' : '$count',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
   void _toggleMultiSelectMode() {
@@ -289,6 +518,13 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
 
   Future<void> _deleteSelected() async {
     if (_selectedIds.isEmpty) return;
+    final isAdmin = ref.read(authStateProvider)?.role == AppRoles.admin;
+    if (!isAdmin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tylko administrator może usuwać przeglądy.')),
+      );
+      return;
+    }
     final count = _selectedIds.length;
     final ok = await showDialog<bool>(
       context: context,
@@ -414,6 +650,7 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isAdmin = ref.watch(authStateProvider)?.role == AppRoles.admin;
     final filtered = _sorted(_applyFilters());
     final totalPages = filtered.isEmpty ? 1 : (filtered.length / _pageSize).ceil();
     if (_page >= totalPages) {
@@ -543,10 +780,10 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                           const SizedBox(width: 8),
                           if (_multiSelectMode)
                             FilledButton.icon(
-                              onPressed: _selectedIds.isEmpty ? null : _deleteSelected,
+                              onPressed: (isAdmin && _selectedIds.isNotEmpty) ? _deleteSelected : null,
                               style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
                               icon: const Icon(Icons.delete_forever),
-                              label: Text('Usuń zaznaczone (${_selectedIds.length})'),
+                              label: Text(isAdmin ? 'Usuń zaznaczone (${_selectedIds.length})' : 'Usuwanie tylko dla admina'),
                             ),
                         ],
                       ),
@@ -607,6 +844,22 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       IconButton(
+                                        tooltip: 'Załączniki (${h.zalaczniki.length})',
+                                        icon: _attachmentActionIcon(h.zalaczniki.length),
+                                        color: h.zalaczniki.isNotEmpty ? Colors.teal : Colors.orange,
+                                        onPressed: () => _showAttachments(h),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Dodaj zdjęcia',
+                                        icon: const Icon(Icons.add_a_photo, color: Colors.teal),
+                                        onPressed: () => _uploadZdjecia(h),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Dodaj PDF',
+                                        icon: const Icon(Icons.picture_as_pdf, color: Colors.redAccent),
+                                        onPressed: () => _uploadPdf(h),
+                                      ),
+                                      IconButton(
                                         tooltip: 'Zmień status',
                                         icon: const Icon(Icons.playlist_add_check_circle_outlined),
                                         color: _statusColor(h.status),
@@ -614,14 +867,15 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                                       ),
                                       IconButton(
                                         tooltip: 'Edytuj',
-                                        icon: const Icon(Icons.edit, color: Colors.blueAccent),
+                                        icon: const Icon(Icons.edit_outlined),
                                         onPressed: () => _editItem(h),
                                       ),
-                                      IconButton(
-                                        tooltip: 'Usuń',
-                                        icon: const Icon(Icons.delete, color: Colors.redAccent),
-                                        onPressed: () => _deleteItem(h),
-                                      ),
+                                      if (isAdmin)
+                                        IconButton(
+                                          tooltip: 'Usuń przegląd',
+                                          icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                                          onPressed: () => _deleteItem(h),
+                                        ),
                                     ],
                                   )),
                                 ],

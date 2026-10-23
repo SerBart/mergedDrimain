@@ -14,6 +14,7 @@ class Harmonogram {
   final String? frequency; // TYGODNIOWY / MIESIECZNY / KWARTALNY / POLROCZNY / ROCZNY / DWULETNI / PIECIOLETNI
   final DateTime? planEndDate;
   final String? seriesId;
+  final List<String> zalaczniki;
 
   const Harmonogram({
     required this.id,
@@ -27,6 +28,7 @@ class Harmonogram {
     this.frequency,
     this.planEndDate,
     this.seriesId,
+    this.zalaczniki = const [],
   });
 
   factory Harmonogram.fromJson(Map<String, dynamic> json) {
@@ -48,6 +50,7 @@ class Harmonogram {
       frequency: json['frequency']?.toString(),
       planEndDate: _toDate(json['planEndDate']),
       seriesId: json['seriesId']?.toString(),
+      zalaczniki: _toStringList(json['zalaczniki']),
     );
   }
 
@@ -64,7 +67,16 @@ class Harmonogram {
       if (frequency != null) 'frequency': frequency,
       if (planEndDate != null) 'planEndDate': _formatDateOnly(planEndDate!),
       if (seriesId != null) 'seriesId': seriesId,
+      'zalaczniki': zalaczniki,
     };
+  }
+
+  static List<String> _toStringList(dynamic value) {
+    if (value is! List) return const [];
+    return value
+        .map((item) => item?.toString().trim() ?? '')
+        .where((item) => item.isNotEmpty)
+        .toList();
   }
 
   static Map<String, dynamic>? _toMap(dynamic value) {
