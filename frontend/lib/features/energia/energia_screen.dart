@@ -43,7 +43,8 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
   EnergyAnalysisRule _analysisRule = EnergyAnalysisRule.average;
   DateTimeRange? _analysisDateRange;
   DateTimeRange? _historyDateRange;
-  HistoryZoomPreset _historyZoomPreset = HistoryZoomPreset.all;
+  HistoryZoomPreset _historyZoomPreset = HistoryZoomPreset.h24;
+  HistorySamplingPreset _historySamplingPreset = HistorySamplingPreset.h1;
   bool _analysisLoading = false;
   List<EnergyHistoryPoint> _analysisHistory = const [];
   DateTime? _pinnedHistoryTimestamp;
@@ -177,7 +178,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
       final points = await repo.fetchHistory(
         scope: _scope,
         days: _selectedDays,
-        bucketMinutes: 1,
+        bucketMinutes: _historyBucketMinutes,
         dzialId: _scope == EnergyScope.dzial ? _selectedDzialId : null,
         maszynaId: _scope == EnergyScope.maszyna ? _selectedMaszynaId : null,
         from: _historyDateRange?.start,
@@ -209,7 +210,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
       final points = await repo.fetchHistory(
         scope: _scope,
         days: _selectedDays,
-        bucketMinutes: 1,
+        bucketMinutes: _historyBucketMinutes,
         dzialId: _scope == EnergyScope.dzial ? _selectedDzialId : null,
         maszynaId: _scope == EnergyScope.maszyna ? _selectedMaszynaId : null,
         from: _analysisDateRange!.start,
@@ -251,7 +252,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
             scopeType: _scope.apiValue,
             scopeLabel: _scope.label,
             zakresDni: _selectedDays,
-            bucketMinutes: 1,
+            bucketMinutes: _historyBucketMinutes,
             generatedAt: DateTime.now(),
             totalPowerKw: 0,
             todayEnergyKwh: 0,
@@ -311,7 +312,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
             scopeType: _scope.apiValue,
             scopeLabel: _scope.label,
             zakresDni: _selectedDays,
-            bucketMinutes: 1,
+            bucketMinutes: _historyBucketMinutes,
             generatedAt: DateTime.now(),
             totalPowerKw: 0,
             todayEnergyKwh: 0,
@@ -373,7 +374,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
       final points = await repo.fetchHistory(
         scope: _scope,
         days: _selectedDays,
-        bucketMinutes: 1,
+        bucketMinutes: _historyBucketMinutes,
         dzialId: _scope == EnergyScope.dzial ? _selectedDzialId : null,
         maszynaId: _scope == EnergyScope.maszyna ? _selectedMaszynaId : null,
         from: _historyDateRange?.start,
@@ -650,7 +651,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
       final csv = await repo.fetchHistoryCsv(
         scope: _scope,
         days: _selectedDays,
-        bucketMinutes: 1,
+        bucketMinutes: _historyBucketMinutes,
         dzialId: _scope == EnergyScope.dzial ? _selectedDzialId : null,
         maszynaId: _scope == EnergyScope.maszyna ? _selectedMaszynaId : null,
       );
@@ -778,12 +779,64 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
     });
   }
 
-  void _setHistoryZoom(HistoryZoomPreset preset) {
+  Future<void> _setHistoryZoom(HistoryZoomPreset preset) async {
     if (_historyZoomPreset == preset) return;
+    final previousSampling = _historySamplingPreset;
+    final adjustedSampling = _adjustSamplingForPreset(preset, _historySamplingPreset);
     setState(() {
       _historyZoomPreset = preset;
+      _historySamplingPreset = adjustedSampling;
       _pinnedHistoryTimestamp = null;
     });
+
+    if (previousSampling != adjustedSampling) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Dla zakresu "${preset.label}" minimalne próbkowanie to ${HistorySamplingPreset.h6.shortLabel}. Ustawiono automatycznie.',
+            ),
+          ),
+        );
+      }
+      await _reloadHistory();
+      await _reloadAnalysis(silent: true);
+    }
+  }
+
+  Future<void> _setHistorySampling(HistorySamplingPreset preset) async {
+    final adjusted = _adjustSamplingForPreset(_historyZoomPreset, preset);
+    if (_historySamplingPreset == adjusted) return;
+    setState(() {
+      _historySamplingPreset = adjusted;
+      _pinnedHistoryTimestamp = null;
+    });
+    await _reloadHistory();
+    await _reloadAnalysis(silent: true);
+  }
+
+  int get _historyBucketMinutes => _historySamplingPreset.minutes;
+
+  List<HistorySamplingPreset> get _allowedSamplingOptions {
+    return switch (_historyZoomPreset) {
+      HistoryZoomPreset.m15 => const [HistorySamplingPreset.m1, HistorySamplingPreset.m5, HistorySamplingPreset.m15],
+      HistoryZoomPreset.h1 => const [HistorySamplingPreset.m1, HistorySamplingPreset.m5, HistorySamplingPreset.m15, HistorySamplingPreset.m30, HistorySamplingPreset.h1],
+      HistoryZoomPreset.h6 => const [HistorySamplingPreset.m5, HistorySamplingPreset.m15, HistorySamplingPreset.m30, HistorySamplingPreset.h1, HistorySamplingPreset.h3, HistorySamplingPreset.h6],
+      HistoryZoomPreset.h24 => const [HistorySamplingPreset.m15, HistorySamplingPreset.m30, HistorySamplingPreset.h1, HistorySamplingPreset.h3, HistorySamplingPreset.h6, HistorySamplingPreset.h12, HistorySamplingPreset.h24],
+      HistoryZoomPreset.all => const [HistorySamplingPreset.h6, HistorySamplingPreset.h12, HistorySamplingPreset.h24],
+    };
+  }
+
+  HistorySamplingPreset _adjustSamplingForPreset(HistoryZoomPreset preset, HistorySamplingPreset requested) {
+    final allowed = switch (preset) {
+      HistoryZoomPreset.m15 => const [HistorySamplingPreset.m1, HistorySamplingPreset.m5, HistorySamplingPreset.m15],
+      HistoryZoomPreset.h1 => const [HistorySamplingPreset.m1, HistorySamplingPreset.m5, HistorySamplingPreset.m15, HistorySamplingPreset.m30, HistorySamplingPreset.h1],
+      HistoryZoomPreset.h6 => const [HistorySamplingPreset.m5, HistorySamplingPreset.m15, HistorySamplingPreset.m30, HistorySamplingPreset.h1, HistorySamplingPreset.h3, HistorySamplingPreset.h6],
+      HistoryZoomPreset.h24 => const [HistorySamplingPreset.m15, HistorySamplingPreset.m30, HistorySamplingPreset.h1, HistorySamplingPreset.h3, HistorySamplingPreset.h6, HistorySamplingPreset.h12, HistorySamplingPreset.h24],
+      HistoryZoomPreset.all => const [HistorySamplingPreset.h6, HistorySamplingPreset.h12, HistorySamplingPreset.h24],
+    };
+    if (allowed.contains(requested)) return requested;
+    return allowed.first;
   }
 
   void _dropSelectedMachineIfFilteredOut() {
@@ -802,7 +855,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
         scopeType: _scope.apiValue,
         scopeLabel: _scope.label,
         zakresDni: _selectedDays,
-        bucketMinutes: 1,
+        bucketMinutes: _historyBucketMinutes,
         generatedAt: DateTime.now(),
         totalPowerKw: 0,
         todayEnergyKwh: 0,
@@ -1009,8 +1062,11 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
 
   String get _historyRangeLabel {
     final range = _historyDateRange;
-    if (range == null) return 'Okres wykresu: wg szybkiego zakresu (1/7/30 dni).';
-    return 'Okres wykresu: ${_formatDateTime(range.start)} → ${_formatDateTime(range.end)}';
+    final sampling = _historySamplingPreset.shortLabel;
+    if (range == null) {
+      return 'Okres wykresu: wg szybkiego zakresu (${_historyZoomPreset.label}), próbkowanie: $sampling.';
+    }
+    return 'Okres wykresu: ${_formatDateTime(range.start)} → ${_formatDateTime(range.end)} | próbkowanie: $sampling';
   }
 
   String get _pinnedPointLabel {
@@ -1483,7 +1539,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
               ),
               const SizedBox(height: 12),
               AppCard(
-                title: 'Historia 5-minutowa',
+                title: 'Historia zużycia energii',
                 divided: true,
                 action: OutlinedButton.icon(
                   onPressed: _history.isEmpty || _historyExporting ? null : _exportHistoryCsv,
@@ -1537,6 +1593,32 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
                               ),
                             )
                             .toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: 320,
+                      child: DropdownButtonFormField<HistorySamplingPreset>(
+                        value: _historySamplingPreset,
+                        decoration: const InputDecoration(
+                          labelText: 'Częstotliwość snapshotów',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: _allowedSamplingOptions
+                            .map(
+                              (option) => DropdownMenuItem<HistorySamplingPreset>(
+                                value: option,
+                                child: Text(option.label),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: _historyLoading
+                            ? null
+                            : (selected) {
+                                if (selected == null) return;
+                                _setHistorySampling(selected);
+                              },
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -1598,7 +1680,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Ostatnie snapshoty 5-minutowe',
+                        'Ostatnie snapshoty (${_historySamplingPreset.shortLabel})',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 8),
@@ -2033,6 +2115,44 @@ enum HistoryZoomPreset {
         HistoryZoomPreset.h24 => const Duration(hours: 24),
         HistoryZoomPreset.all => null,
       };
+}
+
+enum HistorySamplingPreset {
+  m1,
+  m5,
+  m15,
+  m30,
+  h1,
+  h3,
+  h6,
+  h12,
+  h24;
+
+  int get minutes => switch (this) {
+        HistorySamplingPreset.m1 => 1,
+        HistorySamplingPreset.m5 => 5,
+        HistorySamplingPreset.m15 => 15,
+        HistorySamplingPreset.m30 => 30,
+        HistorySamplingPreset.h1 => 60,
+        HistorySamplingPreset.h3 => 180,
+        HistorySamplingPreset.h6 => 360,
+        HistorySamplingPreset.h12 => 720,
+        HistorySamplingPreset.h24 => 1440,
+      };
+
+  String get shortLabel => switch (this) {
+        HistorySamplingPreset.m1 => 'co 1m',
+        HistorySamplingPreset.m5 => 'co 5m',
+        HistorySamplingPreset.m15 => 'co 15m',
+        HistorySamplingPreset.m30 => 'co 30m',
+        HistorySamplingPreset.h1 => 'co 1h',
+        HistorySamplingPreset.h3 => 'co 3h',
+        HistorySamplingPreset.h6 => 'co 6h',
+        HistorySamplingPreset.h12 => 'co 12h',
+        HistorySamplingPreset.h24 => 'co 24h',
+      };
+
+  String get label => 'Snapshoty $shortLabel';
 }
 
 
