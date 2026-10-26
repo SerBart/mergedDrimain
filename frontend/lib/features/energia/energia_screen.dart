@@ -783,6 +783,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
     if (_historyZoomPreset == preset) return;
     final previousSampling = _historySamplingPreset;
     final adjustedSampling = _adjustSamplingForPreset(preset, _historySamplingPreset);
+    final minForPreset = _samplingOptionsForPreset(preset).first;
     setState(() {
       _historyZoomPreset = preset;
       _historySamplingPreset = adjustedSampling;
@@ -794,7 +795,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Dla zakresu "${preset.label}" minimalne próbkowanie to ${HistorySamplingPreset.h6.shortLabel}. Ustawiono automatycznie.',
+              'Dla zakresu "${preset.label}" minimalne próbkowanie to ${minForPreset.shortLabel}. Ustawiono automatycznie.',
             ),
           ),
         );
@@ -818,25 +819,25 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
   int get _historyBucketMinutes => _historySamplingPreset.minutes;
 
   List<HistorySamplingPreset> get _allowedSamplingOptions {
-    return switch (_historyZoomPreset) {
-      HistoryZoomPreset.m15 => const [HistorySamplingPreset.m1, HistorySamplingPreset.m5, HistorySamplingPreset.m15],
-      HistoryZoomPreset.h1 => const [HistorySamplingPreset.m1, HistorySamplingPreset.m5, HistorySamplingPreset.m15, HistorySamplingPreset.m30, HistorySamplingPreset.h1],
-      HistoryZoomPreset.h6 => const [HistorySamplingPreset.m5, HistorySamplingPreset.m15, HistorySamplingPreset.m30, HistorySamplingPreset.h1, HistorySamplingPreset.h3, HistorySamplingPreset.h6],
-      HistoryZoomPreset.h24 => const [HistorySamplingPreset.m15, HistorySamplingPreset.m30, HistorySamplingPreset.h1, HistorySamplingPreset.h3, HistorySamplingPreset.h6, HistorySamplingPreset.h12, HistorySamplingPreset.h24],
-      HistoryZoomPreset.all => const [HistorySamplingPreset.h6, HistorySamplingPreset.h12, HistorySamplingPreset.h24],
-    };
+    return _samplingOptionsForPreset(_historyZoomPreset);
   }
 
   HistorySamplingPreset _adjustSamplingForPreset(HistoryZoomPreset preset, HistorySamplingPreset requested) {
-    final allowed = switch (preset) {
+    final allowed = _samplingOptionsForPreset(preset);
+    if (allowed.contains(requested)) return requested;
+    return allowed.first;
+  }
+
+  List<HistorySamplingPreset> _samplingOptionsForPreset(HistoryZoomPreset preset) {
+    return switch (preset) {
       HistoryZoomPreset.m15 => const [HistorySamplingPreset.m1, HistorySamplingPreset.m5, HistorySamplingPreset.m15],
       HistoryZoomPreset.h1 => const [HistorySamplingPreset.m1, HistorySamplingPreset.m5, HistorySamplingPreset.m15, HistorySamplingPreset.m30, HistorySamplingPreset.h1],
       HistoryZoomPreset.h6 => const [HistorySamplingPreset.m5, HistorySamplingPreset.m15, HistorySamplingPreset.m30, HistorySamplingPreset.h1, HistorySamplingPreset.h3, HistorySamplingPreset.h6],
-      HistoryZoomPreset.h24 => const [HistorySamplingPreset.m15, HistorySamplingPreset.m30, HistorySamplingPreset.h1, HistorySamplingPreset.h3, HistorySamplingPreset.h6, HistorySamplingPreset.h12, HistorySamplingPreset.h24],
+      HistoryZoomPreset.h24 => const [HistorySamplingPreset.m5, HistorySamplingPreset.m15, HistorySamplingPreset.m30, HistorySamplingPreset.h1, HistorySamplingPreset.h3, HistorySamplingPreset.h6, HistorySamplingPreset.h12, HistorySamplingPreset.h24],
+      HistoryZoomPreset.d3 => const [HistorySamplingPreset.m15, HistorySamplingPreset.m30, HistorySamplingPreset.h1, HistorySamplingPreset.h3, HistorySamplingPreset.h6, HistorySamplingPreset.h12, HistorySamplingPreset.h24],
+      HistoryZoomPreset.d7 => const [HistorySamplingPreset.m30, HistorySamplingPreset.h1, HistorySamplingPreset.h3, HistorySamplingPreset.h6, HistorySamplingPreset.h12, HistorySamplingPreset.h24],
       HistoryZoomPreset.all => const [HistorySamplingPreset.h6, HistorySamplingPreset.h12, HistorySamplingPreset.h24],
     };
-    if (allowed.contains(requested)) return requested;
-    return allowed.first;
   }
 
   void _dropSelectedMachineIfFilteredOut() {
@@ -2098,6 +2099,8 @@ enum HistoryZoomPreset {
   h1,
   h6,
   h24,
+  d3,
+  d7,
   all;
 
   String get label => switch (this) {
@@ -2105,6 +2108,8 @@ enum HistoryZoomPreset {
         HistoryZoomPreset.h1 => '1h',
         HistoryZoomPreset.h6 => '6h',
         HistoryZoomPreset.h24 => '24h',
+        HistoryZoomPreset.d3 => '3d',
+        HistoryZoomPreset.d7 => '7d',
         HistoryZoomPreset.all => 'Calosc',
       };
 
@@ -2113,6 +2118,8 @@ enum HistoryZoomPreset {
         HistoryZoomPreset.h1 => const Duration(hours: 1),
         HistoryZoomPreset.h6 => const Duration(hours: 6),
         HistoryZoomPreset.h24 => const Duration(hours: 24),
+        HistoryZoomPreset.d3 => const Duration(days: 3),
+        HistoryZoomPreset.d7 => const Duration(days: 7),
         HistoryZoomPreset.all => null,
       };
 }
