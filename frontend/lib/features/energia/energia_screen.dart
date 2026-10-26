@@ -443,8 +443,12 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
     );
     if (picked == null) return;
 
+    final nextZoomPreset = _zoomPresetForDuration(picked.duration);
+    final nextSampling = _adjustSamplingForPreset(nextZoomPreset, _historySamplingPreset);
     setState(() {
       _historyDateRange = picked;
+      _historyZoomPreset = nextZoomPreset;
+      _historySamplingPreset = nextSampling;
       _pinnedHistoryTimestamp = null;
     });
     await _reloadHistory();
@@ -806,7 +810,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
   }
 
   Future<void> _setHistorySampling(HistorySamplingPreset preset) async {
-    final adjusted = _adjustSamplingForPreset(_historyZoomPreset, preset);
+    final adjusted = _adjustSamplingForCurrentRange(preset);
     if (_historySamplingPreset == adjusted) return;
     setState(() {
       _historySamplingPreset = adjusted;
@@ -819,7 +823,7 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
   int get _historyBucketMinutes => _historySamplingPreset.minutes;
 
   List<HistorySamplingPreset> get _allowedSamplingOptions {
-    return _samplingOptionsForPreset(_historyZoomPreset);
+    return _samplingOptionsForWindow(_effectiveHistoryWindow);
   }
 
   HistorySamplingPreset _adjustSamplingForPreset(HistoryZoomPreset preset, HistorySamplingPreset requested) {
@@ -828,16 +832,58 @@ class _EnergiaScreenState extends ConsumerState<EnergiaScreen> with WidgetsBindi
     return allowed.first;
   }
 
+  HistorySamplingPreset _adjustSamplingForCurrentRange(HistorySamplingPreset requested) {
+    final allowed = _samplingOptionsForWindow(_effectiveHistoryWindow);
+    if (allowed.contains(requested)) return requested;
+    return allowed.first;
+  }
+
+  Duration? get _effectiveHistoryWindow {
+    final range = _historyDateRange;
+    if (range == null) return _historyZoomPreset.window;
+    return range.duration;
+  }
+
   List<HistorySamplingPreset> _samplingOptionsForPreset(HistoryZoomPreset preset) {
-    return switch (preset) {
-      HistoryZoomPreset.m15 => const [HistorySamplingPreset.m1, HistorySamplingPreset.m5, HistorySamplingPreset.m15],
-      HistoryZoomPreset.h1 => const [HistorySamplingPreset.m1, HistorySamplingPreset.m5, HistorySamplingPreset.m15, HistorySamplingPreset.m30, HistorySamplingPreset.h1],
-      HistoryZoomPreset.h6 => const [HistorySamplingPreset.m5, HistorySamplingPreset.m15, HistorySamplingPreset.m30, HistorySamplingPreset.h1, HistorySamplingPreset.h3, HistorySamplingPreset.h6],
-      HistoryZoomPreset.h24 => const [HistorySamplingPreset.m5, HistorySamplingPreset.m15, HistorySamplingPreset.m30, HistorySamplingPreset.h1, HistorySamplingPreset.h3, HistorySamplingPreset.h6, HistorySamplingPreset.h12, HistorySamplingPreset.h24],
-      HistoryZoomPreset.d3 => const [HistorySamplingPreset.m15, HistorySamplingPreset.m30, HistorySamplingPreset.h1, HistorySamplingPreset.h3, HistorySamplingPreset.h6, HistorySamplingPreset.h12, HistorySamplingPreset.h24],
-      HistoryZoomPreset.d7 => const [HistorySamplingPreset.m30, HistorySamplingPreset.h1, HistorySamplingPreset.h3, HistorySamplingPreset.h6, HistorySamplingPreset.h12, HistorySamplingPreset.h24],
-      HistoryZoomPreset.all => const [HistorySamplingPreset.h6, HistorySamplingPreset.h12, HistorySamplingPreset.h24],
-    };
+    return _samplingOptionsForWindow(preset.window);
+  }
+
+  List<HistorySamplingPreset> _samplingOptionsForWindow(Duration? window) {
+    if (window == null) {
+      return const [HistorySamplingPreset.h6, HistorySamplingPreset.h12, HistorySamplingPreset.h24];
+    }
+
+    final minutes = window.inMinutes;
+    if (minutes <= 15) {
+      return const [HistorySamplingPreset.m1, HistorySamplingPreset.m5, HistorySamplingPreset.m15];
+    }
+    if (minutes <= 60) {
+      return const [HistorySamplingPreset.m1, HistorySamplingPreset.m5, HistorySamplingPreset.m15, HistorySamplingPreset.m30, HistorySamplingPreset.h1];
+    }
+    if (minutes <= 6 * 60) {
+      return const [HistorySamplingPreset.m5, HistorySamplingPreset.m15, HistorySamplingPreset.m30, HistorySamplingPreset.h1, HistorySamplingPreset.h3, HistorySamplingPreset.h6];
+    }
+    if (minutes <= 24 * 60) {
+      return const [HistorySamplingPreset.m5, HistorySamplingPreset.m15, HistorySamplingPreset.m30, HistorySamplingPreset.h1, HistorySamplingPreset.h3, HistorySamplingPreset.h6, HistorySamplingPreset.h12, HistorySamplingPreset.h24];
+    }
+    if (minutes <= 3 * 24 * 60) {
+      return const [HistorySamplingPreset.m15, HistorySamplingPreset.m30, HistorySamplingPreset.h1, HistorySamplingPreset.h3, HistorySamplingPreset.h6, HistorySamplingPreset.h12, HistorySamplingPreset.h24];
+    }
+    if (minutes <= 7 * 24 * 60) {
+      return const [HistorySamplingPreset.m30, HistorySamplingPreset.h1, HistorySamplingPreset.h3, HistorySamplingPreset.h6, HistorySamplingPreset.h12, HistorySamplingPreset.h24];
+    }
+    return const [HistorySamplingPreset.h6, HistorySamplingPreset.h12, HistorySamplingPreset.h24];
+  }
+
+  HistoryZoomPreset _zoomPresetForDuration(Duration duration) {
+    final minutes = duration.inMinutes;
+    if (minutes <= 15) return HistoryZoomPreset.m15;
+    if (minutes <= 60) return HistoryZoomPreset.h1;
+    if (minutes <= 6 * 60) return HistoryZoomPreset.h6;
+    if (minutes <= 24 * 60) return HistoryZoomPreset.h24;
+    if (minutes <= 3 * 24 * 60) return HistoryZoomPreset.d3;
+    if (minutes <= 7 * 24 * 60) return HistoryZoomPreset.d7;
+    return HistoryZoomPreset.all;
   }
 
   void _dropSelectedMachineIfFilteredOut() {
