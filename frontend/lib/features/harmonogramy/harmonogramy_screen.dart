@@ -234,17 +234,129 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
     }
   }
 
-  Future<void> _quickToggleStatus(Harmonogram h) async {
+  Future<void> _pickStatus(Harmonogram h) async {
+    const options = <String>[
+      'PLANOWANE',
+      'W_TRAKCIE',
+      'NIEWYKONANE',
+      'BRAK_CZESCI',
+      'OCZEKIWANIE_NA_CZESC',
+      'ZAKONCZONE',
+    ];
     final current = h.status.toUpperCase();
-    final next = switch (current) {
-      'PLANOWANE' => 'W_TRAKCIE',
-      'W_TRAKCIE' => 'ZAKONCZONE',
-      _ => 'PLANOWANE',
-    };
+    var selected = options.contains(current) ? current : 'PLANOWANE';
+    final reasonCtrl = TextEditingController();
+
+    final chosen = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Zmień status przeglądu'),
+        content: StatefulBuilder(
+          builder: (ctx, setLocal) {
+            final requiresReason = selected == 'NIEWYKONANE';
+            final canSave = !requiresReason || reasonCtrl.text.trim().isNotEmpty;
+            return SizedBox(
+              width: 420,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ...options.map(
+                      (status) => RadioListTile<String>(
+                        value: status,
+                        groupValue: selected,
+                        activeColor: _statusColor(status),
+                        title: Text(_statusLabel(status)),
+                        onChanged: (v) {
+                          if (v == null) return;
+                          setLocal(() => selected = v);
+                        },
+                      ),
+                    ),
+                    if (requiresReason) ...[
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: reasonCtrl,
+                        minLines: 2,
+                        maxLines: 4,
+                        decoration: const InputDecoration(
+                          labelText: 'Powód niewykonania *',
+                          hintText: 'Wpisz powód, dlaczego przegląd jest niewykonany',
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (_) => setLocal(() {}),
+                      ),
+                      const SizedBox(height: 6),
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'To pole jest wymagane dla statusu "Niewykonane".',
+                          style: TextStyle(fontSize: 12, color: Colors.black54),
+                        ),
+                      ),
+                    ],
+                    if (!canSave)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Uzupełnij powód, aby zapisać status.',
+                            style: TextStyle(color: Colors.redAccent, fontSize: 12),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Anuluj')),
+          FilledButton(
+            onPressed: () {
+              if (selected == 'NIEWYKONANE' && reasonCtrl.text.trim().isEmpty) return;
+              Navigator.of(ctx).pop({
+                'status': selected,
+                'reason': reasonCtrl.text.trim(),
+              });
+            },
+            child: const Text('Zapisz'),
+          ),
+        ],
+      ),
+    );
+    reasonCtrl.dispose();
+    if (chosen == null) return;
+
+    final chosenStatus = chosen['status'] ?? current;
+    final reason = (chosen['reason'] ?? '').trim();
+    if (chosenStatus == current) return;
+
+    String? updatedOpis;
+    if (chosenStatus == 'NIEWYKONANE') {
+      if (reason.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Podaj powód niewykonania.')),
+        );
+        return;
+      }
+      final prefix = 'Powód niewykonania:';
+      final reasonLine = '$prefix $reason';
+      final baseOpis = h.opis.trim();
+      updatedOpis = baseOpis.isEmpty ? reasonLine : '$baseOpis\n$reasonLine';
+    }
+
     try {
-      await ref.read(harmonogramyApiRepositoryProvider).update(id: h.id, status: next);
+      await ref.read(harmonogramyApiRepositoryProvider).update(
+            id: h.id,
+            status: chosenStatus,
+            opis: updatedOpis,
+          );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Zmieniono status na ${_statusLabel(next)}')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Zmieniono status na ${_statusLabel(chosenStatus)}')));
       }
       await _loadAll();
     } catch (e) {
@@ -749,6 +861,7 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                             _statusFilterChip('WSZYSTKIE'),
                             _statusFilterChip('PLANOWANE'),
                             _statusFilterChip('W_TRAKCIE'),
+                            _statusFilterChip('NIEWYKONANE'),
                             _statusFilterChip('ZAKONCZONE'),
                             _statusFilterChip('BRAK_CZESCI'),
                             _statusFilterChip('OCZEKIWANIE_NA_CZESC'),
@@ -863,7 +976,7 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
                                         tooltip: 'Zmień status',
                                         icon: const Icon(Icons.playlist_add_check_circle_outlined),
                                         color: _statusColor(h.status),
-                                        onPressed: () => _quickToggleStatus(h),
+                                        onPressed: () => _pickStatus(h),
                                       ),
                                       IconButton(
                                         tooltip: 'Edytuj',
@@ -925,6 +1038,8 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
         return Colors.indigo;
       case 'W_TRAKCIE':
         return Colors.orange;
+      case 'NIEWYKONANE':
+        return Colors.deepOrange;
       case 'ZAKONCZONE':
         return Colors.green;
       case 'BRAK_CZESCI':
@@ -942,6 +1057,8 @@ class _HarmonogramyScreenState extends ConsumerState<HarmonogramyScreen> {
         return 'Planowane';
       case 'W_TRAKCIE':
         return 'W trakcie';
+      case 'NIEWYKONANE':
+        return 'Niewykonane';
       case 'ZAKONCZONE':
         return 'Zakończone';
       case 'BRAK_CZESCI':

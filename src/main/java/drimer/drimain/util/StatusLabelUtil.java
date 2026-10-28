@@ -21,6 +21,7 @@ public final class StatusLabelUtil {
         HARMONOGRAM_LABELS.put(StatusHarmonogramu.W_TRAKCIE, "W trakcie");
         HARMONOGRAM_LABELS.put(StatusHarmonogramu.BRAK_CZESCI, "Brak części");
         HARMONOGRAM_LABELS.put(StatusHarmonogramu.OCZEKIWANIE_NA_CZESC, "Oczekiwanie na część");
+        HARMONOGRAM_LABELS.put(StatusHarmonogramu.NIEWYKONANE, "Niewykonane");
         HARMONOGRAM_LABELS.put(StatusHarmonogramu.ZAKONCZONE, "Zakończone");
 
         ZGLOSZENIE_LABELS.put(StatusZgloszenia.NOWE, "Nowe");

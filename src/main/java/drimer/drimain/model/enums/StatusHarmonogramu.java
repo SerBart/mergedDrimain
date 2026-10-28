@@ -9,12 +9,13 @@ public enum StatusHarmonogramu {
     W_TRAKCIE,
     BRAK_CZESCI,
     OCZEKIWANIE_NA_CZESC,
+    NIEWYKONANE,
     ZAKONCZONE;
 
     /**
      * Czy status oznacza zakończenie procesu.
      */
     public boolean isFinal() {
-        return this == ZAKONCZONE;
+        return this == ZAKONCZONE || this == NIEWYKONANE;
     }
 }
