@@ -10,7 +10,7 @@ RUN sed -i 's/\r$//' mvnw || true \
 
 # Runtime stage (slim JRE)
 FROM eclipse-temurin:17-jre
-ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0"
+ENV JAVA_TOOL_OPTIONS="-Xms128m -Xmx512m -XX:+UseG1GC -XX:+UseStringDeduplication -XX:MaxRAMPercentage=40.0"
 WORKDIR /app
 # copy built jar
 COPY --from=build /workspace/target/driMain-1.0.0.jar /app/app.jar
